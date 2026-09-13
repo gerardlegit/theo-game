@@ -36,4 +36,14 @@ en 2 minutes, sans rien installer.
 3. Dans `index.html` (la page d'accueil), remplace une des cartes "Bientôt" par un
    lien `<a class="card ..." href="jeux/coloriage/index.html">` en t'inspirant de
    la carte "Mémo Animaux".
-4. Redéploie (glisser-déposer à nouveau sur Netlify, ou push sur GitHub).
+4. Pour donner à ton jeu un classement mondial, importe simplement
+   `shared/leaderboard.js` (voir FIREBASE-SETUP.md, section "Ajouter le
+   classement à un futur jeu").
+5. Redéploie (glisser-déposer à nouveau sur Netlify, ou push sur GitHub).
+
+## Classement mondial (Firebase)
+
+Le site inclut un classement mondial partagé par tous les jeux (dossier
+`shared/`). Pour l'activer, suis le guide **FIREBASE-SETUP.md** à la racine
+du projet — 10 minutes, gratuit, à faire une seule fois pour que tous les
+jeux (actuels et futurs) en profitent.

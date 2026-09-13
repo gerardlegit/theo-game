@@ -1,3 +1,6 @@
+import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
+
+const GAME_ID = "memory";
 const ANIMALS = ['🐶','🐱','🦊','🐼','🦁','🐸','🐵','🐨'];
 
 const board = document.getElementById('board');
@@ -5,12 +8,17 @@ const movesEl = document.getElementById('moves');
 const foundEl = document.getElementById('found');
 const winBanner = document.getElementById('winBanner');
 const winStats = document.getElementById('winStats');
+const scoreForm = document.getElementById('scoreForm');
+const pseudoInput = document.getElementById('pseudoInput');
+const scoreSaved = document.getElementById('scoreSaved');
+const leaderboardList = document.getElementById('leaderboardList');
 
 let cards = [];
 let flipped = [];
 let matched = 0;
 let moves = 0;
 let lock = false;
+let finalMoves = null;
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -28,6 +36,7 @@ function buildBoard() {
   matched = 0;
   moves = 0;
   lock = false;
+  finalMoves = null;
   movesEl.textContent = '0';
   foundEl.textContent = '0';
   winBanner.classList.remove('show');
@@ -71,8 +80,8 @@ function onTileClick(tile) {
         flipped = [];
         lock = false;
         if (matched === ANIMALS.length) {
-          winStats.textContent = `Terminé en ${moves} coups !`;
-          winBanner.classList.add('show');
+          finalMoves = moves;
+          showWin();
         }
       }, 500);
     } else {
@@ -86,7 +95,82 @@ function onTileClick(tile) {
   }
 }
 
+function showWin() {
+  winStats.textContent = `Terminé en ${finalMoves} coups !`;
+  scoreForm.style.display = 'block';
+  scoreSaved.style.display = 'none';
+  scoreSaved.style.color = 'var(--green)';
+  pseudoInput.value = '';
+  winBanner.classList.add('show');
+}
+
 document.getElementById('restart').addEventListener('click', buildBoard);
 document.getElementById('playAgain').addEventListener('click', buildBoard);
 
+/* ---------- Classement mondial ---------- */
+async function renderLeaderboard() {
+  if (!isLeaderboardConfigured()) {
+    leaderboardList.innerHTML =
+      '<li class="leaderboard-empty" style="display:block;">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l\'administrateur).</li>';
+    return;
+  }
+
+  leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Chargement…</li>';
+  const list = await fetchTopScores(GAME_ID, 20);
+  leaderboardList.innerHTML = '';
+
+  if (list.length === 0) {
+    leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement mondial !</li>';
+    return;
+  }
+
+  list.forEach((entry, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="rank">${i + 1}</span>
+      <span class="lb-name">${escapeHtml(entry.name)}</span>
+      <span class="lb-time">${entry.value} coups</span>
+    `;
+    leaderboardList.appendChild(li);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('saveScore').addEventListener('click', async () => {
+  const name = pseudoInput.value.trim();
+  if (!name) {
+    pseudoInput.focus();
+    return;
+  }
+  const saveBtn = document.getElementById('saveScore');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Envoi…';
+  const ok = await submitScore(GAME_ID, name, finalMoves);
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Enregistrer mon score';
+
+  if (ok) {
+    scoreForm.style.display = 'none';
+    scoreSaved.textContent = 'Score enregistré ! 🎉';
+    scoreSaved.style.color = 'var(--green)';
+    scoreSaved.style.display = 'block';
+    renderLeaderboard();
+  } else {
+    scoreSaved.textContent = "Oups, l'enregistrement a échoué. Réessaie !";
+    scoreSaved.style.color = 'var(--red)';
+    scoreSaved.style.display = 'block';
+  }
+});
+
+document.getElementById('skipScore').addEventListener('click', () => {
+  scoreForm.style.display = 'none';
+});
+
+/* ---------- Démarrage ---------- */
+renderLeaderboard();
 buildBoard();

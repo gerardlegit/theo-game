@@ -1,6 +1,7 @@
+import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
+
+const GAME_ID = "drapeaux";
 const BOARD_SIZE = 64;
-const LEADERBOARD_KEY = 'drapeaux-leaderboard';
-const LEADERBOARD_MAX = 20;
 
 const board = document.getElementById('board');
 const foundEl = document.getElementById('found');
@@ -223,38 +224,23 @@ function showWin() {
   launchConfetti();
 }
 
-function getLeaderboard() {
-  try {
-    const raw = localStorage.getItem(LEADERBOARD_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
+async function addScore(name, seconds) {
+  return submitScore(GAME_ID, name, seconds);
+}
+
+async function renderLeaderboard() {
+  if (!isLeaderboardConfigured()) {
+    leaderboardList.innerHTML =
+      '<li class="leaderboard-empty" style="display:block;">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l\'administrateur).</li>';
+    return;
   }
-}
 
-function saveLeaderboard(list) {
-  try {
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list));
-  } catch (e) {
-    /* stockage indisponible, on ignore silencieusement */
-  }
-}
-
-function addScore(name, seconds) {
-  const list = getLeaderboard();
-  list.push({ name, seconds, date: new Date().toISOString() });
-  list.sort((a, b) => a.seconds - b.seconds);
-  const trimmed = list.slice(0, LEADERBOARD_MAX);
-  saveLeaderboard(trimmed);
-  renderLeaderboard();
-}
-
-function renderLeaderboard() {
-  const list = getLeaderboard();
+  leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Chargement…</li>';
+  const list = await fetchTopScores(GAME_ID, 20);
   leaderboardList.innerHTML = '';
 
   if (list.length === 0) {
-    leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement !</li>';
+    leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement mondial !</li>';
     return;
   }
 
@@ -263,7 +249,7 @@ function renderLeaderboard() {
     li.innerHTML = `
       <span class="rank">${i + 1}</span>
       <span class="lb-name">${escapeHtml(entry.name)}</span>
-      <span class="lb-time">${formatTime(entry.seconds)}</span>
+      <span class="lb-time">${formatTime(entry.value)}</span>
     `;
     leaderboardList.appendChild(li);
   });
@@ -275,15 +261,29 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-document.getElementById('saveScore').addEventListener('click', () => {
+document.getElementById('saveScore').addEventListener('click', async () => {
   const name = pseudoInput.value.trim();
   if (!name) {
     pseudoInput.focus();
     return;
   }
-  addScore(name, finalTime);
-  scoreForm.style.display = 'none';
-  scoreSaved.style.display = 'block';
+  const saveBtn = document.getElementById('saveScore');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Envoi…';
+  const ok = await addScore(name, finalTime);
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Enregistrer mon score';
+
+  if (ok) {
+    scoreForm.style.display = 'none';
+    scoreSaved.style.display = 'block';
+    renderLeaderboard();
+  } else {
+    feedback.textContent = '';
+    scoreSaved.textContent = "Oups, l'enregistrement a échoué. Réessaie !";
+    scoreSaved.style.display = 'block';
+    scoreSaved.style.color = 'var(--red)';
+  }
 });
 
 document.getElementById('skipScore').addEventListener('click', () => {

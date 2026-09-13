@@ -185,6 +185,10 @@ body {
   color: #9089a8;
   padding: 1rem 0;
 }
+.leaderboard-empty a { color: var(--sky); }
+.leaderboard-list li.lb-me {
+  box-shadow: 0 0 0 2px var(--green) inset;
+}
 
 @media (max-width: 900px) {
   .game-layout { flex-direction: column; align-items: stretch; }
