@@ -30,12 +30,12 @@ dizaines de milliers de lectures/écritures par jour).
 
 ```js
 const firebaseConfig = {
-  apiKey: "AIzaSyDtzASxH9o2FmxMESZ6GfGM0kuReWSzYis",
-  authDomain: "cabane-a-jeux-238cc.firebaseapp.com",
-  projectId: "cabane-a-jeux-238cc",
-  storageBucket: "cabane-a-jeux-238cc.firebasestorage.app",
-  messagingSenderId: "351077499665",
-  appId: "1:351077499665:web:7cd13cba7aaf1d2ab042b0"
+  apiKey: "AIzaSy...",
+  authDomain: "cabane-a-jeux.firebaseapp.com",
+  projectId: "cabane-a-jeux",
+  storageBucket: "cabane-a-jeux.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef123456",
 };
 ```
 

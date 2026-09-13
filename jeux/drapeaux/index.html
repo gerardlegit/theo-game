@@ -21,6 +21,7 @@
   <section class="hud">
     <div class="hud-item">⏱️ <span id="timer">00:00</span></div>
     <div class="hud-item">Trouvés : <span id="found">0</span> / 64</div>
+    <div class="hud-item">❌ <span id="wrongCount">0</span> erreur(s)</div>
     <div class="progress-track">
       <div class="progress-fill" id="progressFill"></div>
     </div>
@@ -32,8 +33,9 @@
 
     <aside class="leaderboard" id="leaderboard">
       <h2>🏆 Classement</h2>
-      <p class="leaderboard-sub">Top 20 mondial des meilleurs temps</p>
+      <p class="leaderboard-sub">Top 20 mondial (moins de points, c'est mieux !)</p>
       <ol class="leaderboard-list" id="leaderboardList"></ol>
+      <p class="leaderboard-note">🧮 Score = 1 point par seconde + 10 points par mauvaise réponse.</p>
     </aside>
   </div>
 

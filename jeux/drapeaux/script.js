@@ -7,6 +7,7 @@ const board = document.getElementById('board');
 const foundEl = document.getElementById('found');
 const progressFill = document.getElementById('progressFill');
 const timerEl = document.getElementById('timer');
+const wrongEl = document.getElementById('wrongCount');
 
 const quizOverlay = document.getElementById('quizOverlay');
 const quizFlag = document.getElementById('quizFlag');
@@ -37,6 +38,11 @@ let busy = false;
 let elapsedSeconds = 0;
 let timerInterval = null;
 let finalTime = null;
+let wrongAnswers = 0;
+let finalScore = null;
+
+const POINTS_PER_SECOND = 1;
+const POINTS_PER_WRONG_ANSWER = 10;
 
 function flagHtml(code, square) {
   const cls = square ? `fi fi-${code.toLowerCase()} fis` : `fi fi-${code.toLowerCase()}`;
@@ -81,6 +87,9 @@ function buildBoard() {
   board.innerHTML = '';
   found = new Set();
   finalTime = null;
+  finalScore = null;
+  wrongAnswers = 0;
+  wrongEl.textContent = '0';
   boardCountries = shuffle(COUNTRIES).slice(0, BOARD_SIZE);
   updateHud();
   startTimer();
@@ -161,6 +170,9 @@ function onAnswer(btn, chosen) {
     currentTile.classList.add('shake');
     setTimeout(() => currentTile.classList.remove('shake'), 500);
 
+    wrongAnswers += 1;
+    wrongEl.textContent = String(wrongAnswers);
+
     setTimeout(() => {
       quizOverlay.classList.remove('show');
       busy = false;
@@ -186,6 +198,7 @@ document.getElementById('closeSheet').addEventListener('click', () => {
   busy = false;
   if (found.size === BOARD_SIZE) {
     finalTime = elapsedSeconds;
+    finalScore = finalTime * POINTS_PER_SECOND + wrongAnswers * POINTS_PER_WRONG_ANSWER;
     stopTimer();
     setTimeout(() => showWin(), 300);
   }
@@ -216,7 +229,13 @@ function launchConfetti() {
 
 /* ---------- Victoire + classement ---------- */
 function showWin() {
-  winTime.textContent = `Tu as trouvé les 64 drapeaux en ${formatTime(finalTime)} !`;
+  const wrongLabel = wrongAnswers === 0
+    ? 'aucune erreur'
+    : wrongAnswers === 1
+      ? '1 erreur'
+      : `${wrongAnswers} erreurs`;
+  winTime.textContent =
+    `Trouvé en ${formatTime(finalTime)} avec ${wrongLabel} → Score : ${finalScore} points !`;
   scoreForm.style.display = 'block';
   scoreSaved.style.display = 'none';
   pseudoInput.value = '';
@@ -224,8 +243,8 @@ function showWin() {
   launchConfetti();
 }
 
-async function addScore(name, seconds) {
-  return submitScore(GAME_ID, name, seconds);
+async function addScore(name, points) {
+  return submitScore(GAME_ID, name, points);
 }
 
 async function renderLeaderboard() {
@@ -249,7 +268,7 @@ async function renderLeaderboard() {
     li.innerHTML = `
       <span class="rank">${i + 1}</span>
       <span class="lb-name">${escapeHtml(entry.name)}</span>
-      <span class="lb-time">${formatTime(entry.value)}</span>
+      <span class="lb-time">${entry.value} pts</span>
     `;
     leaderboardList.appendChild(li);
   });
@@ -270,7 +289,7 @@ document.getElementById('saveScore').addEventListener('click', async () => {
   const saveBtn = document.getElementById('saveScore');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Envoi…';
-  const ok = await addScore(name, finalTime);
+  const ok = await addScore(name, finalScore);
   saveBtn.disabled = false;
   saveBtn.textContent = 'Enregistrer mon score';
 
