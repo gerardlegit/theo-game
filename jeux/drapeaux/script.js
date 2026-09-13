@@ -22,6 +22,11 @@ let currentCountry = null;
 let currentTile = null;
 let busy = false;
 
+function flagHtml(code, square) {
+  const cls = square ? `fi fi-${code.toLowerCase()} fis` : `fi fi-${code.toLowerCase()}`;
+  return `<span class="${cls}" aria-hidden="true"></span>`;
+}
+
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -41,7 +46,7 @@ function buildBoard() {
     tile.className = 'tile';
     tile.setAttribute('aria-label', 'Drapeau mystère');
     tile.dataset.code = country.code;
-    tile.textContent = flagEmoji(country.code);
+    tile.innerHTML = `${flagHtml(country.code, true)}<span class="tile-check">✓</span>`;
     tile.addEventListener('click', () => onTileClick(tile, country));
     board.appendChild(tile);
   });
@@ -66,7 +71,7 @@ function openQuiz(tile, country) {
   currentTile = tile;
   busy = true;
 
-  quizFlag.textContent = flagEmoji(country.code);
+  quizFlag.innerHTML = flagHtml(country.code, false);
   feedback.textContent = '';
   feedback.className = 'feedback';
 
@@ -120,7 +125,7 @@ function onAnswer(btn, chosen) {
 }
 
 function openSheet(country, fromAlreadyFound) {
-  sheetFlag.textContent = flagEmoji(country.code);
+  sheetFlag.innerHTML = flagHtml(country.code, false);
   sheetName.textContent = country.name;
   sheetContinent.textContent = country.continent;
   sheetPopulation.textContent = country.population;

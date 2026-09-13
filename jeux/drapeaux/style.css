@@ -108,29 +108,57 @@ body {
 }
 
 .tile {
+  position: relative;
   aspect-ratio: 1 / 1;
   border: none;
   border-radius: 12px;
   background: var(--white);
   box-shadow: 0 4px 0 rgba(46,42,77,0.1);
-  font-size: 1.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease;
-  padding: 0;
+  padding: 4px;
+  overflow: hidden;
 }
 .tile:hover { transform: translateY(-3px); }
 .tile:active { transform: translateY(1px); }
+
+.tile .fi {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(46,42,77,0.08);
+}
+
+.tile-check {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--white);
+  font-size: .7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 0 #3a9c58;
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity .2s ease, transform .2s ease;
+}
 
 .tile.found {
   background: #EAF9EE;
   box-shadow: 0 4px 0 #bfe9c9;
 }
-.tile.found::after {
-  content: '✓';
-  position: absolute;
+.tile.found .tile-check {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .tile.shake {
@@ -182,9 +210,17 @@ body {
 }
 
 .quiz-flag, .sheet-flag {
-  font-size: 4.2rem;
-  line-height: 1;
-  margin-bottom: .6rem;
+  margin-bottom: .8rem;
+  display: flex;
+  justify-content: center;
+}
+.quiz-flag .fi, .sheet-flag .fi {
+  display: block;
+  width: 150px;
+  height: 112px;
+  border-radius: 12px;
+  box-shadow: 0 6px 0 rgba(46,42,77,0.12), inset 0 0 0 1px rgba(46,42,77,0.1);
+  border: 3px solid var(--white);
 }
 
 .quiz-question {
