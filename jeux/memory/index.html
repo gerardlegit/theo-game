@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mémo Animaux — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🧠 Mémo Animaux</h1>
+    <p>Retourne deux cartes pour trouver les paires d'animaux jumeaux !</p>
+  </header>
+
+  <section class="hud">
+    <div class="hud-item">Coups : <span id="moves">0</span></div>
+    <div class="hud-item">Paires : <span id="found">0</span> / 8</div>
+    <button id="restart">Recommencer</button>
+  </section>
+
+  <main class="board" id="board" aria-label="Plateau de jeu"></main>
+
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Bravo ! 🎉</p>
+      <p id="winStats"></p>
+      <button id="playAgain">Rejouer</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
