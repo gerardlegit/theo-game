@@ -94,17 +94,102 @@ body {
 }
 #restart:hover { transform: translateY(2px); box-shadow: 0 3px 0 #c94f6e; }
 
+/* ---------- Layout jeu + classement ---------- */
+.game-layout {
+  display: flex;
+  gap: 1.6rem;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  align-items: flex-start;
+  justify-content: center;
+}
+
 /* ---------- Board 8x8 ---------- */
 .board {
   max-width: 760px;
-  margin: 0 auto;
+  flex: 1 1 640px;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: .5rem;
-  padding: 0 1rem;
 }
 @media (max-width: 640px) {
   .board { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ---------- Leaderboard ---------- */
+.leaderboard {
+  flex: 0 0 220px;
+  background: var(--white);
+  border-radius: 22px;
+  padding: 1.2rem 1.1rem;
+  box-shadow: 0 6px 0 rgba(46,42,77,0.08);
+  position: sticky;
+  top: 1.5rem;
+}
+.leaderboard h2 {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 1.15rem;
+  margin: 0 0 .2rem;
+  text-align: center;
+}
+.leaderboard-sub {
+  font-size: .75rem;
+  color: #9089a8;
+  text-align: center;
+  margin: 0 0 .9rem;
+}
+.leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.leaderboard-list li {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  background: var(--cream);
+  border-radius: 10px;
+  padding: .4rem .6rem;
+}
+.leaderboard-list li .rank {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  color: var(--sky);
+  width: 1.4rem;
+  flex-shrink: 0;
+}
+.leaderboard-list li:nth-child(1) .rank { color: #E8B923; }
+.leaderboard-list li:nth-child(2) .rank { color: #9AA0A6; }
+.leaderboard-list li:nth-child(3) .rank { color: #C97A3C; }
+.leaderboard-list li .lb-name {
+  flex: 1;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard-list li .lb-time {
+  font-variant-numeric: tabular-nums;
+  color: #6a6486;
+}
+.leaderboard-empty {
+  text-align: center;
+  font-size: .85rem;
+  color: #9089a8;
+  padding: 1rem 0;
+}
+
+@media (max-width: 900px) {
+  .game-layout { flex-direction: column; align-items: stretch; }
+  .leaderboard { flex: none; position: static; max-width: 760px; margin: 0 auto; width: 100%; }
+  .leaderboard-list { max-height: 220px; }
 }
 
 .tile {
@@ -318,6 +403,63 @@ body {
   font-size: 1.6rem;
   margin: 0 0 .5rem;
   color: var(--pink);
+}
+#winTime {
+  font-family: 'Baloo 2', sans-serif;
+  color: #6a6486;
+  margin: 0 0 1.1rem;
+}
+.score-label {
+  display: block;
+  font-size: .85rem;
+  color: #6a6486;
+  margin-bottom: .5rem;
+}
+#pseudoInput {
+  width: 100%;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: .6rem .8rem;
+  border: 2px solid #EFEAF6;
+  border-radius: 12px;
+  margin-bottom: .8rem;
+  text-align: center;
+}
+#pseudoInput:focus { outline: none; border-color: var(--sky); }
+.score-actions {
+  display: flex;
+  gap: .6rem;
+  justify-content: center;
+  margin-bottom: .4rem;
+}
+#saveScore {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  background: var(--sky);
+  color: var(--white);
+  border: none;
+  padding: .6rem 1.1rem;
+  border-radius: 999px;
+  box-shadow: 0 5px 0 #2f8fb8;
+  cursor: pointer;
+  font-size: .9rem;
+}
+.ghost-btn {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  background: transparent;
+  color: #9089a8;
+  border: none;
+  padding: .6rem .8rem;
+  cursor: pointer;
+  font-size: .9rem;
+}
+.score-saved {
+  display: none;
+  font-family: 'Baloo 2', sans-serif;
+  color: var(--green);
+  margin: .4rem 0 .8rem;
 }
 #playAgain {
   font-family: 'Baloo 2', sans-serif;

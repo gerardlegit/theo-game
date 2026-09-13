@@ -1,6 +1,11 @@
+const BOARD_SIZE = 64;
+const LEADERBOARD_KEY = 'drapeaux-leaderboard';
+const LEADERBOARD_MAX = 20;
+
 const board = document.getElementById('board');
 const foundEl = document.getElementById('found');
 const progressFill = document.getElementById('progressFill');
+const timerEl = document.getElementById('timer');
 
 const quizOverlay = document.getElementById('quizOverlay');
 const quizFlag = document.getElementById('quizFlag');
@@ -15,12 +20,22 @@ const sheetPopulation = document.getElementById('sheetPopulation');
 const sheetFact = document.getElementById('sheetFact');
 
 const winBanner = document.getElementById('winBanner');
+const winTime = document.getElementById('winTime');
 const confettiLayer = document.getElementById('confettiLayer');
+const scoreForm = document.getElementById('scoreForm');
+const pseudoInput = document.getElementById('pseudoInput');
+const scoreSaved = document.getElementById('scoreSaved');
+const leaderboardList = document.getElementById('leaderboardList');
 
+let boardCountries = [];
 let found = new Set();
 let currentCountry = null;
 let currentTile = null;
 let busy = false;
+
+let elapsedSeconds = 0;
+let timerInterval = null;
+let finalTime = null;
 
 function flagHtml(code, square) {
   const cls = square ? `fi fi-${code.toLowerCase()} fis` : `fi fi-${code.toLowerCase()}`;
@@ -36,12 +51,40 @@ function shuffle(arr) {
   return a;
 }
 
+/* ---------- Chronomètre ---------- */
+function formatTime(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function startTimer() {
+  stopTimer();
+  elapsedSeconds = 0;
+  timerEl.textContent = formatTime(0);
+  timerInterval = setInterval(() => {
+    elapsedSeconds += 1;
+    timerEl.textContent = formatTime(elapsedSeconds);
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+/* ---------- Plateau ---------- */
 function buildBoard() {
   board.innerHTML = '';
   found = new Set();
+  finalTime = null;
+  boardCountries = shuffle(COUNTRIES).slice(0, BOARD_SIZE);
   updateHud();
+  startTimer();
 
-  COUNTRIES.forEach((country) => {
+  boardCountries.forEach((country) => {
     const tile = document.createElement('button');
     tile.className = 'tile';
     tile.setAttribute('aria-label', 'Drapeau mystère');
@@ -54,7 +97,7 @@ function buildBoard() {
 
 function updateHud() {
   foundEl.textContent = String(found.size);
-  progressFill.style.width = `${(found.size / COUNTRIES.length) * 100}%`;
+  progressFill.style.width = `${(found.size / BOARD_SIZE) * 100}%`;
 }
 
 function onTileClick(tile, country) {
@@ -140,12 +183,17 @@ function openSheet(country, fromAlreadyFound) {
 document.getElementById('closeSheet').addEventListener('click', () => {
   sheetOverlay.classList.remove('show');
   busy = false;
-  if (found.size === COUNTRIES.length) {
-    setTimeout(() => winBanner.classList.add('show'), 300);
+  if (found.size === BOARD_SIZE) {
+    finalTime = elapsedSeconds;
+    stopTimer();
+    setTimeout(() => showWin(), 300);
   }
 });
 
-document.getElementById('restart').addEventListener('click', buildBoard);
+document.getElementById('restart').addEventListener('click', () => {
+  winBanner.classList.remove('show');
+  buildBoard();
+});
 document.getElementById('playAgain').addEventListener('click', () => {
   winBanner.classList.remove('show');
   buildBoard();
@@ -165,4 +213,83 @@ function launchConfetti() {
   }
 }
 
+/* ---------- Victoire + classement ---------- */
+function showWin() {
+  winTime.textContent = `Tu as trouvé les 64 drapeaux en ${formatTime(finalTime)} !`;
+  scoreForm.style.display = 'block';
+  scoreSaved.style.display = 'none';
+  pseudoInput.value = '';
+  winBanner.classList.add('show');
+  launchConfetti();
+}
+
+function getLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLeaderboard(list) {
+  try {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list));
+  } catch (e) {
+    /* stockage indisponible, on ignore silencieusement */
+  }
+}
+
+function addScore(name, seconds) {
+  const list = getLeaderboard();
+  list.push({ name, seconds, date: new Date().toISOString() });
+  list.sort((a, b) => a.seconds - b.seconds);
+  const trimmed = list.slice(0, LEADERBOARD_MAX);
+  saveLeaderboard(trimmed);
+  renderLeaderboard();
+}
+
+function renderLeaderboard() {
+  const list = getLeaderboard();
+  leaderboardList.innerHTML = '';
+
+  if (list.length === 0) {
+    leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement !</li>';
+    return;
+  }
+
+  list.forEach((entry, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="rank">${i + 1}</span>
+      <span class="lb-name">${escapeHtml(entry.name)}</span>
+      <span class="lb-time">${formatTime(entry.seconds)}</span>
+    `;
+    leaderboardList.appendChild(li);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('saveScore').addEventListener('click', () => {
+  const name = pseudoInput.value.trim();
+  if (!name) {
+    pseudoInput.focus();
+    return;
+  }
+  addScore(name, finalTime);
+  scoreForm.style.display = 'none';
+  scoreSaved.style.display = 'block';
+});
+
+document.getElementById('skipScore').addEventListener('click', () => {
+  scoreForm.style.display = 'none';
+});
+
+/* ---------- Démarrage ---------- */
+renderLeaderboard();
 buildBoard();
