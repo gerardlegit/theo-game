@@ -152,9 +152,10 @@ body {
 .card-2 { transform: rotate(1.8deg); }
 .card-3 { transform: rotate(-1.4deg); }
 .card-4 { transform: rotate(2.4deg); }
+.card-5 { transform: rotate(-1.9deg); }
 
 .card:hover { transform: rotate(0deg) translateY(-6px); }
-.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover { transform: rotate(0deg) translateY(-6px); }
+.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover, .card-5:hover { transform: rotate(0deg) translateY(-6px); }
 
 .card-blob {
   position: absolute;
@@ -168,6 +169,7 @@ body {
 .card-2 .card-blob { background: var(--pink); }
 .card-3 .card-blob { background: var(--green); }
 .card-4 .card-blob { background: var(--sky); }
+.card-5 .card-blob { background: var(--yellow); }
 
 .card-icon {
   font-size: 2.4rem;

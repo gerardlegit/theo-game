@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz des Drapeaux — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🏳️ Quiz des Drapeaux</h1>
+    <p>Clique sur un drapeau et devine à quel pays il appartient !</p>
+  </header>
+
+  <section class="hud">
+    <div class="hud-item">Trouvés : <span id="found">0</span> / 64</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <button id="restart">Recommencer</button>
+  </section>
+
+  <main class="board" id="board" aria-label="Plateau de drapeaux"></main>
+
+  <!-- Modale question -->
+  <div class="overlay" id="quizOverlay">
+    <div class="quiz-card" id="quizCard">
+      <div class="quiz-flag" id="quizFlag"></div>
+      <p class="quiz-question">Quel est ce pays ?</p>
+      <div class="quiz-options" id="quizOptions"></div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+  </div>
+
+  <!-- Modale fiche pays (bonne réponse ou consultation) -->
+  <div class="overlay" id="sheetOverlay">
+    <div class="sheet-card" id="sheetCard">
+      <div class="sheet-flag" id="sheetFlag"></div>
+      <h2 id="sheetName"></h2>
+      <p class="sheet-line"><strong>Continent :</strong> <span id="sheetContinent"></span></p>
+      <p class="sheet-line"><strong>Population :</strong> <span id="sheetPopulation"></span> d'habitants</p>
+      <p class="sheet-fact" id="sheetFact"></p>
+      <button id="closeSheet">Continuer</button>
+    </div>
+  </div>
+
+  <!-- Bannière de victoire -->
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Bravo, champion du monde ! 🌍🎉</p>
+      <p>Tu as trouvé les 64 drapeaux !</p>
+      <button id="playAgain">Rejouer</button>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
