@@ -78,6 +78,10 @@ const CONTINENTS = {
       { code: "PE", numeric: 604, name: "Pérou" },
       { code: "CO", numeric: 170, name: "Colombie" },
       { code: "CL", numeric: 152, name: "Chili" },
+      { code: "UY", numeric: 858 , name: "Uruguay" },
+      { code: "EC", numeric: 218, name: "Équateur" },
+      { code: "BO", numeric: 68, name: "Bolivie" },
+
     ],
   },
 };
@@ -125,7 +129,26 @@ const AM_NORD = new Set([
 // (Caucase, Asie centrale, péninsule arabique en dehors du Moyen-Orient ciblé).
 const CONTEXT_EXCLUDE = new Set([
   643, // Russie
+
   10,  // Antarctique
+  16,  // Îles subantarctiques françaises
+  174, // Îles subantarctiques néo-zélandaises
+  212, // Îles subantarctiques britanniques
+  239, // Îles subantarctiques chiliennes
+  334, // Îles subantarctiques australiennes
+  535, // Îles subantarctiques sud-africaines
+  540, // Îles subantarctiques norvégiennes
+  562, // Îles subantarctiques néerlandaises
+  574, // Îles subantarctiques américaines
+  580, // Îles subantarctiques norvégiennes (Bouvet)
+  598, // Îles subantarctiques françaises (Kerguelen)
+  616, // Îles subantarctiques britanniques (Géorgie du Sud)
+  626, // Îles subantarctiques britanniques (Sandwich du Sud)
+  630, // Îles subantarctiques britanniques (Shetland du Sud)
+  638, // Îles subantarctiques britanniques (Île de la Déception)
+  642, // Îles subantarctiques britanniques (Île de l'Éléphant)
+  643, // Russie
+  744, // Antarctique
   304, // Groenland
   804, // Ukraine
   268, // Géorgie
@@ -144,6 +167,7 @@ const CONTEXT_EXCLUDE = new Set([
   414, // Koweït
   48,  // Bahreïn
   792, // Turquie (n'apparaît qu'en Asie, jamais en contexte sur la carte d'Europe)
+  3166,
 ]);
 
 
