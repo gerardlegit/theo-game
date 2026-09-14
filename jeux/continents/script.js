@@ -133,8 +133,13 @@ async function buildMap(continentKey) {
     })
     .filter(Boolean);
 
+  const exclude = new Set([
+    ...CONTEXT_EXCLUDE,
+    ...(EXTRA_EXCLUDE_SETS[continent.extraExclude] || []),
+  ]);
+
   const contextFeatures = features
-    .filter((f) => !targetNumerics.has(Number(f.id)) && !CONTEXT_EXCLUDE.has(Number(f.id)))
+    .filter((f) => !targetNumerics.has(Number(f.id)) && !exclude.has(Number(f.id)))
     .map((f) => clipToContinent(f, continent.bbox, 6))
     .filter(Boolean);
 

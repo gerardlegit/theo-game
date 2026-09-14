@@ -12,6 +12,7 @@ const CONTINENTS = {
     label: "Europe",
     emoji: "🇪🇺",
     bbox: [-25, 40, 35, 71],
+    extraExclude: "afrique",
     countries: [
       { code: "FR", numeric: 250, name: "France" },
       { code: "DE", numeric: 276, name: "Allemagne" },
@@ -42,6 +43,7 @@ const CONTINENTS = {
     label: "Asie",
     emoji: "🌏",
     bbox: [33, 145, 0, 55],
+    extraExclude: "afrique",
     countries: [
       { code: "CN", numeric: 156, name: "Chine" },
       { code: "IN", numeric: 356, name: "Inde" },
@@ -75,18 +77,20 @@ const CONTINENTS = {
       { code: "CL", numeric: 152, name: "Chili" },
     ],
   },
-  oceanie: {
-    label: "Océanie",
-    emoji: "🏝️",
-    bbox: [110, 180, -48, -5],
-    countries: [
-      { code: "AU", numeric: 36, name: "Australie" },
-      { code: "NZ", numeric: 554, name: "Nouvelle-Zélande" },
-      { code: "PG", numeric: 598, name: "Papouasie-Nouvelle-Guinée" },
-      { code: "VU", numeric: 548, name: "Vanuatu" },
-      { code: "SB", numeric: 90, name: "Îles Salomon" },
-    ],
-  },
+};
+
+// Tous les pays d'Afrique (les 54 États membres de l'ONU), utilisés pour
+// exclure le continent africain du "contexte" gris affiché sur les cartes
+// d'autres continents (Europe, Asie) qui n'ont rien à y faire.
+const AFRICA_CODES = new Set([
+  12, 24, 204, 72, 854, 108, 132, 120, 140, 148, 174, 178, 180, 262, 818, 226,
+  232, 748, 231, 266, 270, 288, 324, 624, 384, 404, 426, 430, 434, 450, 454,
+  466, 478, 480, 504, 508, 516, 562, 566, 646, 678, 686, 690, 694, 706, 710,
+  728, 729, 834, 768, 788, 800, 894, 716,
+]);
+
+const EXTRA_EXCLUDE_SETS = {
+  afrique: AFRICA_CODES,
 };
 
 // Pays volontairement jamais affichés en "contexte" gris : soit trop grands et
