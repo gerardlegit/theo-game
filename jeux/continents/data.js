@@ -43,7 +43,7 @@ const CONTINENTS = {
     label: "Asie",
     emoji: "🌏",
     bbox: [33, 145, 0, 55],
-    extraExclude: "afrique",
+    extraExclude: ["afrique", "europe"],
     countries: [
       { code: "CN", numeric: 156, name: "Chine" },
       { code: "IN", numeric: 356, name: "Inde" },
@@ -89,8 +89,19 @@ const AFRICA_CODES = new Set([
   728, 729, 834, 768, 788, 800, 894, 716,
 ]);
 
+// Tous les pays d'Europe, utilisés pour exclure le continent européen du
+// "contexte" gris affiché sur la carte d'Asie (la Turquie sert de frontière :
+// elle reste visible côté Asie en tant que pays à retrouver, mais tout ce qui
+// est plus à l'ouest qu'elle n'a rien à faire sur cette carte).
+const EUROPE_CODES = new Set([
+  8, 20, 40, 112, 56, 70, 100, 191, 203, 208, 233, 246, 250, 276, 300, 348,
+  352, 372, 380, 428, 438, 440, 442, 470, 498, 492, 499, 528, 807, 578, 616,
+  620, 642, 674, 688, 703, 705, 724, 752, 756, 804, 826,
+]);
+
 const EXTRA_EXCLUDE_SETS = {
   afrique: AFRICA_CODES,
+  europe: EUROPE_CODES,
 };
 
 // Pays volontairement jamais affichés en "contexte" gris : soit trop grands et
@@ -117,4 +128,5 @@ const CONTEXT_EXCLUDE = new Set([
   634, // Qatar
   414, // Koweït
   48,  // Bahreïn
+  792, // Turquie (n'apparaît qu'en Asie, jamais en contexte sur la carte d'Europe)
 ]);

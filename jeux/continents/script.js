@@ -133,9 +133,12 @@ async function buildMap(continentKey) {
     })
     .filter(Boolean);
 
+  const extraKeys = Array.isArray(continent.extraExclude)
+    ? continent.extraExclude
+    : continent.extraExclude ? [continent.extraExclude] : [];
   const exclude = new Set([
     ...CONTEXT_EXCLUDE,
-    ...(EXTRA_EXCLUDE_SETS[continent.extraExclude] || []),
+    ...extraKeys.flatMap((key) => Array.from(EXTRA_EXCLUDE_SETS[key] || [])),
   ]);
 
   const contextFeatures = features
