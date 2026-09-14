@@ -12,7 +12,7 @@ const CONTINENTS = {
     label: "Europe",
     emoji: "🇪🇺",
     bbox: [-25, 40, 35, 71],
-    extraExclude: "afrique",
+    extraExclude: ["afrique", "asie"],
     countries: [
       { code: "FR", numeric: 250, name: "France" },
       { code: "DE", numeric: 276, name: "Allemagne" },
@@ -28,6 +28,7 @@ const CONTINENTS = {
     label: "Afrique",
     emoji: "🌍",
     bbox: [-20, 52, -35, 38],
+    extraExclude: ["asie", "europe"],
     countries: [
       { code: "EG", numeric: 818, name: "Égypte" },
       { code: "NG", numeric: 566, name: "Nigeria" },
@@ -59,6 +60,7 @@ const CONTINENTS = {
     label: "Amérique du Nord",
     emoji: "🗽",
     bbox: [-170, -50, 14, 72],
+    extraExclude: ["afrique", "europe", "asie", "amerique_sud"],
     countries: [
       { code: "US", numeric: 840, name: "États-Unis" },
       { code: "CA", numeric: 124, name: "Canada" },
@@ -69,6 +71,7 @@ const CONTINENTS = {
     label: "Amérique du Sud",
     emoji: "🦙",
     bbox: [-82, -34, -56, 13],
+    extraExclude: ["amerique_nord"],
     countries: [
       { code: "BR", numeric: 76, name: "Brésil" },
       { code: "AR", numeric: 32, name: "Argentine" },
