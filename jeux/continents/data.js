@@ -12,7 +12,7 @@ const CONTINENTS = {
     label: "Europe",
     emoji: "🇪🇺",
     bbox: [-25, 40, 35, 71],
-    extraExclude: ["afrique", "asie"],
+    extraExclude: ["afrique", "asie","others"],
     countries: [
       { code: "FR", numeric: 250, name: "France" },
       { code: "DE", numeric: 276, name: "Allemagne" },
@@ -28,7 +28,7 @@ const CONTINENTS = {
     label: "Afrique",
     emoji: "🌍",
     bbox: [-20, 52, -35, 38],
-    extraExclude: ["asie", "europe"],
+    extraExclude: ["asie", "europe", "others"],
     countries: [
       { code: "EG", numeric: 818, name: "Égypte" },
       { code: "NG", numeric: 566, name: "Nigeria" },
@@ -44,7 +44,7 @@ const CONTINENTS = {
     label: "Asie",
     emoji: "🌏",
     bbox: [33, 145, 0, 55],
-    extraExclude: ["afrique", "europe"],
+    extraExclude: ["afrique", "europe", "others"],
     countries: [
       { code: "CN", numeric: 156, name: "Chine" },
       { code: "IN", numeric: 356, name: "Inde" },
@@ -53,7 +53,7 @@ const CONTINENTS = {
       { code: "SA", numeric: 682, name: "Arabie saoudite" },
       { code: "ID", numeric: 360, name: "Indonésie" },
       { code: "KR", numeric: 410, name: "Corée du Sud" },
-      { code: "TR", numeric: 792, name: "Turquie" },
+      { code: "MN", numeric: 496, name: "Mongolie" },
     ],
   },
   amerique_nord: {
@@ -118,12 +118,6 @@ const AM_NORD = new Set([
   484, 558, 591, 659, 662, 670, 780, 840,
 ]);
 
-const EXTRA_EXCLUDE_SETS = {
-  afrique: AFRICA_CODES,
-  europe: EUROPE_CODES,
-  asie: ASIE_CODES,
-  amerique_nord: AM_NORD,
-};
 
 // Pays volontairement jamais affichés en "contexte" gris : soit trop grands et
 // déformants à l'échelle d'un continent (Russie, Groenland, Antarctique), soit
@@ -151,3 +145,12 @@ const CONTEXT_EXCLUDE = new Set([
   48,  // Bahreïn
   792, // Turquie (n'apparaît qu'en Asie, jamais en contexte sur la carte d'Europe)
 ]);
+
+
+const EXTRA_EXCLUDE_SETS = {
+  afrique: AFRICA_CODES,
+  europe: EUROPE_CODES,
+  asie: ASIE_CODES,
+  amerique_nord: AM_NORD,
+  others: CONTEXT_EXCLUDE,
+};
