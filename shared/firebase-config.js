@@ -27,5 +27,5 @@ export const firebaseConfig = {
   projectId: "cabane-a-jeux-238cc",
   storageBucket: "cabane-a-jeux-238cc.firebasestorage.app",
   messagingSenderId: "351077499665",
-  appId: "1:351077499665:web:7cd13cba7aaf1d2ab042b0"
+  appId: "1:351077499665:web:7cd13cba7aaf1d2ab042b0",
 };

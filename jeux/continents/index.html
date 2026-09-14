@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Continents — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🗺️ Continents</h1>
+    <p id="headerSub">Choisis un continent, puis glisse chaque drapeau sur le bon pays !</p>
+  </header>
+
+  <!-- Sélecteur de continent -->
+  <section class="continent-picker" id="continentPicker">
+    <button class="continent-btn" data-continent="europe">
+      <span class="continent-emoji">🇪🇺</span><span>Europe</span>
+    </button>
+    <button class="continent-btn" data-continent="afrique">
+      <span class="continent-emoji">🌍</span><span>Afrique</span>
+    </button>
+    <button class="continent-btn" data-continent="asie">
+      <span class="continent-emoji">🌏</span><span>Asie</span>
+    </button>
+    <button class="continent-btn" data-continent="amerique">
+      <span class="continent-emoji">🌎</span><span>Amérique</span>
+    </button>
+    <button class="continent-btn" data-continent="oceanie">
+      <span class="continent-emoji">🏝️</span><span>Océanie</span>
+    </button>
+  </section>
+
+  <p class="loading-note" id="loadingNote" hidden>Chargement de la carte du monde…</p>
+
+  <!-- Zone de jeu -->
+  <section class="game-area" id="gameArea" hidden>
+    <div class="hud">
+      <div class="hud-item">⏱️ <span id="timer">00:00</span></div>
+      <div class="hud-item">Placés : <span id="placedCount">0</span> / <span id="totalCount">0</span></div>
+      <button id="changeContinent" class="ghost-btn-outline">← Changer de continent</button>
+      <button id="restart">Recommencer</button>
+    </div>
+
+    <div class="game-layout">
+      <div class="map-wrap">
+        <div id="mapContainer" class="map-container"></div>
+      </div>
+
+      <div class="chips-col">
+        <h2 class="chips-title">Drapeaux à placer</h2>
+        <div class="chips-panel" id="chipsPanel"></div>
+      </div>
+
+      <aside class="leaderboard" id="leaderboard">
+        <h2>🏆 Classement</h2>
+        <p class="leaderboard-sub">Top 20 mondial (le plus rapide !)</p>
+        <ol class="leaderboard-list" id="leaderboardList"></ol>
+        <p class="leaderboard-note">🧮 Classement au temps (en secondes), tous continents confondus.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Victoire -->
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Bravo, explorateur du monde ! 🌍🎉</p>
+      <p id="winTime"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon score</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
+
+      <button id="playAgain">Choisir un autre continent</button>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="data.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

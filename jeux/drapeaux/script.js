@@ -107,7 +107,11 @@ function buildBoard() {
 
 function updateHud() {
   foundEl.textContent = String(found.size);
-  progressFill.style.width = `${(found.size / BOARD_SIZE) * 100}%`;
+  const pct = (found.size / BOARD_SIZE) * 100;
+  progressFill.style.width = `${pct}%`;
+  const isComplete = found.size === BOARD_SIZE;
+  progressFill.classList.toggle('complete', isComplete);
+  document.getElementById('progressTrophy').classList.toggle('complete', isComplete);
 }
 
 function onTileClick(tile, country) {

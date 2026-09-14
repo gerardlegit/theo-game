@@ -65,9 +65,15 @@ body {
   box-shadow: 0 4px 0 rgba(46,42,77,0.08);
   white-space: nowrap;
 }
-.progress-track {
+.progress-wrap {
   flex: 1 1 140px;
-  min-width: 120px;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.progress-track {
+  flex: 1;
   height: 14px;
   background: var(--white);
   border-radius: 999px;
@@ -79,6 +85,41 @@ body {
   width: 0%;
   background: linear-gradient(90deg, var(--green), var(--sky));
   transition: width .4s ease;
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shine 2.2s linear infinite;
+}
+@keyframes shine {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.progress-fill.complete {
+  background: linear-gradient(90deg, var(--yellow), #FFA23C);
+}
+.progress-trophy {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  opacity: .35;
+  filter: grayscale(1);
+  transition: opacity .3s ease, filter .3s ease;
+}
+.progress-trophy.complete {
+  opacity: 1;
+  filter: none;
+  animation: trophyPop .6s ease;
+}
+@keyframes trophyPop {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.5) rotate(-12deg); }
+  60% { transform: scale(1.15) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 #restart {
   font-family: 'Baloo 2', sans-serif;
