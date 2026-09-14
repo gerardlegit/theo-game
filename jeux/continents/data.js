@@ -22,6 +22,7 @@ const CONTINENTS = {
       { code: "PL", numeric: 616, name: "Pologne" },
       { code: "SE", numeric: 752, name: "Suède" },
       { code: "GR", numeric: 300, name: "Grèce" },
+      { code: "NOR", numeric: 578, name: "Norvège" },
     ],
   },
   afrique: {
@@ -129,7 +130,6 @@ const AM_NORD = new Set([
 // (Caucase, Asie centrale, péninsule arabique en dehors du Moyen-Orient ciblé).
 const CONTEXT_EXCLUDE = new Set([
   643, // Russie
-
   10,  // Antarctique
   16,  // Îles subantarctiques françaises
   174, // Îles subantarctiques néo-zélandaises
@@ -150,15 +150,9 @@ const CONTEXT_EXCLUDE = new Set([
   643, // Russie
   744, // Antarctique
   304, // Groenland
-  804, // Ukraine
   268, // Géorgie
   51,  // Arménie
   31,  // Azerbaïdjan
-  398, // Kazakhstan
-  417, // Kirghizistan
-  795, // Turkménistan
-  860, // Ouzbékistan
-  762, // Tadjikistan
   196, // Chypre
   887, // Yémen
   512, // Oman
@@ -167,7 +161,7 @@ const CONTEXT_EXCLUDE = new Set([
   414, // Koweït
   48,  // Bahreïn
   792, // Turquie (n'apparaît qu'en Asie, jamais en contexte sur la carte d'Europe)
-  3166,
+  744, // Antarctique
 ]);
 
 
