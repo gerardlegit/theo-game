@@ -88,6 +88,35 @@ function codeForNumeric(continent, numericId) {
   return found ? found.code : null;
 }
 
+/**
+ * Ne garde, dans une géométrie MultiPolygon, que les morceaux situés à
+ * proximité de la zone du continent — ça retire par exemple les DOM-TOM
+ * français (Guyane, Réunion, Antilles...) de la forme de la France quand on
+ * affiche la carte d'Europe, sans toucher aux pays qui n'ont qu'un seul bloc.
+ * Renvoie null si rien de la géométrie ne tombe dans la zone (+ marge).
+ */
+function clipToContinent(feature, bbox, margin) {
+  const [lonMin, lonMax, latMin, latMax] = bbox;
+  const minLon = lonMin - margin, maxLon = lonMax + margin;
+  const minLat = latMin - margin, maxLat = latMax + margin;
+  const inRange = ([lon, lat]) => lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+
+  const geom = feature.geometry;
+  if (!geom) return null;
+
+  if (geom.type === 'Polygon') {
+    return geom.coordinates[0].some(inRange) ? feature : null;
+  }
+
+  if (geom.type === 'MultiPolygon') {
+    const kept = geom.coordinates.filter((poly) => poly[0].some(inRange));
+    if (kept.length === 0) return null;
+    return { ...feature, geometry: { type: 'MultiPolygon', coordinates: kept } };
+  }
+
+  return feature;
+}
+
 /* ---------- Construction de la carte d'un continent ---------- */
 async function buildMap(continentKey) {
   const continent = CONTINENTS[continentKey];
@@ -95,18 +124,19 @@ async function buildMap(continentKey) {
 
   const features = await loadWorld();
   const targetNumerics = new Set(continent.countries.map((c) => c.numeric));
-  const targetFeatures = features.filter((f) => targetNumerics.has(Number(f.id)));
 
-  const [lonMin, lonMax, latMin, latMax] = continent.bbox;
-  const contextFeatures = features.filter((f) => {
-    if (targetNumerics.has(Number(f.id))) return false;
-    const bounds = d3.geoBounds(f);
-    const lon0 = bounds[0][0];
-    const lon1 = bounds[1][0];
-    if (lon0 > lon1) return false; // évite les pays qui traversent l'antiméridien
-    const c = d3.geoCentroid(f);
-    return c[0] >= lonMin && c[0] <= lonMax && c[1] >= latMin && c[1] <= latMax;
-  });
+  const targetFeatures = continent.countries
+    .map((c) => {
+      const raw = features.find((f) => Number(f.id) === c.numeric);
+      if (!raw) return null;
+      return clipToContinent(raw, continent.bbox, 14) || raw;
+    })
+    .filter(Boolean);
+
+  const contextFeatures = features
+    .filter((f) => !targetNumerics.has(Number(f.id)) && !CONTEXT_EXCLUDE.has(Number(f.id)))
+    .map((f) => clipToContinent(f, continent.bbox, 6))
+    .filter(Boolean);
 
   const combined = { type: 'FeatureCollection', features: [...contextFeatures, ...targetFeatures] };
 
@@ -128,18 +158,44 @@ async function buildMap(continentKey) {
     .attr('class', 'country-context')
     .attr('d', pathGen);
 
+  // Les très petits pays (îles du Pacifique, etc.) sont quasi invisibles à
+  // l'échelle d'un continent : on garde leur vraie forme à l'écran, mais on
+  // ajoute par-dessus un rond invisible plus grand qui sert de vraie cible
+  // pour le glisser-déposer, sinon ils sont injouables.
+  const MIN_HIT_SIZE = 22;
+
   centroids = {};
-  svg.append('g')
-    .selectAll('path')
-    .data(targetFeatures)
-    .join('path')
-    .attr('class', 'country-target')
-    .attr('data-code', (f) => codeForNumeric(continent, f.id))
-    .attr('d', pathGen)
-    .each(function (f) {
-      const code = codeForNumeric(continent, f.id);
-      if (code) centroids[code] = pathGen.centroid(f);
-    });
+  const targetGroup = svg.append('g');
+
+  targetFeatures.forEach((f) => {
+    const code = codeForNumeric(continent, f.id);
+    if (!code) return;
+
+    const centroid = pathGen.centroid(f);
+    centroids[code] = centroid;
+
+    const [[x0, y0], [x1, y1]] = pathGen.bounds(f);
+    const isTiny = Math.max(x1 - x0, y1 - y0) < MIN_HIT_SIZE;
+
+    if (isTiny) {
+      targetGroup.append('path')
+        .datum(f)
+        .attr('class', 'country-target-shape tiny')
+        .attr('d', pathGen);
+      targetGroup.append('circle')
+        .attr('class', 'country-target')
+        .attr('data-code', code)
+        .attr('cx', centroid[0])
+        .attr('cy', centroid[1])
+        .attr('r', 13);
+    } else {
+      targetGroup.append('path')
+        .datum(f)
+        .attr('class', 'country-target')
+        .attr('data-code', code)
+        .attr('d', pathGen);
+    }
+  });
 }
 
 /* ---------- Drapeaux à glisser ---------- */

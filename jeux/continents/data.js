@@ -2,15 +2,16 @@
 // Données du jeu "Continents"
 // Chaque pays est identifié par son code ISO 3166-1 alpha-2 (pour le drapeau)
 // et son code numérique ISO 3166-1 (pour le retrouver dans la carte topoJSON).
-// "bbox" = zone [lonMin, lonMax, latMin, latMax] utilisée pour dessiner les
-// pays "de contexte" (en gris, non-interactifs) autour des pays à retrouver.
+// "bbox" = zone [lonMin, lonMax, latMin, latMax] utilisée pour cadrer la carte
+// et sélectionner les pays "de contexte" (en gris, non-interactifs) autour des
+// pays à retrouver.
 // ============================================================================
 
 const CONTINENTS = {
   europe: {
     label: "Europe",
     emoji: "🇪🇺",
-    bbox: [-25, 45, 34, 72],
+    bbox: [-25, 40, 35, 71],
     countries: [
       { code: "FR", numeric: 250, name: "France" },
       { code: "DE", numeric: 276, name: "Allemagne" },
@@ -40,7 +41,7 @@ const CONTINENTS = {
   asie: {
     label: "Asie",
     emoji: "🌏",
-    bbox: [26, 150, -12, 78],
+    bbox: [33, 145, 0, 55],
     countries: [
       { code: "CN", numeric: 156, name: "Chine" },
       { code: "IN", numeric: 356, name: "Inde" },
@@ -52,14 +53,21 @@ const CONTINENTS = {
       { code: "TR", numeric: 792, name: "Turquie" },
     ],
   },
-  amerique: {
-    label: "Amérique",
-    emoji: "🌎",
-    bbox: [-170, -30, -58, 75],
+  amerique_nord: {
+    label: "Amérique du Nord",
+    emoji: "🗽",
+    bbox: [-170, -50, 14, 72],
     countries: [
       { code: "US", numeric: 840, name: "États-Unis" },
       { code: "CA", numeric: 124, name: "Canada" },
       { code: "MX", numeric: 484, name: "Mexique" },
+    ],
+  },
+  amerique_sud: {
+    label: "Amérique du Sud",
+    emoji: "🦙",
+    bbox: [-82, -34, -56, 13],
+    countries: [
       { code: "BR", numeric: 76, name: "Brésil" },
       { code: "AR", numeric: 32, name: "Argentine" },
       { code: "PE", numeric: 604, name: "Pérou" },
@@ -70,7 +78,7 @@ const CONTINENTS = {
   oceanie: {
     label: "Océanie",
     emoji: "🏝️",
-    bbox: [110, 180, -50, 0],
+    bbox: [110, 180, -48, -5],
     countries: [
       { code: "AU", numeric: 36, name: "Australie" },
       { code: "NZ", numeric: 554, name: "Nouvelle-Zélande" },
@@ -80,3 +88,29 @@ const CONTINENTS = {
     ],
   },
 };
+
+// Pays volontairement jamais affichés en "contexte" gris : soit trop grands et
+// déformants à l'échelle d'un continent (Russie, Groenland, Antarctique), soit
+// à cheval sur deux continents et donc ambigus pour de jeunes joueurs
+// (Caucase, Asie centrale, péninsule arabique en dehors du Moyen-Orient ciblé).
+const CONTEXT_EXCLUDE = new Set([
+  643, // Russie
+  10,  // Antarctique
+  304, // Groenland
+  804, // Ukraine
+  268, // Géorgie
+  51,  // Arménie
+  31,  // Azerbaïdjan
+  398, // Kazakhstan
+  417, // Kirghizistan
+  795, // Turkménistan
+  860, // Ouzbékistan
+  762, // Tadjikistan
+  196, // Chypre
+  887, // Yémen
+  512, // Oman
+  784, // Émirats arabes unis
+  634, // Qatar
+  414, // Koweït
+  48,  // Bahreïn
+]);

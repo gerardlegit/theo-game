@@ -185,13 +185,11 @@ body {
   75% { transform: translateX(3px); }
 }
 
-.country-label {
-  font-family: 'Baloo 2', sans-serif;
-  font-size: 9px;
-  fill: #9089a8;
-  text-anchor: middle;
+.country-target-shape.tiny {
+  fill: var(--cream);
+  stroke: var(--yellow);
+  stroke-width: 1.2;
   pointer-events: none;
-  user-select: none;
 }
 
 /* ---------- Drapeaux à placer ---------- */
