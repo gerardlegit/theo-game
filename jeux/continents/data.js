@@ -102,9 +102,27 @@ const EUROPE_CODES = new Set([
   620, 642, 674, 688, 703, 705, 724, 752, 756, 804, 826,
 ]);
 
+// Tous les pays d'Asie, utilisés pour exclure le continent asiatique du
+// "contexte" gris affiché sur les cartes d'Europe et d'Afrique.
+const ASIE_CODES = new Set([
+  4, 31, 48, 50, 51, 64, 96, 104, 116, 144, 156, 196, 268, 275, 356, 360,
+  364, 368, 376, 392, 398, 400, 408, 410, 414, 417, 418, 422, 458, 462, 496,
+  512, 524, 586, 608, 626, 634, 643, 682, 702, 704, 760, 762, 764, 784, 792,
+  795, 860, 887,
+]);
+
+// Tous les pays d'Amérique du Nord et d'Amérique centrale,
+// utilisés pour exclure ce contexte gris lors de la carte d'Amérique du Sud.
+const AM_NORD = new Set([
+  28, 44, 52, 84, 124, 188, 192, 212, 214, 222, 308, 320, 332, 340, 388,
+  484, 558, 591, 659, 662, 670, 780, 840,
+]);
+
 const EXTRA_EXCLUDE_SETS = {
   afrique: AFRICA_CODES,
   europe: EUROPE_CODES,
+  asie: ASIE_CODES,
+  amerique_nord: AM_NORD,
 };
 
 // Pays volontairement jamais affichés en "contexte" gris : soit trop grands et
