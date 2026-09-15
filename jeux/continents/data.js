@@ -22,7 +22,6 @@ const CONTINENTS = {
       { code: "PL", numeric: 616, name: "Pologne" },
       { code: "SE", numeric: 752, name: "Suède" },
       { code: "GR", numeric: 300, name: "Grèce" },
-      { code: "NOR", numeric: 578, name: "Norvège" },
     ],
   },
   afrique: {
@@ -103,8 +102,8 @@ const AFRICA_CODES = new Set([
 // est plus à l'ouest qu'elle n'a rien à faire sur cette carte).
 const EUROPE_CODES = new Set([
   8, 20, 40, 112, 56, 70, 100, 191, 203, 208, 233, 246, 250, 276, 300, 348,
-  352, 372, 380, 428, 438, 440, 442, 470, 498, 492, 499, 528, 807, 578, 616,
-  620, 642, 674, 688, 703, 705, 724, 752, 756, 804, 826,
+  352, 372, 380, 428, 438, 440, 442, 470, 498, 492, 499, 528, 744, 807, 578,
+  616, 620, 642, 674, 688, 703, 705, 724, 752, 756, 804, 826,
 ]);
 
 // Tous les pays d'Asie, utilisés pour exclure le continent asiatique du

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Royaume des Mots — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <!-- ÉCRAN 1 : choix du personnage (première visite uniquement) -->
+  <section class="screen" id="screenCharacter">
+    <div class="character-card">
+      <h1 class="game-title">Le Royaume des Mots</h1>
+      <p class="character-intro">Choisis ton personnage pour commencer l'aventure !</p>
+      <div class="character-grid" id="characterGrid"></div>
+    </div>
+  </section>
+
+  <!-- ÉCRAN 2 : accueil / carte des mondes -->
+  <section class="screen" id="screenHome" hidden>
+    <header class="home-header">
+      <div class="stars-badge">⭐ <span id="starsCount">0</span></div>
+      <h1 class="game-title small">LE ROYAUME DES MOTS</h1>
+      <div class="avatar-badge" id="avatarBadge">🧙</div>
+    </header>
+
+    <div class="worlds-grid" id="worldsGrid"></div>
+
+    <button class="mission-btn" id="missionOfDayBtn">⚡ Mission du jour</button>
+  </section>
+
+  <!-- ÉCRAN 3 : mission (question / feedback / fin de mission) -->
+  <section class="screen" id="screenMission" hidden>
+    <div class="mission-topbar">
+      <button class="back-btn" id="missionBackBtn">← Retour</button>
+      <div class="mission-progress" id="missionProgress"></div>
+    </div>
+
+    <!-- Carte question -->
+    <div class="quest-card" id="questCard">
+      <div class="quest-world" id="questWorldLabel"></div>
+      <p class="quest-passage" id="questPassage" hidden></p>
+      <p class="quest-question" id="questQuestion"></p>
+      <div class="quest-answers" id="questAnswers"></div>
+    </div>
+
+    <!-- Panneau de correction -->
+    <div class="feedback-panel" id="feedbackPanel" hidden>
+      <p class="feedback-title" id="feedbackTitle"></p>
+      <p class="feedback-explanation" id="feedbackExplanation"></p>
+      <button class="feedback-btn" id="feedbackBtn"></button>
+    </div>
+
+    <!-- Fin de mission -->
+    <div class="mission-complete" id="missionComplete" hidden>
+      <p class="complete-title">🎉 MISSION TERMINÉE !</p>
+      <div class="complete-stars" id="completeStars"></div>
+      <p class="complete-sub">Le Royaume est un peu plus puissant !</p>
+      <div class="complete-actions">
+        <button id="replayBtn">Rejouer</button>
+        <button id="mapBtn" class="ghost-btn-outline">Retour à la carte</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
