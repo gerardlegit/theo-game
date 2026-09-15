@@ -161,6 +161,7 @@ const CONTEXT_EXCLUDE = new Set([
   48,  // Bahreïn
   792, // Turquie (n'apparaît qu'en Asie, jamais en contexte sur la carte d'Europe)
   744, // Antarctique
+  578, // Norvège
 ]);
 
 
