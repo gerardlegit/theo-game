@@ -297,6 +297,22 @@ async function buildMap(continentKey) {
   return targets.length;
 }
 
+/**
+ * Met en valeur les pays tirés au sort (en couleur, par-dessus les autres) et
+ * estompe tous les autres pays du continent, pour que les enfants voient
+ * tout de suite où chercher.
+ */
+function highlightChosen(chosen) {
+  const chosenCodes = new Set(chosen.map((c) => c.code));
+  d3.select(mapContainer).selectAll('.country-target').each(function () {
+    const isChosen = chosenCodes.has(this.dataset.code);
+    this.classList.toggle('is-chosen', isChosen);
+    this.classList.toggle('is-other', !isChosen);
+    // Au premier plan, pour que leur contour ne soit pas caché par un voisin
+    if (isChosen) this.parentNode.appendChild(this);
+  });
+}
+
 /* ---------- Drapeaux à glisser ---------- */
 function renderChips(countries) {
   chipsPanel.innerHTML = '';
@@ -416,6 +432,7 @@ async function startContinent(continentKey) {
   totalCountValue = chosen.length;
   totalCountEl.textContent = String(totalCountValue);
   renderChips(chosen);
+  highlightChosen(chosen);
 
   loadingNote.hidden = true;
   gameArea.hidden = false;

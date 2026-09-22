@@ -249,6 +249,15 @@ body {
   text-align: center;
   margin: .6rem 0 0;
 }
+.legend-chosen {
+  display: inline-block;
+  width: .9em;
+  height: .9em;
+  vertical-align: -.1em;
+  border-radius: 3px;
+  background: #FFD35C;
+  border: 2px solid #D9820B;
+}
 
 .country-context {
   fill: #D9D4E4;
@@ -266,17 +275,49 @@ body {
   cursor: pointer;
   transition: fill .2s ease, stroke .2s ease;
 }
-.country-target.drag-over {
-  fill: #FFF0C2;
-  stroke: var(--sky);
+/* Pays qui ne sont pas à trouver dans cette partie : discrets, en arrière-plan */
+.country-target.is-other {
+  fill: #EEEAF3;
+  stroke: #FFFFFF;
+  stroke-width: 1;
+  stroke-dasharray: none;
+  cursor: default;
 }
-.country-target.placed {
-  fill: #EAF9EE;
+/* Les 10 pays tirés au sort : bien visibles, avec une douce pulsation */
+.country-target.is-chosen {
+  fill: #FFD35C;
+  stroke: #D9820B;
+  stroke-width: 2;
+  stroke-dasharray: none;
+  animation: chosenPulse 2.2s ease-in-out infinite;
+}
+@keyframes chosenPulse {
+  0%, 100% { fill: #FFD35C; }
+  50%      { fill: #FFE8A3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .country-target.is-chosen { animation: none; }
+}
+
+/* (les règles suivantes coupent la pulsation, sinon elle écraserait la couleur) */
+.country-target.drag-over,
+.country-target.is-chosen.drag-over {
+  fill: #BFE7FA;
+  stroke: var(--sky);
+  stroke-width: 2.5;
+  animation: none;
+}
+.country-target.placed,
+.country-target.is-chosen.placed {
+  fill: #BDEBC9;
   stroke: var(--green);
+  stroke-width: 2;
   stroke-dasharray: none;
   pointer-events: none;
+  animation: none;
 }
-.country-target.shake-wrong {
+.country-target.shake-wrong,
+.country-target.is-chosen.shake-wrong {
   animation: mapShake .4s ease;
 }
 @keyframes mapShake {
