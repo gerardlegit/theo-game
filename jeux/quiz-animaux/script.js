@@ -1,10 +1,14 @@
 import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
-import { ANIMALS, imageUrl } from "./data.js";
+import { ANIMALS, RARE_ANIMALS, imageUrl } from "./data.js";
 
-const GAME_ID = "quiz-animaux";
+// Deux façons de jouer, avec chacune ses animaux et son propre classement
+const MODES = {
+  communs: { animals: ANIMALS, gameId: "quiz-animaux", label: "🐶 Animaux communs" },
+  rares: { animals: RARE_ANIMALS, gameId: "quiz-animaux-rares", label: "🔭 Animaux rares" },
+};
 const TIME_PER_ANIMAL = 10000;     // 10 secondes pour trouver chaque animal
 const HURRY_AT = 3000;             // le compte à rebours passe au rouge
-const TOTAL = ANIMALS.length;      // 64
+const TOTAL = 64;                  // animaux par partie (plateau 8 x 8)
 const RING_LENGTH = 2 * Math.PI * 44;
 
 /* ---------- Éléments de la page ---------- */
@@ -18,7 +22,10 @@ const countdownEl = document.getElementById('countdown');
 const countdownNumEl = document.getElementById('countdownNum');
 const countdownRing = document.getElementById('countdownRing');
 const startOverlay = document.getElementById('startOverlay');
-const startBtn = document.getElementById('startBtn');
+const modeButtons = document.querySelectorAll('.mode-btn');
+const loadingMsg = document.getElementById('loadingMsg');
+const modeBadge = document.getElementById('modeBadge');
+const leaderboardTabs = document.querySelectorAll('.lb-tab');
 
 const winBanner = document.getElementById('winBanner');
 const winTitle = document.getElementById('winTitle');
@@ -30,7 +37,10 @@ const scoreSaved = document.getElementById('scoreSaved');
 const leaderboardList = document.getElementById('leaderboardList');
 
 /* ---------- État ---------- */
-let state = 'loading';             // 'loading' | 'ready' | 'asking' | 'feedback' | 'done'
+let state = 'ready';               // 'ready' | 'loading' | 'asking' | 'feedback' | 'done'
+let mode = 'communs';
+let leaderboardMode = 'communs';   // classement affiché
+const preloaded = {};              // mode -> promesse de chargement des images
 let order = [];                    // ordre des questions
 let index = 0;
 let points = 0;
@@ -65,25 +75,32 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-/* ---------- Préchargement des 64 dessins ---------- */
-function preloadImages() {
-  let loaded = 0;
-  return Promise.all(ANIMALS.map((animal) => new Promise((resolve) => {
-    const img = new Image();
-    img.onload = img.onerror = () => {
-      loaded += 1;
-      startBtn.textContent = `Chargement des animaux… ${loaded} / ${TOTAL}`;
-      resolve();
-    };
-    img.src = imageUrl(animal);
-  })));
+const currentAnimals = () => MODES[mode].animals;
+
+/* ---------- Préchargement des 64 images d'un mode (une seule fois) ---------- */
+function preloadImages(modeKey) {
+  if (!preloaded[modeKey]) {
+    let loaded = 0;
+    const list = MODES[modeKey].animals;
+    preloaded[modeKey] = Promise.all(list.map((animal) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = img.onerror = () => {
+        loaded += 1;
+        loadingMsg.textContent = `Chargement des animaux… ${loaded} / ${list.length}`;
+        resolve();
+      };
+      img.src = imageUrl(animal);
+    })));
+  }
+  return preloaded[modeKey];
 }
 
 /* ---------- Plateau ---------- */
 function buildGrid() {
   grid.innerHTML = '';
+  grid.classList.toggle('photos', mode === 'rares');
   tilesById = new Map();
-  shuffle(ANIMALS).forEach((animal) => {
+  shuffle(currentAnimals()).forEach((animal) => {
     const tile = document.createElement('button');
     tile.className = 'tile';
     tile.dataset.id = animal.id;
@@ -102,8 +119,9 @@ function buildGrid() {
 
 function newGame() {
   cancelTimers();
-  order = shuffle(ANIMALS);
+  order = shuffle(currentAnimals());
   index = 0;
+  modeBadge.textContent = MODES[mode].label;
   points = 0;
   totalResponseMs = 0;
   pointsEl.textContent = '0';
@@ -120,6 +138,22 @@ function startGame() {
   startOverlay.hidden = true;
   document.body.classList.add('playing');
   askNext();
+}
+
+/** Choix du mode sur l'écran de départ : on charge ses images puis c'est parti. */
+async function chooseMode(modeKey) {
+  if (state !== 'ready' && state !== 'done') return;
+  mode = modeKey;
+  state = 'loading';
+  modeButtons.forEach((b) => { b.disabled = true; });
+  loadingMsg.hidden = false;
+  showLeaderboard(modeKey);
+  newGame();
+  await preloadImages(modeKey);
+  modeButtons.forEach((b) => { b.disabled = false; });
+  loadingMsg.hidden = true;
+  state = 'ready';
+  startGame();
 }
 
 /* ---------- Questions et compte à rebours ---------- */
@@ -225,7 +259,7 @@ function finishGame() {
   else if (points >= 45) winTitle.textContent = 'Super safari ! 🎉';
   else if (points >= 25) winTitle.textContent = 'Bien joué ! 👏';
   else winTitle.textContent = 'Bravo, continue de t\'entraîner ! 💪';
-  winStats.innerHTML = `Tu as trouvé <strong>${points} animaux sur ${TOTAL}</strong><br>Ton score : <strong>${points} point${points > 1 ? 's' : ''}</strong>`;
+  winStats.innerHTML = `${MODES[mode].label}<br>Tu as trouvé <strong>${points} animaux sur ${TOTAL}</strong><br>Ton score : <strong>${points} point${points > 1 ? 's' : ''}</strong>`;
   scoreForm.style.display = points > 0 ? 'block' : 'none';
   scoreSaved.style.display = 'none';
   pseudoInput.value = '';
@@ -234,16 +268,20 @@ function finishGame() {
 }
 
 /* ---------- Boutons ---------- */
-startBtn.addEventListener('click', startGame);
+modeButtons.forEach((btn) => {
+  btn.addEventListener('click', () => chooseMode(btn.dataset.mode));
+});
 
+// "Recommencer" : même mode, nouvelle partie tout de suite
 document.getElementById('restart').addEventListener('click', (e) => {
   e.currentTarget.blur();
-  if (state === 'loading') return;
+  if (state === 'loading' || !startOverlay.hidden) return;
   newGame();
   state = 'ready';
   startGame();
 });
 
+// "Rejouer" : retour à l'écran de départ pour choisir le mode
 document.getElementById('playAgain').addEventListener('click', () => {
   newGame();
   state = 'ready';
@@ -251,7 +289,17 @@ document.getElementById('playAgain').addEventListener('click', () => {
   startOverlay.hidden = false;
 });
 
-/* ---------- Classement mondial ---------- */
+/* ---------- Classement mondial (un par mode, avec deux onglets) ---------- */
+function showLeaderboard(modeKey) {
+  leaderboardMode = modeKey;
+  leaderboardTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.mode === modeKey));
+  renderLeaderboard();
+}
+
+leaderboardTabs.forEach((tab) => {
+  tab.addEventListener('click', () => showLeaderboard(tab.dataset.mode));
+});
+
 async function renderLeaderboard() {
   if (!isLeaderboardConfigured()) {
     leaderboardList.innerHTML =
@@ -259,8 +307,10 @@ async function renderLeaderboard() {
     return;
   }
 
+  const modeKey = leaderboardMode;
   leaderboardList.innerHTML = '<li class="leaderboard-empty">Chargement…</li>';
-  const list = await fetchTopScores(GAME_ID, 20);
+  const list = await fetchTopScores(MODES[modeKey].gameId, 20);
+  if (modeKey !== leaderboardMode) return; // on a changé d'onglet entre-temps
   leaderboardList.innerHTML = '';
 
   if (list.length === 0) {
@@ -288,7 +338,7 @@ document.getElementById('saveScore').addEventListener('click', async () => {
   const saveBtn = document.getElementById('saveScore');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Envoi…';
-  const ok = await submitScore(GAME_ID, name, encodeScore(points, totalResponseMs));
+  const ok = await submitScore(MODES[mode].gameId, name, encodeScore(points, totalResponseMs));
   saveBtn.disabled = false;
   saveBtn.textContent = 'Enregistrer mon score';
 
@@ -297,7 +347,7 @@ document.getElementById('saveScore').addEventListener('click', async () => {
     scoreSaved.textContent = 'Score enregistré ! 🎉';
     scoreSaved.style.color = 'var(--green)';
     scoreSaved.style.display = 'block';
-    renderLeaderboard();
+    showLeaderboard(mode);
   } else {
     scoreSaved.textContent = "Oups, l'enregistrement a échoué. Réessaie !";
     scoreSaved.style.color = 'var(--red)';
@@ -310,14 +360,7 @@ document.getElementById('skipScore').addEventListener('click', () => {
 });
 
 /* ---------- Démarrage ---------- */
-async function init() {
-  countdownRing.style.strokeDasharray = String(RING_LENGTH);
-  newGame();
-  await preloadImages();
-  state = 'ready';
-  startBtn.disabled = false;
-  startBtn.textContent = '🚀 C\'est parti !';
-}
-
-init();
-renderLeaderboard();
+countdownRing.style.strokeDasharray = String(RING_LENGTH);
+newGame();                // plateau des animaux communs, derrière l'écran de départ
+preloadImages('communs'); // on commence à charger pendant que l'enfant lit les règles
+showLeaderboard('communs');

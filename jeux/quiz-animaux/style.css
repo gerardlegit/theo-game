@@ -199,6 +199,14 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
   user-select: none;
   filter: drop-shadow(0 2px 2px rgba(46,42,77,0.18));
 }
+/* Mode "animaux rares" : la photo remplit toute la case */
+.grid.photos .tile { padding: 0; overflow: hidden; }
+.grid.photos .tile img {
+  object-fit: cover;
+  border-radius: inherit;
+  filter: none;
+}
+.grid.photos .tile.asked::after { top: 3px; right: 3px; }
 .tile.no-image {
   font-family: 'Baloo 2', sans-serif;
   font-size: .7rem;
@@ -300,21 +308,53 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
   gap: .45rem;
   font-size: .95rem;
 }
-#startBtn {
+/* Choix du mode : deux grosses cartes */
+.mode-title {
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
-  font-size: 1.2rem;
-  background: var(--yellow);
-  color: var(--ink);
-  border: none;
-  padding: .7rem 1.8rem;
-  border-radius: 999px;
-  box-shadow: 0 6px 0 #d9a21e;
-  cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease;
+  margin: 0 0 .6rem;
 }
-#startBtn:hover:not(:disabled) { transform: translateY(2px); box-shadow: 0 4px 0 #d9a21e; }
-#startBtn:disabled { opacity: .7; cursor: wait; font-size: 1rem; }
+.mode-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .8rem;
+}
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .25rem;
+  padding: 1rem .6rem .9rem;
+  border: none;
+  border-radius: 20px;
+  font-family: 'Baloo 2', sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.mode-communs { background: linear-gradient(160deg, #FFF4D6, #FFD98A); box-shadow: 0 6px 0 #E3B24F; }
+.mode-rares   { background: linear-gradient(160deg, #E3F4FF, #9FD3F5); box-shadow: 0 6px 0 #6FA8D8; }
+.mode-btn:hover:not(:disabled) { transform: translateY(-3px) rotate(-1deg); }
+.mode-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(46,42,77,0.2); }
+.mode-btn:disabled { opacity: .6; cursor: wait; }
+.mode-btn img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 3px rgba(46,42,77,0.2));
+}
+.mode-btn img.photo {
+  object-fit: cover;
+  border-radius: 50%;
+  border: 4px solid var(--white);
+}
+.mode-btn strong { font-size: 1.1rem; line-height: 1.1; }
+.mode-btn small { font-family: 'Quicksand', sans-serif; font-size: .78rem; color: #5b5578; }
+.loading-msg {
+  margin: .8rem 0 0;
+  font-family: 'Baloo 2', sans-serif;
+  color: #9089a8;
+}
 
 /* ---------- Classement ---------- */
 .leaderboard {
@@ -338,6 +378,27 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
   text-align: center;
   margin: 0 0 .9rem;
 }
+.lb-tabs {
+  display: flex;
+  gap: .3rem;
+  margin: 0 0 .8rem;
+  padding: .25rem;
+  background: var(--cream);
+  border-radius: 999px;
+}
+.lb-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: .35rem .5rem;
+  border-radius: 999px;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  font-size: .85rem;
+  color: #9089a8;
+  cursor: pointer;
+}
+.lb-tab.active { background: var(--white); color: var(--ink); box-shadow: 0 2px 0 rgba(46,42,77,0.1); }
 .leaderboard-list {
   list-style: none;
   margin: 0;
@@ -409,6 +470,47 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
   .start-title { font-size: 1.25rem; }
   .how-to { font-size: .82rem; }
 }
+
+/* ---------- Crédits ---------- */
+.credits-link {
+  max-width: 900px;
+  margin: 1.6rem auto 0;
+  padding: 0 1rem;
+  text-align: center;
+  font-size: .78rem;
+  color: #9089a8;
+}
+.credits-link a { color: var(--sky); }
+body.playing .credits-link { display: none; }
+.credits-list {
+  max-width: 960px;
+  margin: 1.2rem auto 0;
+  padding: 0 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: .7rem;
+}
+.credit {
+  display: flex;
+  gap: .7rem;
+  align-items: center;
+  background: var(--white);
+  border-radius: 16px;
+  padding: .5rem;
+  box-shadow: 0 4px 0 rgba(46,42,77,0.06);
+  font-size: .78rem;
+  color: #6a6486;
+}
+.credit img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.credit div { display: flex; flex-direction: column; gap: .15rem; min-width: 0; overflow-wrap: anywhere; }
+.credit strong { font-family: 'Baloo 2', sans-serif; font-size: .95rem; color: var(--ink); }
+.credit a { color: var(--sky); }
 
 /* ---------- Fin de partie ---------- */
 .win-banner {

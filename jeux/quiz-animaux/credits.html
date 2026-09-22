@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crédits photos — Quiz des Animaux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="index.html">← Retour au quiz</a>
+
+  <header class="game-header">
+    <h1>📷 Crédits photos</h1>
+    <p>Les photos des animaux rares viennent de Wikimedia Commons. Merci à leurs auteurs !</p>
+  </header>
+
+  <main class="credits-list" id="creditsList"></main>
+
+  <p class="credits-link">
+    Les dessins des animaux communs viennent de Noto Emoji (Google), sous licence Apache 2.0.
+  </p>
+
+  <script type="module">
+    import { RARE_ANIMALS } from "./data.js";
+
+    const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+    document.getElementById('creditsList').innerHTML = RARE_ANIMALS.map((a) => `
+      <div class="credit">
+        <img src="${a.photo}" alt="${esc(a.name)}" loading="lazy">
+        <div>
+          <strong>${esc(a.name)}</strong>
+          <span>Photo : ${esc(a.credit.author)}</span>
+          <span>Licence : ${esc(a.credit.license)} — <a href="${a.credit.page}" target="_blank" rel="noopener">voir sur Wikimedia Commons</a></span>
+        </div>
+      </div>`).join('');
+  </script>
+</body>
+</html>
