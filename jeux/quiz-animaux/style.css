@@ -154,7 +154,7 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
 .countdown.hurry span { color: var(--red); animation: hurry .5s ease infinite alternate; }
 @keyframes hurry { to { transform: scale(1.15); } }
 
-/* ---------- Plateau 8 x 8 ---------- */
+/* ---------- Plateau 6 x 6 ---------- */
 .game-layout {
   display: flex;
   gap: 1.4rem;
@@ -172,9 +172,10 @@ body.playing .stage { width: min(100%, 1000px, max(480px, calc(100vh - 190px)));
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: clamp(3px, .8vw, 8px);
-  padding: clamp(6px, 1.2vw, 12px);
+  grid-template-columns: repeat(6, 1fr);
+  /* animaux bien espacés, pour qu'on les distingue facilement */
+  gap: clamp(8px, 2vw, 22px);
+  padding: clamp(10px, 2vw, 22px);
   background: var(--white);
   border-radius: 24px;
   box-shadow: 0 6px 0 rgba(46,42,77,0.08);

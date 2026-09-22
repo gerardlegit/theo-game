@@ -1,14 +1,14 @@
-import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
+﻿import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
 import { ANIMALS, RARE_ANIMALS, imageUrl } from "./data.js";
 
-// Deux façons de jouer, avec chacune ses animaux et son propre classement
+// Deux façons de jouer, avec chacune ses animaux, son chrono et son classement.
+// "time" = temps pour trouver chaque animal (les rares sont plus durs : 20 s).
 const MODES = {
-  communs: { animals: ANIMALS, gameId: "quiz-animaux", label: "🐶 Animaux communs" },
-  rares: { animals: RARE_ANIMALS, gameId: "quiz-animaux-rares", label: "🔭 Animaux rares" },
+  communs: { animals: ANIMALS, time: 10000, gameId: "quiz-animaux-36", label: "🐶 Animaux communs" },
+  rares: { animals: RARE_ANIMALS, time: 20000, gameId: "quiz-animaux-rares-36", label: "🔭 Animaux rares" },
 };
-const TIME_PER_ANIMAL = 20000;     // 20 secondes pour trouver chaque animal
 const HURRY_AT = 3000;             // le compte à rebours passe au rouge
-const TOTAL = 64;                  // animaux par partie (plateau 8 x 8)
+const TOTAL = 36;                  // animaux par partie (plateau 6 x 6), tirés parmi les 64
 const RING_LENGTH = 2 * Math.PI * 44;
 
 /* ---------- Éléments de la page ---------- */
@@ -54,7 +54,7 @@ let nextTimeout = null;
 /* ---------- Classement : le module partagé classe "le plus petit d'abord" ----------
  * On range donc (animaux ratés, puis temps de réponse) dans un seul nombre :
  *   valeur = ratés × 10000 + temps total en dixièmes de seconde + 1
- * (le temps total ne dépasse jamais 64 × 10 s = 6400 dixièmes).
+ * (le temps total ne dépasse jamais 36 × 20 s = 7200 dixièmes).
  */
 const encodeScore = (pts, ms) => (TOTAL - pts) * 10000 + Math.round(ms / 100) + 1;
 const decodePoints = (value) => TOTAL - Math.floor((value - 1) / 10000);
@@ -76,6 +76,8 @@ function escapeHtml(str) {
 }
 
 const currentAnimals = () => MODES[mode].animals;
+const timeLimit = () => MODES[mode].time;
+let gameAnimals = [];               // les 36 animaux de la partie en cours
 
 /* ---------- Préchargement des 64 images d'un mode (une seule fois) ---------- */
 function preloadImages(modeKey) {
@@ -100,7 +102,7 @@ function buildGrid() {
   grid.innerHTML = '';
   grid.classList.toggle('photos', mode === 'rares');
   tilesById = new Map();
-  shuffle(currentAnimals()).forEach((animal) => {
+  shuffle(gameAnimals).forEach((animal) => {
     const tile = document.createElement('button');
     tile.className = 'tile';
     tile.dataset.id = animal.id;
@@ -119,7 +121,9 @@ function buildGrid() {
 
 function newGame() {
   cancelTimers();
-  order = shuffle(currentAnimals());
+  // 36 animaux tirés au hasard parmi les 64, puis posés dans le désordre
+  gameAnimals = shuffle(currentAnimals()).slice(0, TOTAL);
+  order = shuffle(gameAnimals);
   index = 0;
   modeBadge.textContent = MODES[mode].label;
   points = 0;
@@ -128,7 +132,7 @@ function newGame() {
   questionNumEl.textContent = '0';
   questionTotalEl.textContent = String(TOTAL);
   questionNameEl.textContent = '…';
-  setCountdown(TIME_PER_ANIMAL);
+  setCountdown(timeLimit());
   winBanner.classList.remove('show');
   buildGrid();
 }
@@ -158,7 +162,7 @@ async function chooseMode(modeKey) {
 
 /* ---------- Questions et compte à rebours ---------- */
 function setCountdown(remainingMs) {
-  const ratio = Math.max(0, remainingMs) / TIME_PER_ANIMAL;
+  const ratio = Math.max(0, remainingMs) / timeLimit();
   countdownRing.style.strokeDashoffset = String(RING_LENGTH * (1 - ratio));
   countdownNumEl.textContent = String(Math.ceil(Math.max(0, remainingMs) / 1000));
   countdownEl.classList.toggle('hurry', remainingMs <= HURRY_AT);
@@ -174,13 +178,13 @@ function askNext() {
   questionEl.classList.add('pop');
   askedAt = performance.now();
   // Le vrai chrono : un minuteur fiable, même si l'animation est ralentie
-  timeoutId = setTimeout(onTimeout, TIME_PER_ANIMAL);
+  timeoutId = setTimeout(onTimeout, timeLimit());
   tick();
 }
 
 /** Animation de l'anneau et du chiffre du compte à rebours. */
 function tick() {
-  setCountdown(TIME_PER_ANIMAL - (performance.now() - askedAt));
+  setCountdown(timeLimit() - (performance.now() - askedAt));
   rafId = requestAnimationFrame(tick);
 }
 
@@ -205,7 +209,7 @@ function onTileClick(tile) {
     tile.classList.add('asked', 'found');
     goNext(700);
   } else {
-    totalResponseMs += TIME_PER_ANIMAL;
+    totalResponseMs += timeLimit();
     tile.classList.add('wrong');
     setTimeout(() => tile.classList.remove('wrong'), 500);
     revealMissed(animal);
@@ -216,7 +220,7 @@ function onTimeout() {
   if (state !== 'asking') return;
   cancelTimers();
   setCountdown(0);
-  totalResponseMs += TIME_PER_ANIMAL;
+  totalResponseMs += timeLimit();
   revealMissed(order[index]);
 }
 
@@ -255,9 +259,9 @@ function launchConfetti() {
 function finishGame() {
   state = 'done';
   questionNameEl.textContent = '…';
-  if (points >= 60) winTitle.textContent = 'Incroyable, expert des animaux ! 🏆';
-  else if (points >= 45) winTitle.textContent = 'Super safari ! 🎉';
-  else if (points >= 25) winTitle.textContent = 'Bien joué ! 👏';
+  if (points >= 34) winTitle.textContent = 'Incroyable, expert des animaux ! 🏆';
+  else if (points >= 26) winTitle.textContent = 'Super safari ! 🎉';
+  else if (points >= 14) winTitle.textContent = 'Bien joué ! 👏';
   else winTitle.textContent = 'Bravo, continue de t\'entraîner ! 💪';
   winStats.innerHTML = `${MODES[mode].label}<br>Tu as trouvé <strong>${points} animaux sur ${TOTAL}</strong><br>Ton score : <strong>${points} point${points > 1 ? 's' : ''}</strong>`;
   scoreForm.style.display = points > 0 ? 'block' : 'none';
