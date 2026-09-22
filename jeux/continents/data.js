@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Données du jeu "Continents"
 //
 // Carte utilisée : world-atlas "countries-50m" (Natural Earth). Chaque pays y
@@ -6,6 +6,7 @@
 // code (Kosovo, Somaliland…) sont identifiés par leur nom anglais dans la carte.
 //
 // Pour chaque continent :
+//  - colors  : dégradé de l'icône (globe) du continent
 //  - center  : [longitude, latitude] du centre de la projection
 //  - clip    : [lonMin, lonMax, latMin, latMax]. Seuls les morceaux (îles,
 //              territoires) dont le centre tombe dans cette zone sont gardés :
@@ -23,7 +24,8 @@
 const CONTINENTS = {
   europe: {
     label: "Europe",
-    emoji: "🇪🇺",
+    colors: ["#8B7BFF", "#3A8DFF"],
+    iconExclude: ["RU"], // l'icône montre l'Europe sans toute la Sibérie
     center: [15, 52],
     clip: [-25, 50, 34, 72],
     partial: ["RU"],
@@ -84,7 +86,7 @@ const CONTINENTS = {
 
   afrique: {
     label: "Afrique",
-    emoji: "🌍",
+    colors: ["#FFC04D", "#FF5E62"],
     center: [18, 2],
     clip: [-26, 60, -36, 38],
     context: [
@@ -150,7 +152,7 @@ const CONTINENTS = {
 
   asie: {
     label: "Asie",
-    emoji: "🌏",
+    colors: ["#FF7EB3", "#A445E6"],
     center: [90, 30],
     clip: [25, 150, -12, 56],
     partial: ["RU"],
@@ -209,7 +211,7 @@ const CONTINENTS = {
 
   amerique_nord: {
     label: "Amérique du Nord",
-    emoji: "🗽",
+    colors: ["#3FE0D0", "#2F7BE8"],
     center: [-95, 40],
     clip: [-170, -50, 5, 84],
     exclude: [
@@ -248,7 +250,7 @@ const CONTINENTS = {
 
   amerique_sud: {
     label: "Amérique du Sud",
-    emoji: "🦙",
+    colors: ["#9BE15D", "#10A37F"],
     center: [-60, -20],
     clip: [-82, -34, -56, 13],
     exclude: [

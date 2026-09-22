@@ -54,29 +54,90 @@ body {
   padding: 0 1.5rem;
 }
 .continent-btn {
+  --c1: var(--sky);
+  --c2: var(--pink);
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: .6rem;
+  gap: .5rem;
   background: var(--white);
   border: none;
-  border-radius: 22px;
-  padding: 1.8rem 1rem;
+  border-radius: 26px;
+  padding: 1.5rem 1rem 1.3rem;
   font-family: 'Baloo 2', sans-serif;
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1.15;
   color: var(--ink);
   cursor: pointer;
   box-shadow: 0 6px 0 rgba(46,42,77,0.1);
-  transition: transform .15s ease, box-shadow .15s ease;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
-.continent-btn:hover { transform: translateY(-4px); }
+/* Bandeau coloré en haut de la carte, aux couleurs du continent */
+.continent-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 58%;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  opacity: .18;
+  border-radius: 0 0 50% 50% / 0 0 22% 22%;
+  transition: opacity .2s ease;
+}
+.continent-btn > * { position: relative; }
+.continent-btn:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 0 rgba(46,42,77,0.08), 0 14px 30px color-mix(in srgb, var(--c2) 35%, transparent);
+}
+.continent-btn:hover::before { opacity: .32; }
 .continent-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(46,42,77,0.1); }
-.continent-emoji { font-size: 2.6rem; }
+
+.continent-icon {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  /* En attendant le chargement de la carte : un globe coloré vide */
+  background: radial-gradient(circle at 32% 28%, var(--c1), var(--c2));
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c2) 25%, transparent);
+  animation: globeFloat 4s ease-in-out infinite;
+}
+.continent-icon.ready {
+  background: none;
+  box-shadow: none;
+}
+.continent-btn:nth-child(2) .continent-icon { animation-delay: -.8s; }
+.continent-btn:nth-child(3) .continent-icon { animation-delay: -1.6s; }
+.continent-btn:nth-child(4) .continent-icon { animation-delay: -2.4s; }
+.continent-btn:nth-child(5) .continent-icon { animation-delay: -3.2s; }
+.globe-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
+}
+.globe-halo { opacity: .25; transition: opacity .2s ease; }
+.continent-btn:hover .globe-icon { transform: scale(1.1) rotate(-8deg); }
+.continent-btn:hover .globe-halo { opacity: .45; }
+@keyframes globeFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .continent-icon { animation: none; }
+}
+
 .continent-count {
   font-family: 'Quicksand', sans-serif;
-  font-size: .8rem;
-  color: #9089a8;
+  font-weight: 700;
+  font-size: .78rem;
+  color: var(--white);
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  padding: .15rem .7rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .loading-note {
@@ -205,10 +266,6 @@ body {
   cursor: pointer;
   transition: fill .2s ease, stroke .2s ease;
 }
-circle.country-target {
-  fill: rgba(255, 201, 60, 0.35);
-  stroke-width: 1.5;
-}
 .country-target.drag-over {
   fill: #FFF0C2;
   stroke: var(--sky);
@@ -228,13 +285,6 @@ circle.country-target {
   75% { transform: translateX(3px); }
 }
 
-.country-target-shape.tiny {
-  fill: var(--cream);
-  stroke: #E0A82E;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-  pointer-events: none;
-}
 .placed-flag { pointer-events: none; }
 
 /* ---------- Drapeaux à placer ---------- */
