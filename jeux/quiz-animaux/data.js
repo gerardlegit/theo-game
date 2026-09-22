@@ -1,14 +1,14 @@
-// ============================================================================
+﻿// ============================================================================
 // Les 64 animaux du quiz.
 //
-// Les dessins viennent de "Fluent Emoji 3D" de Microsoft (licence MIT),
-// publiés sur npm par @lobehub/fluent-emoji-3d. Chaque image est nommée
-// d'après le code Unicode de l'émoji correspondant.
+// Les dessins viennent de "Noto Emoji" de Google (licence Apache 2.0),
+// servis par les serveurs de Google Fonts. Chaque image est nommée d'après le
+// code Unicode de l'émoji correspondant (séquences séparées par "_").
 // ============================================================================
 
-const IMAGE_BASE = "https://cdn.jsdelivr.net/npm/@lobehub/fluent-emoji-3d@1.1.0/assets/";
+const IMAGE_BASE = "https://fonts.gstatic.com/s/e/notoemoji/latest/";
 
-export const imageUrl = (animal) => `${IMAGE_BASE}${animal.img}.webp`;
+export const imageUrl = (animal) => `${IMAGE_BASE}${animal.img}/emoji.svg`;
 
 // "the" = le nom avec son article, pour la question "Où est… ?"
 export const ANIMALS = [
@@ -23,7 +23,7 @@ export const ANIMALS = [
   { id: "canard",       name: "Canard",        the: "le canard",        img: "1f986" },
   { id: "lapin",        name: "Lapin",         the: "le lapin",         img: "1f407" },
   { id: "souris",       name: "Souris",        the: "la souris",        img: "1f401" },
-  { id: "ecureuil",     name: "Écureuil",      the: "l'écureuil",       img: "1f43f-fe0f" },
+  { id: "ecureuil",     name: "Écureuil",      the: "l'écureuil",       img: "1f43f" },
   { id: "herisson",     name: "Hérisson",      the: "le hérisson",      img: "1f994" },
   { id: "chauvesouris", name: "Chauve-souris", the: "la chauve-souris", img: "1f987" },
   { id: "hibou",        name: "Hibou",         the: "le hibou",         img: "1f989" },
@@ -47,7 +47,7 @@ export const ANIMALS = [
   { id: "tigre",        name: "Tigre",         the: "le tigre",         img: "1f405" },
   { id: "leopard",      name: "Léopard",       the: "le léopard",       img: "1f406" },
   { id: "ours",         name: "Ours",          the: "l'ours",           img: "1f43b" },
-  { id: "ourspolaire",  name: "Ours polaire",  the: "l'ours polaire",   img: "1f43b-200d-2744-fe0f" },
+  { id: "ourspolaire",  name: "Ours polaire",  the: "l'ours polaire",   img: "1f43b_200d_2744_fe0f" },
   { id: "panda",        name: "Panda",         the: "le panda",         img: "1f43c" },
   { id: "koala",        name: "Koala",         the: "le koala",         img: "1f428" },
   { id: "renard",       name: "Renard",        the: "le renard",        img: "1f98a" },

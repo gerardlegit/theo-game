@@ -2,7 +2,8 @@ import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shar
 import { ANIMALS, imageUrl } from "./data.js";
 
 const GAME_ID = "quiz-animaux";
-const TIME_PER_ANIMAL = 5000;      // 5 secondes pour trouver chaque animal
+const TIME_PER_ANIMAL = 10000;     // 10 secondes pour trouver chaque animal
+const HURRY_AT = 3000;             // le compte à rebours passe au rouge
 const TOTAL = ANIMALS.length;      // 64
 const RING_LENGTH = 2 * Math.PI * 44;
 
@@ -43,7 +44,7 @@ let nextTimeout = null;
 /* ---------- Classement : le module partagé classe "le plus petit d'abord" ----------
  * On range donc (animaux ratés, puis temps de réponse) dans un seul nombre :
  *   valeur = ratés × 10000 + temps total en dixièmes de seconde + 1
- * (le temps total ne dépasse jamais 64 × 5 s = 3200 dixièmes).
+ * (le temps total ne dépasse jamais 64 × 10 s = 6400 dixièmes).
  */
 const encodeScore = (pts, ms) => (TOTAL - pts) * 10000 + Math.round(ms / 100) + 1;
 const decodePoints = (value) => TOTAL - Math.floor((value - 1) / 10000);
@@ -126,7 +127,7 @@ function setCountdown(remainingMs) {
   const ratio = Math.max(0, remainingMs) / TIME_PER_ANIMAL;
   countdownRing.style.strokeDashoffset = String(RING_LENGTH * (1 - ratio));
   countdownNumEl.textContent = String(Math.ceil(Math.max(0, remainingMs) / 1000));
-  countdownEl.classList.toggle('hurry', remainingMs <= 2000);
+  countdownEl.classList.toggle('hurry', remainingMs <= HURRY_AT);
 }
 
 function askNext() {
