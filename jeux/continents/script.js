@@ -1,7 +1,8 @@
 import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
 
-const GAME_ID = "continents";
-const WORLD_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+// Un classement par continent : ils n'ont pas tous le même nombre de pays
+const gameIdFor = (continentKey) => `continents-${continentKey}`;
+const WORLD_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
 const FLAG_SVG_BASE = "https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/flags/4x3/";
 
 const continentPicker = document.getElementById('continentPicker');
@@ -20,11 +21,17 @@ const scoreForm = document.getElementById('scoreForm');
 const pseudoInput = document.getElementById('pseudoInput');
 const scoreSaved = document.getElementById('scoreSaved');
 const leaderboardList = document.getElementById('leaderboardList');
+const leaderboardSub = document.getElementById('leaderboardSub');
 
-let allFeatures = null;
+let topology = null;
+let geometriesByKey = null;
 let currentContinentKey = null;
 let centroids = {};
 let svgEl = null;
+let zoomLayer = null;
+let flagGroup = null;
+let zoomBehavior = null;
+let zoomK = 1;
 
 let placedCodes = new Set();
 let totalCountValue = 0;
@@ -74,142 +81,216 @@ function stopTimer() {
 
 /* ---------- Chargement de la carte du monde (une seule fois) ---------- */
 async function loadWorld() {
-  if (allFeatures) return allFeatures;
+  if (topology) return topology;
   const res = await fetch(WORLD_URL);
-  const topology = await res.json();
-  const fc = topojson.feature(topology, topology.objects.countries);
-  allFeatures = fc.features;
-  return allFeatures;
+  topology = await res.json();
+  geometriesByKey = new Map();
+  topology.objects.countries.geometries.forEach((g) => {
+    // Clé = code numérique ISO, ou nom anglais pour les rares territoires sans code
+    const key = g.id != null ? Number(g.id) : g.properties.name;
+    if (!geometriesByKey.has(key)) geometriesByKey.set(key, []);
+    geometriesByKey.get(key).push(g);
+  });
+  return topology;
 }
 
-function codeForNumeric(continent, numericId) {
-  const n = Number(numericId);
-  const found = continent.countries.find((c) => c.numeric === n);
-  return found ? found.code : null;
+function inBox([lon, lat], [lonMin, lonMax, latMin, latMax]) {
+  return lon >= lonMin && lon <= lonMax && lat >= latMin && lat <= latMax;
+}
+
+function ringCenter(ring) {
+  let lon = 0, lat = 0;
+  ring.forEach(([x, y]) => { lon += x; lat += y; });
+  return [lon / ring.length, lat / ring.length];
 }
 
 /**
- * Ne garde, dans une géométrie MultiPolygon, que les morceaux situés à
- * proximité de la zone du continent — ça retire par exemple les DOM-TOM
- * français (Guyane, Réunion, Antilles...) de la forme de la France quand on
- * affiche la carte d'Europe, sans toucher aux pays qui n'ont qu'un seul bloc.
- * Renvoie null si rien de la géométrie ne tombe dans la zone (+ marge).
+ * Fusionne les morceaux de carte "ids" en une seule forme (sans frontière
+ * intérieure), puis ne garde que les morceaux (îles, territoires) dont le
+ * centre tombe dans la zone "clip" et hors des zones "exclude". C'est ce qui
+ * retire la Guyane de la France sur la carte d'Europe, Hawaï des États-Unis…
+ * Renvoie null s'il ne reste rien.
  */
-function clipToContinent(feature, bbox, margin) {
-  const [lonMin, lonMax, latMin, latMax] = bbox;
-  const minLon = lonMin - margin, maxLon = lonMax + margin;
-  const minLat = latMin - margin, maxLat = latMax + margin;
-  const inRange = ([lon, lat]) => lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+function buildShape(ids, clip, exclude = []) {
+  const geoms = ids.flatMap((id) => geometriesByKey.get(id) || []);
+  if (geoms.length === 0) return null;
+  const merged = topojson.merge(topology, geoms);
 
-  const geom = feature.geometry;
-  if (!geom) return null;
-
-  if (geom.type === 'Polygon') {
-    return geom.coordinates[0].some(inRange) ? feature : null;
-  }
-
-  if (geom.type === 'MultiPolygon') {
-    const kept = geom.coordinates.filter((poly) => poly[0].some(inRange));
-    if (kept.length === 0) return null;
-    return { ...feature, geometry: { type: 'MultiPolygon', coordinates: kept } };
-  }
-
-  return feature;
+  const polygons = merged.coordinates.filter((poly) => {
+    if (!clip) return true;
+    const c = ringCenter(poly[0]);
+    return inBox(c, clip) && !exclude.some((box) => inBox(c, box));
+  });
+  if (polygons.length === 0) return null;
+  return { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: polygons } };
 }
+
+/* ---------- Zoom (molette, pincement, boutons) ---------- */
+// Tailles "à l'écran" des ronds des petits pays et des drapeaux posés :
+// elles restent identiques quel que soit le niveau de zoom.
+const TINY_R = 9;
+const FLAG_SIZE = 26;
+
+function onZoom(event) {
+  const t = event.transform;
+  zoomK = t.k;
+  zoomLayer.attr('transform', t);
+  zoomLayer.selectAll('circle.country-target').attr('r', TINY_R / t.k);
+  zoomLayer.selectAll('image.placed-flag').each(function () {
+    const img = d3.select(this);
+    const [cx, cy] = [Number(img.attr('data-cx')), Number(img.attr('data-cy'))];
+    const w = FLAG_SIZE / t.k, h = w * 0.75;
+    img.attr('x', cx - w / 2).attr('y', cy - h / 2).attr('width', w).attr('height', h);
+  });
+}
+
+document.getElementById('zoomIn').addEventListener('click', () => {
+  if (svgEl) d3.select(svgEl).transition().duration(250).call(zoomBehavior.scaleBy, 1.6);
+});
+document.getElementById('zoomOut').addEventListener('click', () => {
+  if (svgEl) d3.select(svgEl).transition().duration(250).call(zoomBehavior.scaleBy, 1 / 1.6);
+});
+document.getElementById('zoomReset').addEventListener('click', () => {
+  if (svgEl) d3.select(svgEl).transition().duration(300).call(zoomBehavior.transform, d3.zoomIdentity);
+});
 
 /* ---------- Construction de la carte d'un continent ---------- */
 async function buildMap(continentKey) {
   const continent = CONTINENTS[continentKey];
   mapContainer.innerHTML = '';
+  await loadWorld();
 
-  const features = await loadWorld();
-  const targetNumerics = new Set(continent.countries.map((c) => c.numeric));
-
-  const targetFeatures = continent.countries
+  const partial = new Set(continent.partial || []);
+  const targets = continent.countries
     .map((c) => {
-      const raw = features.find((f) => Number(f.id) === c.numeric);
-      if (!raw) return null;
-      return clipToContinent(raw, continent.bbox, 14) || raw;
+      const ids = c.ids || [c.numeric];
+      // Un pays "partiel" (la Russie) garde tous ses morceaux : il est
+      // simplement coupé au bord de la carte.
+      const shape = partial.has(c.code)
+        ? buildShape(ids, null)
+        : buildShape(ids, continent.clip, continent.exclude);
+      return shape ? { country: c, shape } : null;
     })
     .filter(Boolean);
 
-  const extraKeys = Array.isArray(continent.extraExclude)
-    ? continent.extraExclude
-    : continent.extraExclude ? [continent.extraExclude] : [];
-  const exclude = new Set([
-    ...CONTEXT_EXCLUDE,
-    ...extraKeys.flatMap((key) => Array.from(EXTRA_EXCLUDE_SETS[key] || [])),
-  ]);
-
-  const contextFeatures = features
-    .filter((f) => !targetNumerics.has(Number(f.id)) && !exclude.has(Number(f.id)))
-    .map((f) => clipToContinent(f, continent.bbox, 6))
+  const contextShapes = (continent.context || [])
+    .map((ctx) => buildShape(ctx.ids, ctx.clip || continent.clip, continent.exclude))
     .filter(Boolean);
 
-  const combined = { type: 'FeatureCollection', features: [...contextFeatures, ...targetFeatures] };
+  // La carte est cadrée uniquement sur les pays du continent (hors pays partiels)
+  const framing = {
+    type: 'FeatureCollection',
+    features: targets.filter((t) => !partial.has(t.country.code)).map((t) => t.shape),
+  };
 
-  const width = 600, height = 600;
+  const projection = d3.geoAzimuthalEqualArea()
+    .rotate([-continent.center[0], -continent.center[1]]);
+
+  // Proportions de la carte adaptées à la forme du continent
+  projection.fitSize([1000, 1000], framing);
+  const [[bx0, by0], [bx1, by1]] = d3.geoPath(projection).bounds(framing);
+  const width = 1000;
+  const height = Math.round(Math.min(1.35, Math.max(0.55, (by1 - by0) / (bx1 - bx0))) * width);
+  const pad = 14;
+  projection.fitExtent([[pad, pad], [width - pad, height - pad]], framing);
+  const pathGen = d3.geoPath(projection);
+  // Même projection, mais coupée au cadre de la carte : sert à calculer le
+  // centre de la partie *visible* d'un pays partiel (la Russie)
+  const visibleGen = d3.geoPath(
+    d3.geoAzimuthalEqualArea()
+      .rotate(projection.rotate())
+      .scale(projection.scale())
+      .translate(projection.translate())
+      .clipExtent([[0, 0], [width, height]])
+  );
+
   const svg = d3.select(mapContainer)
     .append('svg')
     .attr('viewBox', `0 0 ${width} ${height}`)
     .attr('preserveAspectRatio', 'xMidYMid meet');
   svgEl = svg.node();
 
-  const projection = d3.geoMercator();
-  projection.fitSize([width, height], combined);
-  const pathGen = d3.geoPath(projection);
+  svg.append('rect')
+    .attr('class', 'map-sea')
+    .attr('width', width)
+    .attr('height', height);
 
-  svg.append('g')
+  // Tout ce qui dépasse du cadre de la carte est masqué (la Russie continue
+  // bien au-delà), sans dessiner de faux contour le long du bord.
+  const clipId = `map-clip-${continentKey}`;
+  svg.append('clipPath')
+    .attr('id', clipId)
+    .append('rect')
+    .attr('width', width)
+    .attr('height', height);
+
+  zoomLayer = svg.append('g').append('g');
+  zoomLayer.node().parentNode.setAttribute('clip-path', `url(#${clipId})`);
+  zoomK = 1;
+
+  zoomLayer.append('g')
     .selectAll('path')
-    .data(contextFeatures)
+    .data(contextShapes)
     .join('path')
     .attr('class', 'country-context')
     .attr('d', pathGen);
 
-  // Les très petits pays (îles du Pacifique, etc.) sont quasi invisibles à
-  // l'échelle d'un continent : on garde leur vraie forme à l'écran, mais on
-  // ajoute par-dessus un rond invisible plus grand qui sert de vraie cible
-  // pour le glisser-déposer, sinon ils sont injouables.
-  const MIN_HIT_SIZE = 22;
+  // Les très petits pays (Vatican, îles des Antilles…) sont quasi invisibles à
+  // l'échelle d'un continent : on garde leur vraie forme, mais on ajoute
+  // par-dessus un rond qui sert de vraie cible pour le glisser-déposer.
+  const MIN_HIT_SIZE = 16;
+  const MIN_HIT_AREA = 150;
 
   centroids = {};
-  const targetGroup = svg.append('g');
+  const shapeGroup = zoomLayer.append('g');
+  const tinyGroup = zoomLayer.append('g');
+  flagGroup = zoomLayer.append('g');
 
-  targetFeatures.forEach((f) => {
-    const code = codeForNumeric(continent, f.id);
-    if (!code) return;
-
-    const centroid = pathGen.centroid(f);
+  targets.forEach(({ country, shape }) => {
+    const code = country.code;
+    const centroid = visibleGen.centroid(shape);
+    if (!Number.isFinite(centroid[0])) return;
     centroids[code] = centroid;
 
-    const [[x0, y0], [x1, y1]] = pathGen.bounds(f);
-    const isTiny = Math.max(x1 - x0, y1 - y0) < MIN_HIT_SIZE;
+    // Petit = minuscule, ou éparpillé en petites îles (Cap-Vert, Maldives…)
+    const [[x0, y0], [x1, y1]] = visibleGen.bounds(shape);
+    const isTiny = Math.max(x1 - x0, y1 - y0) < MIN_HIT_SIZE
+      || visibleGen.area(shape) < MIN_HIT_AREA;
 
     if (isTiny) {
-      targetGroup.append('path')
-        .datum(f)
+      shapeGroup.append('path')
+        .datum(shape)
         .attr('class', 'country-target-shape tiny')
         .attr('d', pathGen);
-      targetGroup.append('circle')
+      tinyGroup.append('circle')
         .attr('class', 'country-target')
         .attr('data-code', code)
         .attr('cx', centroid[0])
         .attr('cy', centroid[1])
-        .attr('r', 13);
+        .attr('r', TINY_R);
     } else {
-      targetGroup.append('path')
-        .datum(f)
+      shapeGroup.append('path')
+        .datum(shape)
         .attr('class', 'country-target')
         .attr('data-code', code)
         .attr('d', pathGen);
     }
   });
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([1, 12])
+    .translateExtent([[0, 0], [width, height]])
+    .extent([[0, 0], [width, height]])
+    .on('zoom', onZoom);
+  svg.call(zoomBehavior);
+
+  return targets.length;
 }
 
 /* ---------- Drapeaux à glisser ---------- */
-function renderChips(continent) {
+function renderChips(countries) {
   chipsPanel.innerHTML = '';
-  shuffle(continent.countries).forEach((country) => {
+  shuffle(countries).forEach((country) => {
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.dataset.code = country.code;
@@ -274,17 +355,18 @@ function onCorrectDrop(chip, path, country) {
   path.classList.remove('drag-over');
 
   const centroid = centroids[country.code];
-  if (centroid && svgEl) {
-    const size = 28;
-    const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', `${FLAG_SVG_BASE}${country.code.toLowerCase()}.svg`);
-    img.setAttribute('href', `${FLAG_SVG_BASE}${country.code.toLowerCase()}.svg`);
-    img.setAttribute('x', String(centroid[0] - size / 2));
-    img.setAttribute('y', String(centroid[1] - (size * 0.75) / 2));
-    img.setAttribute('width', String(size));
-    img.setAttribute('height', String(size * 0.75));
-    img.setAttribute('class', 'placed-flag');
-    svgEl.appendChild(img);
+  if (centroid && flagGroup) {
+    const w = FLAG_SIZE / zoomK, h = w * 0.75;
+    const href = `${FLAG_SVG_BASE}${country.code.toLowerCase()}.svg`;
+    flagGroup.append('image')
+      .attr('class', 'placed-flag')
+      .attr('href', href)
+      .attr('data-cx', centroid[0])
+      .attr('data-cy', centroid[1])
+      .attr('x', centroid[0] - w / 2)
+      .attr('y', centroid[1] - h / 2)
+      .attr('width', w)
+      .attr('height', h);
   }
 
   placedCodes.add(country.code);
@@ -314,15 +396,19 @@ async function startContinent(continentKey) {
   gameArea.hidden = true;
 
   placedCodes = new Set();
-  totalCountValue = continent.countries.length;
   placedCountEl.textContent = '0';
-  totalCountEl.textContent = String(totalCountValue);
+  renderLeaderboard();
 
   await buildMap(continentKey);
-  renderChips(continent);
+  // Seuls les pays effectivement dessinés sur la carte sont à placer
+  const playable = continent.countries.filter((c) => centroids[c.code]);
+  totalCountValue = playable.length;
+  totalCountEl.textContent = String(totalCountValue);
+  renderChips(playable);
 
   loadingNote.hidden = true;
   gameArea.hidden = false;
+  gameArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
   startTimer();
 }
 
@@ -379,8 +465,12 @@ async function renderLeaderboard() {
     return;
   }
 
+  if (!currentContinentKey) return;
+  const continentKey = currentContinentKey;
+  leaderboardSub.textContent = `${CONTINENTS[continentKey].label} : top 20 mondial (le plus rapide !)`;
   leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Chargement…</li>';
-  const list = await fetchTopScores(GAME_ID, 20);
+  const list = await fetchTopScores(gameIdFor(continentKey), 20);
+  if (continentKey !== currentContinentKey) return; // on a changé de continent entre-temps
   leaderboardList.innerHTML = '';
 
   if (list.length === 0) {
@@ -408,7 +498,7 @@ document.getElementById('saveScore').addEventListener('click', async () => {
   const saveBtn = document.getElementById('saveScore');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Envoi…';
-  const ok = await submitScore(GAME_ID, name, finalTime);
+  const ok = await submitScore(gameIdFor(currentContinentKey), name, finalTime);
   saveBtn.disabled = false;
   saveBtn.textContent = 'Enregistrer mon score';
 
@@ -430,4 +520,10 @@ document.getElementById('skipScore').addEventListener('click', () => {
 });
 
 /* ---------- Démarrage ---------- */
-renderLeaderboard();
+document.querySelectorAll('.continent-btn').forEach((btn) => {
+  const count = CONTINENTS[btn.dataset.continent].countries.length;
+  const span = document.createElement('span');
+  span.className = 'continent-count';
+  span.textContent = `${count} pays`;
+  btn.appendChild(span);
+});

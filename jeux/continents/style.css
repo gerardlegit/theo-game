@@ -10,6 +10,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -72,6 +73,11 @@ body {
 .continent-btn:hover { transform: translateY(-4px); }
 .continent-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(46,42,77,0.1); }
 .continent-emoji { font-size: 2.6rem; }
+.continent-count {
+  font-family: 'Quicksand', sans-serif;
+  font-size: .8rem;
+  color: #9089a8;
+}
 
 .loading-note {
   text-align: center;
@@ -123,48 +129,85 @@ body {
 /* ---------- Layout de jeu ---------- */
 .game-layout {
   display: flex;
-  gap: 1.4rem;
-  max-width: 1180px;
+  gap: 1.2rem;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 0 1rem;
   align-items: flex-start;
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 .map-wrap {
-  flex: 1 1 480px;
-  min-width: 300px;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
 }
 .map-container {
   background: var(--white);
   border-radius: 24px;
   box-shadow: 0 6px 0 rgba(46,42,77,0.08);
-  padding: 1rem;
-  aspect-ratio: 1 / 1;
-  max-height: 640px;
-  position: relative;
+  padding: .6rem;
+  overflow: hidden;
 }
 .map-container svg {
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: calc(100vh - 110px);
   display: block;
   touch-action: none;
+  cursor: grab;
+  border-radius: 16px;
+}
+.map-sea { fill: #E4F4FC; }
+
+.zoom-controls {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.zoom-controls button {
+  width: 2.3rem;
+  height: 2.3rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--ink);
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(46,42,77,0.15);
+}
+.zoom-controls button:hover { background: var(--cream); }
+.map-hint {
+  font-size: .8rem;
+  color: #9089a8;
+  text-align: center;
+  margin: .6rem 0 0;
 }
 
 .country-context {
-  fill: #EFEAF6;
+  fill: #D9D4E4;
   stroke: var(--white);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 .country-target {
   fill: var(--cream);
-  stroke: var(--yellow);
-  stroke-width: 2;
-  stroke-dasharray: 5 3;
+  stroke: #E0A82E;
+  stroke-width: 1.3;
+  stroke-dasharray: 4 2;
+  vector-effect: non-scaling-stroke;
   cursor: pointer;
   transition: fill .2s ease, stroke .2s ease;
+}
+circle.country-target {
+  fill: rgba(255, 201, 60, 0.35);
+  stroke-width: 1.5;
 }
 .country-target.drag-over {
   fill: #FFF0C2;
@@ -187,14 +230,23 @@ body {
 
 .country-target-shape.tiny {
   fill: var(--cream);
-  stroke: var(--yellow);
-  stroke-width: 1.2;
+  stroke: #E0A82E;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
+.placed-flag { pointer-events: none; }
 
 /* ---------- Drapeaux à placer ---------- */
 .chips-col {
-  flex: 0 0 220px;
+  flex: 0 0 280px;
+  position: sticky;
+  top: 1rem;
+}
+.chips-panel {
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  padding: .2rem .4rem .6rem .2rem;
 }
 .chips-title {
   font-family: 'Baloo 2', sans-serif;
@@ -270,13 +322,12 @@ body {
 
 /* ---------- Classement ---------- */
 .leaderboard {
-  flex: 0 0 220px;
+  max-width: 420px;
+  margin: 2rem auto 0;
   background: var(--white);
   border-radius: 22px;
   padding: 1.2rem 1.1rem;
   box-shadow: 0 6px 0 rgba(46,42,77,0.08);
-  position: sticky;
-  top: 1.5rem;
 }
 .leaderboard h2 {
   font-family: 'Baloo 2', sans-serif;
@@ -346,12 +397,17 @@ body {
   text-align: center;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .game-layout { flex-direction: column; align-items: stretch; }
-  .map-wrap, .chips-col, .leaderboard { flex: none; width: 100%; max-width: 560px; margin: 0 auto; }
-  .leaderboard { position: static; }
+  .map-wrap, .chips-col { flex: none; width: 100%; }
+  .chips-col { position: static; }
+  .chips-panel {
+    max-height: 40vh;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
   .leaderboard-list { max-height: 220px; }
-  .map-container { max-height: 420px; }
+  .map-container svg { max-height: 70vh; }
 }
 
 /* ---------- Overlays partagés (victoire) ---------- */

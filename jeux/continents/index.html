@@ -51,20 +51,26 @@
     <div class="game-layout">
       <div class="map-wrap">
         <div id="mapContainer" class="map-container"></div>
+        <div class="zoom-controls">
+          <button id="zoomIn" aria-label="Zoomer">+</button>
+          <button id="zoomOut" aria-label="Dézoomer">−</button>
+          <button id="zoomReset" aria-label="Revoir tout le continent">⟲</button>
+        </div>
+        <p class="map-hint">🔍 Les tout petits pays sont marqués d'un rond. Zoome avec la molette, en pinçant l'écran ou avec les boutons + et −.</p>
       </div>
 
       <div class="chips-col">
         <h2 class="chips-title">Drapeaux à placer</h2>
         <div class="chips-panel" id="chipsPanel"></div>
       </div>
-
-      <aside class="leaderboard" id="leaderboard">
-        <h2>🏆 Classement</h2>
-        <p class="leaderboard-sub">Top 20 mondial (le plus rapide !)</p>
-        <ol class="leaderboard-list" id="leaderboardList"></ol>
-        <p class="leaderboard-note">🧮 Classement au temps (en secondes), tous continents confondus.</p>
-      </aside>
     </div>
+
+    <aside class="leaderboard" id="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub" id="leaderboardSub">Top 20 mondial (le plus rapide !)</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+      <p class="leaderboard-note">🧮 Classement au temps (en secondes), un classement par continent.</p>
+    </aside>
   </section>
 
   <!-- Victoire -->
