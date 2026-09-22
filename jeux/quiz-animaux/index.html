@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz des Animaux — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🦒 Quiz des Animaux</h1>
+    <p>Un nom s'affiche : clique vite sur le bon animal avant la fin du compte à rebours !</p>
+  </header>
+
+  <div class="hud">
+    <div class="hud-item">⭐ Points : <span id="points">0</span></div>
+    <div class="hud-item">Animal <span id="questionNum">0</span> / <span id="questionTotal">64</span></div>
+    <button id="restart">Recommencer</button>
+  </div>
+
+  <section class="question" id="question" aria-live="polite">
+    <div class="countdown" id="countdown">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="countdown-track" cx="50" cy="50" r="44"/>
+        <circle class="countdown-ring" id="countdownRing" cx="50" cy="50" r="44"/>
+      </svg>
+      <span id="countdownNum">5</span>
+    </div>
+    <p class="question-text">Où est <strong id="questionName">…</strong> ?</p>
+  </section>
+
+  <div class="game-layout">
+    <div class="stage">
+      <main class="grid" id="grid" aria-label="Les 64 animaux"></main>
+
+      <div class="start-overlay" id="startOverlay">
+        <div class="start-card">
+          <p class="start-title">Prêt pour le safari ? 🧭</p>
+          <ul class="how-to">
+            <li>👀 Un nom d'animal s'affiche en haut.</li>
+            <li>⏱️ Tu as <strong>5 secondes</strong> pour cliquer sur le bon dessin.</li>
+            <li>⭐ Chaque animal trouvé te rapporte <strong>1 point</strong>.</li>
+            <li>🏁 La partie s'arrête quand les 64 animaux sont passés.</li>
+          </ul>
+          <button id="startBtn" disabled>Chargement des animaux…</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub">Top 20 mondial (le plus de points&nbsp;!)</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+      <p class="leaderboard-note">À égalité de points, le plus rapide passe devant.</p>
+    </aside>
+  </div>
+
+  <!-- Fin de partie -->
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title" id="winTitle">Bravo ! 🎉</p>
+      <p id="winStats"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon score</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
+
+      <button id="playAgain">Rejouer</button>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
