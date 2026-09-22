@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L'Espace — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🚀 L'Espace</h1>
+    <p>Pilote ton vaisseau et emmène chaque nom jusqu'à la bonne image !</p>
+  </header>
+
+  <div class="hud">
+    <div class="hud-item">⏱️ <span id="timer">0</span> s</div>
+    <div class="hud-item">Livrés : <span id="deliveredCount">0</span> / <span id="totalCount">0</span></div>
+    <button id="restart">Recommencer</button>
+  </div>
+
+  <section class="game-layout">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="spaceCanvas" width="1000" height="640"></canvas>
+
+        <div class="fact-toast" id="factToast" hidden></div>
+
+        <div class="start-overlay" id="startOverlay">
+          <div class="start-card">
+            <p class="start-title">Prêt pour le décollage ?</p>
+            <ul class="how-to">
+              <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter</li>
+              <li>🧲 Touche un nom pour l'attraper avec ton rayon</li>
+              <li>🪐 Emmène-le jusqu'à la bonne image</li>
+              <li><kbd>Espace</kbd> pour lâcher un nom</li>
+              <li>⏱️ 1 seconde = 1 point : fais le moins de points possible&nbsp;!</li>
+            </ul>
+            <button id="startBtn">🚀 Décoller !</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="touch-pad" id="touchPad" aria-label="Commandes tactiles">
+        <div class="dpad">
+          <button data-dir="up" class="dpad-up" aria-label="Haut">▲</button>
+          <button data-dir="left" class="dpad-left" aria-label="Gauche">◀</button>
+          <button data-dir="right" class="dpad-right" aria-label="Droite">▶</button>
+          <button data-dir="down" class="dpad-down" aria-label="Bas">▼</button>
+        </div>
+        <button id="dropBtn" class="drop-btn">Lâcher</button>
+      </div>
+    </div>
+
+    <aside class="leaderboard" id="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub">Top 20 mondial (le moins de points !)</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+      <p class="leaderboard-note">🧮 1 point par seconde : plus tu es rapide, moins tu as de points.</p>
+    </aside>
+  </section>
+
+  <!-- Victoire -->
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Mission accomplie, astronaute ! 🚀✨</p>
+      <p id="winTime"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon score</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
+
+      <button id="playAgain">Nouvelle mission</button>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

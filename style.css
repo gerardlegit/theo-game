@@ -155,9 +155,10 @@ body {
 .card-5 { transform: rotate(-1.9deg); }
 .card-6 { transform: rotate(1.5deg); }
 .card-7 { transform: rotate(-2.1deg); }
+.card-8 { transform: rotate(1.7deg); }
 
 .card:hover { transform: rotate(0deg) translateY(-6px); }
-.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover, .card-5:hover, .card-6:hover, .card-7:hover { transform: rotate(0deg) translateY(-6px); }
+.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover, .card-5:hover, .card-6:hover, .card-7:hover, .card-8:hover { transform: rotate(0deg) translateY(-6px); }
 
 .card-blob {
   position: absolute;
@@ -174,6 +175,7 @@ body {
 .card-5 .card-blob { background: var(--yellow); }
 .card-6 .card-blob { background: var(--green); }
 .card-7 .card-blob { background: var(--pink); }
+.card-8 .card-blob { background: var(--sky); }
 
 .card-icon {
   font-size: 2.4rem;
