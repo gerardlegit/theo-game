@@ -6,7 +6,7 @@ const MODES = {
   communs: { animals: ANIMALS, gameId: "quiz-animaux", label: "🐶 Animaux communs" },
   rares: { animals: RARE_ANIMALS, gameId: "quiz-animaux-rares", label: "🔭 Animaux rares" },
 };
-const TIME_PER_ANIMAL = 10000;     // 10 secondes pour trouver chaque animal
+const TIME_PER_ANIMAL = 20000;     // 20 secondes pour trouver chaque animal
 const HURRY_AT = 3000;             // le compte à rebours passe au rouge
 const TOTAL = 64;                  // animaux par partie (plateau 8 x 8)
 const RING_LENGTH = 2 * Math.PI * 44;
