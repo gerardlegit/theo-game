@@ -1,7 +1,7 @@
 import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
+import { ANIMALS } from "./animals.js";
 
 const GAME_ID = "memory";
-const ANIMALS = ['🐶','🐱','🦊','🐼','🦁','🐸','🐵','🐨'];
 
 const board = document.getElementById('board');
 const movesEl = document.getElementById('moves');
@@ -45,12 +45,15 @@ function buildBoard() {
     const tile = document.createElement('button');
     tile.className = 'tile';
     tile.setAttribute('aria-label', 'Carte retournée');
-    tile.dataset.animal = animal;
+    tile.dataset.animal = animal.id;
     tile.dataset.index = i;
     tile.innerHTML = `
       <div class="tile-inner">
-        <div class="tile-face tile-back">?</div>
-        <div class="tile-face tile-front">${animal}</div>
+        <div class="tile-face tile-back"><span>?</span></div>
+        <div class="tile-face tile-front" style="--bg1:${animal.bg[0]};--bg2:${animal.bg[1]}">
+          ${animal.svg}
+          <span class="tile-name">${animal.name}</span>
+        </div>
       </div>
     `;
     tile.addEventListener('click', () => onTileClick(tile));
@@ -64,6 +67,7 @@ function onTileClick(tile) {
   if (flipped.length === 2) return;
 
   tile.classList.add('flipped');
+  tile.setAttribute('aria-label', ANIMALS.find((a) => a.id === tile.dataset.animal).name);
   flipped.push(tile);
 
   if (flipped.length === 2) {
@@ -88,6 +92,8 @@ function onTileClick(tile) {
       setTimeout(() => {
         a.classList.remove('flipped');
         b.classList.remove('flipped');
+        a.setAttribute('aria-label', 'Carte retournée');
+        b.setAttribute('aria-label', 'Carte retournée');
         flipped = [];
         lock = false;
       }, 800);

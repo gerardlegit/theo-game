@@ -171,6 +171,10 @@ body {
   aspect-ratio: 1 / 1;
   perspective: 800px;
   cursor: pointer;
+  /* retire le style par défaut des boutons (cadre gris) */
+  border: none;
+  background: none;
+  padding: 0;
 }
 .tile-inner {
   position: relative;
@@ -194,19 +198,67 @@ body {
   backface-visibility: hidden;
   font-size: 2rem;
 }
+/* Dos de carte : dégradé, petits pois et gros point d'interrogation */
 .tile-back {
-  background: var(--sky);
-  color: var(--white);
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.22) 2px, transparent 2.5px) 0 0 / 16px 16px,
+    linear-gradient(135deg, #7B6CFF, #FF6F91);
+  box-shadow: 0 5px 0 rgba(46,42,77,0.15), inset 0 0 0 4px rgba(255,255,255,0.35);
+  transition: transform .15s ease;
+}
+.tile-back span {
+  display: grid;
+  place-items: center;
+  width: 52%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.95);
+  color: #7B6CFF;
   font-family: 'Baloo 2', sans-serif;
-  font-size: 1.6rem;
+  font-weight: 800;
+  font-size: clamp(1.3rem, 4vw, 2.2rem);
+  box-shadow: 0 4px 0 rgba(46,42,77,0.15);
 }
+.tile:hover:not(.flipped):not(.matched) .tile-back { transform: translateY(-3px) rotate(-2deg); }
+
+/* Face : le dessin de l'animal sur son fond coloré */
 .tile-front {
-  background: var(--white);
+  flex-direction: column;
+  gap: 0;
+  padding: 6% 6% 5%;
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
   transform: rotateY(180deg);
-  box-shadow: 0 4px 0 rgba(46,42,77,0.08);
+  box-shadow: 0 5px 0 rgba(46,42,77,0.12);
+  overflow: hidden;
 }
+.tile-front svg {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+.tile-name {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: clamp(.6rem, 1.8vw, .9rem);
+  line-height: 1.1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* Paire trouvée : contour vert et petit saut de joie */
 .tile.matched .tile-front {
-  background: #EAF9EE;
+  box-shadow: 0 5px 0 rgba(46,42,77,0.12), inset 0 0 0 4px var(--green);
+}
+.tile.matched .tile-inner {
+  animation: matchJump .5s ease;
+}
+@keyframes matchJump {
+  0%   { transform: rotateY(180deg) scale(1); }
+  40%  { transform: rotateY(180deg) scale(1.1) rotate(-4deg); }
+  70%  { transform: rotateY(180deg) scale(.97) rotate(3deg); }
+  100% { transform: rotateY(180deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.matched .tile-inner { animation: none; }
 }
 
 .win-banner {
