@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Course des Multiplications — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🏎️ La Course des Multiplications</h1>
+    <p>Conduis ta voiture à travers le panneau de la bonne réponse !</p>
+  </header>
+
+  <div class="hud">
+    <div class="hud-item">⏱️ <span id="timer">3:00</span></div>
+    <div class="hud-item">⭐ <span id="pointsCount">0</span> point(s)</div>
+    <div class="hud-item">Question <span id="questionCount">0</span> / <span id="totalCount">9</span></div>
+    <button id="restart">Recommencer</button>
+  </div>
+
+  <div class="route-progress" aria-hidden="true">
+    <div class="route-track">
+      <div class="route-fill" id="routeFill"></div>
+      <span class="route-car" id="routeCar">🚗</span>
+      <span class="route-flag">🏁</span>
+    </div>
+  </div>
+
+  <section class="game-layout">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="roadCanvas"></canvas>
+
+        <!-- Multiplication en cours -->
+        <div class="question-banner" id="questionBanner" hidden>
+          <p class="question-text" id="questionText"></p>
+          <div class="question-options" id="questionOptions">
+            <span class="opt opt-0"></span>
+            <span class="opt opt-1"></span>
+            <span class="opt opt-2"></span>
+          </div>
+          <div class="question-bar"><div class="question-bar-fill" id="questionBarFill"></div></div>
+          <p class="question-feedback" id="questionFeedback"></p>
+        </div>
+
+        <div class="start-overlay" id="startOverlay">
+          <div class="start-card">
+            <p class="start-title">Prêt à prendre la route ?</p>
+            <ul class="how-to">
+              <li><span class="keys"><kbd>←</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Q</kbd><kbd>D</kbd></span> pour changer de voie (ou touche l'écran à gauche / à droite)</li>
+              <li>✖️ Toutes les 20 secondes, une multiplication apparaît</li>
+              <li>🪧 Passe à travers le panneau de la bonne réponse : +1 point ⭐</li>
+              <li>🏁 La route dure 3 minutes : combien de bonnes réponses ?</li>
+            </ul>
+            <button id="startBtn">🚗 C'est parti !</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="touch-pad" aria-label="Commandes tactiles">
+        <button id="leftBtn" class="steer-btn" aria-label="Voie de gauche">◀</button>
+        <button id="rightBtn" class="steer-btn" aria-label="Voie de droite">▶</button>
+      </div>
+    </div>
+
+    <aside class="leaderboard" id="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub">Top 20 mondial (le plus de bonnes réponses !)</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+      <p class="leaderboard-note">⭐ 1 point par bonne réponse, 9 multiplications par course.</p>
+    </aside>
+  </section>
+
+  <!-- Arrivée -->
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Tu es arrivé au bout de la route ! 🏁</p>
+      <p id="winScore"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon score</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
+
+      <button id="playAgain">Nouvelle course</button>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
