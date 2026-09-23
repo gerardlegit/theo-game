@@ -37,6 +37,13 @@
     </button>
   </section>
 
+  <!-- Classements (un par continent), visibles seulement sur la page de choix -->
+  <section class="leaderboards" id="leaderboards">
+    <h2 class="leaderboards-title">🏆 Classements</h2>
+    <p class="leaderboards-sub">Top 20 mondial par continent (le plus rapide !)</p>
+    <div class="leaderboards-grid" id="leaderboardsGrid"></div>
+  </section>
+
   <p class="loading-note" id="loadingNote" hidden>Chargement de la carte du monde…</p>
 
   <!-- Zone de jeu -->
@@ -65,12 +72,6 @@
       </div>
     </div>
 
-    <aside class="leaderboard" id="leaderboard">
-      <h2>🏆 Classement</h2>
-      <p class="leaderboard-sub" id="leaderboardSub">Top 20 mondial (le plus rapide !)</p>
-      <ol class="leaderboard-list" id="leaderboardList"></ol>
-      <p class="leaderboard-note">🧮 Classement au temps (en secondes), un classement par continent.</p>
-    </aside>
   </section>
 
   <!-- Victoire -->

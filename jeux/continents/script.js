@@ -21,8 +21,8 @@ const confettiLayer = document.getElementById('confettiLayer');
 const scoreForm = document.getElementById('scoreForm');
 const pseudoInput = document.getElementById('pseudoInput');
 const scoreSaved = document.getElementById('scoreSaved');
-const leaderboardList = document.getElementById('leaderboardList');
-const leaderboardSub = document.getElementById('leaderboardSub');
+const leaderboards = document.getElementById('leaderboards');
+const leaderboardsGrid = document.getElementById('leaderboardsGrid');
 
 let topology = null;
 let geometriesByKey = null;
@@ -418,12 +418,12 @@ async function startContinent(continentKey) {
   const continent = CONTINENTS[continentKey];
 
   continentPicker.hidden = true;
+  leaderboards.hidden = true;
   loadingNote.hidden = false;
   gameArea.hidden = true;
 
   placedCodes = new Set();
   placedCountEl.textContent = '0';
-  renderLeaderboard();
 
   await buildMap(continentKey);
   // 10 pays tirés au hasard parmi ceux assez grands pour être bien visibles
@@ -450,8 +450,7 @@ document.getElementById('restart').addEventListener('click', () => {
 
 document.getElementById('changeContinent').addEventListener('click', () => {
   stopTimer();
-  gameArea.hidden = true;
-  continentPicker.hidden = false;
+  showPicker();
 });
 
 /* ---------- Victoire + classement ---------- */
@@ -482,27 +481,41 @@ function finishGame() {
 
 document.getElementById('playAgain').addEventListener('click', () => {
   winBanner.classList.remove('show');
-  gameArea.hidden = true;
-  continentPicker.hidden = false;
+  showPicker();
 });
 
-async function renderLeaderboard() {
+function showPicker() {
+  gameArea.hidden = true;
+  continentPicker.hidden = false;
+  leaderboards.hidden = false;
+  renderLeaderboards();
+}
+
+function renderLeaderboards() {
+  leaderboardsGrid.innerHTML = '';
   if (!isLeaderboardConfigured()) {
-    leaderboardList.innerHTML =
-      '<li class="leaderboard-empty" style="display:block;">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l\'administrateur).</li>';
+    leaderboardsGrid.innerHTML =
+      '<p class="leaderboard-empty">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l'administrateur).</p>';
     return;
   }
+  Object.keys(CONTINENTS).forEach((key) => {
+    const card = document.createElement('aside');
+    card.className = 'leaderboard';
+    card.innerHTML = `
+      <h3>${escapeHtml(CONTINENTS[key].label)}</h3>
+      <ol class="leaderboard-list"><li class="leaderboard-empty" style="display:block;">Chargement…</li></ol>
+    `;
+    leaderboardsGrid.appendChild(card);
+    fillLeaderboard(key, card.querySelector('.leaderboard-list'));
+  });
+}
 
-  if (!currentContinentKey) return;
-  const continentKey = currentContinentKey;
-  leaderboardSub.textContent = `${CONTINENTS[continentKey].label} : top 20 mondial (le plus rapide !)`;
-  leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Chargement…</li>';
+async function fillLeaderboard(continentKey, listEl) {
   const list = await fetchTopScores(gameIdFor(continentKey), 20);
-  if (continentKey !== currentContinentKey) return; // on a changé de continent entre-temps
-  leaderboardList.innerHTML = '';
+  listEl.innerHTML = '';
 
   if (list.length === 0) {
-    leaderboardList.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement mondial !</li>';
+    listEl.innerHTML = '<li class="leaderboard-empty" style="display:block;">Sois le premier du classement mondial !</li>';
     return;
   }
 
@@ -513,7 +526,7 @@ async function renderLeaderboard() {
       <span class="lb-name">${escapeHtml(entry.name)}</span>
       <span class="lb-time">${entry.value}s</span>
     `;
-    leaderboardList.appendChild(li);
+    listEl.appendChild(li);
   });
 }
 
@@ -535,7 +548,6 @@ document.getElementById('saveScore').addEventListener('click', async () => {
     scoreSaved.textContent = 'Score enregistré ! 🎉';
     scoreSaved.style.color = 'var(--green)';
     scoreSaved.style.display = 'block';
-    renderLeaderboard();
   } else {
     scoreSaved.textContent = "Oups, l'enregistrement a échoué. Réessaie !";
     scoreSaved.style.color = 'var(--red)';
@@ -633,3 +645,4 @@ document.querySelectorAll('.continent-btn').forEach((btn) => {
 // La carte du monde sert aussi aux icônes : la charger tout de suite rend
 // en plus le lancement d'une partie instantané.
 renderContinentIcons();
+renderLeaderboards();
