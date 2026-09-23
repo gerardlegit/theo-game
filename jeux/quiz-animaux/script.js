@@ -1,14 +1,17 @@
 ﻿import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
 import { ANIMALS, RARE_ANIMALS, imageUrl } from "./data.js";
 
-// Deux façons de jouer, avec chacune ses animaux, son chrono et son classement.
-// "time" = temps pour trouver chaque animal (les rares sont plus durs : 20 s).
+// Deux façons de jouer, avec chacune ses animaux, son chrono, sa taille de
+// plateau et son classement.
+//   time = temps pour trouver chaque animal (les rares sont plus durs : 20 s)
+//   size = côté du plateau carré : 6 x 6 = 36 animaux, 5 x 5 = 25 animaux,
+//          tirés au hasard parmi les 64 du mode
 const MODES = {
-  communs: { animals: ANIMALS, time: 10000, gameId: "quiz-animaux-36", label: "🐶 Animaux communs" },
-  rares: { animals: RARE_ANIMALS, time: 20000, gameId: "quiz-animaux-rares-36", label: "🔭 Animaux rares" },
+  communs: { animals: ANIMALS, time: 10000, size: 6, gameId: "quiz-animaux-36", label: "🐶 Animaux communs" },
+  rares: { animals: RARE_ANIMALS, time: 20000, size: 5, gameId: "quiz-animaux-rares-25", label: "🔭 Animaux rares" },
 };
 const HURRY_AT = 3000;             // le compte à rebours passe au rouge
-const TOTAL = 36;                  // animaux par partie (plateau 6 x 6), tirés parmi les 64
+const totalFor = (modeKey) => MODES[modeKey].size ** 2;
 const RING_LENGTH = 2 * Math.PI * 44;
 
 /* ---------- Éléments de la page ---------- */
@@ -54,10 +57,10 @@ let nextTimeout = null;
 /* ---------- Classement : le module partagé classe "le plus petit d'abord" ----------
  * On range donc (animaux ratés, puis temps de réponse) dans un seul nombre :
  *   valeur = ratés × 10000 + temps total en dixièmes de seconde + 1
- * (le temps total ne dépasse jamais 36 × 20 s = 7200 dixièmes).
+ * (le temps total ne dépasse jamais 36 × 10 s ou 25 × 20 s = 6000 dixièmes).
  */
-const encodeScore = (pts, ms) => (TOTAL - pts) * 10000 + Math.round(ms / 100) + 1;
-const decodePoints = (value) => TOTAL - Math.floor((value - 1) / 10000);
+const encodeScore = (modeKey, pts, ms) => (totalFor(modeKey) - pts) * 10000 + Math.round(ms / 100) + 1;
+const decodePoints = (modeKey, value) => totalFor(modeKey) - Math.floor((value - 1) / 10000);
 
 /* ---------- Utilitaires ---------- */
 function shuffle(arr) {
@@ -77,7 +80,8 @@ function escapeHtml(str) {
 
 const currentAnimals = () => MODES[mode].animals;
 const timeLimit = () => MODES[mode].time;
-let gameAnimals = [];               // les 36 animaux de la partie en cours
+const total = () => totalFor(mode);
+let gameAnimals = [];               // les animaux de la partie en cours
 
 /* ---------- Préchargement des 64 images d'un mode (une seule fois) ---------- */
 function preloadImages(modeKey) {
@@ -101,6 +105,7 @@ function preloadImages(modeKey) {
 function buildGrid() {
   grid.innerHTML = '';
   grid.classList.toggle('photos', mode === 'rares');
+  grid.style.setProperty('--cols', String(MODES[mode].size));
   tilesById = new Map();
   shuffle(gameAnimals).forEach((animal) => {
     const tile = document.createElement('button');
@@ -121,8 +126,8 @@ function buildGrid() {
 
 function newGame() {
   cancelTimers();
-  // 36 animaux tirés au hasard parmi les 64, puis posés dans le désordre
-  gameAnimals = shuffle(currentAnimals()).slice(0, TOTAL);
+  // Les animaux de la partie, tirés au hasard parmi les 64, puis posés dans le désordre
+  gameAnimals = shuffle(currentAnimals()).slice(0, total());
   order = shuffle(gameAnimals);
   index = 0;
   modeBadge.textContent = MODES[mode].label;
@@ -130,7 +135,7 @@ function newGame() {
   totalResponseMs = 0;
   pointsEl.textContent = '0';
   questionNumEl.textContent = '0';
-  questionTotalEl.textContent = String(TOTAL);
+  questionTotalEl.textContent = String(total());
   questionNameEl.textContent = '…';
   setCountdown(timeLimit());
   winBanner.classList.remove('show');
@@ -236,7 +241,7 @@ function goNext(delay) {
   state = 'feedback';
   nextTimeout = setTimeout(() => {
     index += 1;
-    if (index >= TOTAL) finishGame();
+    if (index >= total()) finishGame();
     else askNext();
   }, delay);
 }
@@ -259,11 +264,12 @@ function launchConfetti() {
 function finishGame() {
   state = 'done';
   questionNameEl.textContent = '…';
-  if (points >= 34) winTitle.textContent = 'Incroyable, expert des animaux ! 🏆';
-  else if (points >= 26) winTitle.textContent = 'Super safari ! 🎉';
-  else if (points >= 14) winTitle.textContent = 'Bien joué ! 👏';
+  const ratio = points / total();
+  if (ratio >= 0.94) winTitle.textContent = 'Incroyable, expert des animaux ! 🏆';
+  else if (ratio >= 0.72) winTitle.textContent = 'Super safari ! 🎉';
+  else if (ratio >= 0.4) winTitle.textContent = 'Bien joué ! 👏';
   else winTitle.textContent = 'Bravo, continue de t\'entraîner ! 💪';
-  winStats.innerHTML = `${MODES[mode].label}<br>Tu as trouvé <strong>${points} animaux sur ${TOTAL}</strong><br>Ton score : <strong>${points} point${points > 1 ? 's' : ''}</strong>`;
+  winStats.innerHTML = `${MODES[mode].label}<br>Tu as trouvé <strong>${points} animaux sur ${total()}</strong><br>Ton score : <strong>${points} point${points > 1 ? 's' : ''}</strong>`;
   scoreForm.style.display = points > 0 ? 'block' : 'none';
   scoreSaved.style.display = 'none';
   pseudoInput.value = '';
@@ -327,7 +333,7 @@ async function renderLeaderboard() {
     li.innerHTML = `
       <span class="rank">${i + 1}</span>
       <span class="lb-name">${escapeHtml(entry.name)}</span>
-      <span class="lb-time">${decodePoints(entry.value)} pts</span>
+      <span class="lb-time">${decodePoints(modeKey, entry.value)} pts</span>
     `;
     leaderboardList.appendChild(li);
   });
@@ -342,7 +348,7 @@ document.getElementById('saveScore').addEventListener('click', async () => {
   const saveBtn = document.getElementById('saveScore');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Envoi…';
-  const ok = await submitScore(MODES[mode].gameId, name, encodeScore(points, totalResponseMs));
+  const ok = await submitScore(MODES[mode].gameId, name, encodeScore(mode, points, totalResponseMs));
   saveBtn.disabled = false;
   saveBtn.textContent = 'Enregistrer mon score';
 
