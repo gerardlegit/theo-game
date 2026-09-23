@@ -495,7 +495,7 @@ function renderLeaderboards() {
   leaderboardsGrid.innerHTML = '';
   if (!isLeaderboardConfigured()) {
     leaderboardsGrid.innerHTML =
-      '<p class="leaderboard-empty">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l'administrateur).</p>';
+      '<p class="leaderboard-empty">Classement mondial pas encore activé sur ce site (configuration Firebase à faire par l\'administrateur).</p>';
     return;
   }
   Object.keys(CONTINENTS).forEach((key) => {
