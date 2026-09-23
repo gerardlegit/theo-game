@@ -14,6 +14,11 @@ const MAX_POINTS = TOTAL_QUESTIONS * 2;   // avec un bonus ×2 à chaque questio
 // on le croise 6 s après les panneaux, bien avant la question suivante
 const EVENT_DELAY = 6;
 const GRANDPA_WALK = 1;        // m/s : le papi ne court pas !
+// Tremplins : on les croise 13 s après les panneaux, entre le bonus/papi et la question suivante
+const RAMP_DELAY = 13;
+const RAMP_LEN = 5, RAMP_H = 0.9, RAMP_HALF_W = 1.3;
+const JUMP_SPEED = 6.5, GRAVITY = 13;   // environ 1 s en l'air
+const DANCE_TIME = 4.5;        // le temps de regarder la danse avant le score
 
 /* ---------- Monde (en mètres) ---------- */
 const SPEED = 25;                          // 90 km/h
@@ -96,6 +101,10 @@ let grandpas = [];            // { s, startX, dir, spawnT, resolved, hit }
 let toastHideAt = null;
 let roadEnd = Infinity, seaStart = Infinity;
 let decel = 12;
+let rampPlan = [];            // pour chaque intervalle entre deux questions : tremplin ou pas
+let nextRampIdx = 0;
+let ramps = [];               // { s, lane, used }
+let jumpY = 0, jumpV = 0, landBump = 0;
 let questionIndex = 0;
 let nextQuestionAt = FIRST_QUESTION_AT;
 let currentQuestion = null;   // { a, b, answer, options, s, resolved }
@@ -279,6 +288,13 @@ function resetGame() {
   bonusActive = false;
   events = planEvents();
   nextEventIdx = 0;
+  rampPlan = shuffle([true, true, true, ...Array(TOTAL_QUESTIONS - 1 - 3).fill(false)]);
+  if (Math.random() < 0.5) rampPlan[rampPlan.indexOf(false)] = true; // 3 ou 4 tremplins
+  nextRampIdx = 0;
+  ramps = [];
+  jumpY = 0;
+  jumpV = 0;
+  landBump = 0;
   bonuses = [];
   grandpas = [];
   toastHideAt = null;
@@ -339,7 +355,7 @@ function update(dt) {
   } else if (state === 'finishing') {
     speed = Math.max(0, speed - decel * dt);
     if (speed === 0) {
-      if (doneAt === null) doneAt = clock + 1.6; // le temps d'admirer la plage
+      if (doneAt === null) doneAt = clock + DANCE_TIME; // le temps d'admirer la plage et la danse
       else if (clock >= doneAt) endGame();
     }
   }
@@ -350,6 +366,19 @@ function update(dt) {
       spawnQuestion();
       nextQuestionAt += QUESTION_EVERY;
     }
+    if (nextRampIdx < rampPlan.length && gameTime >= FIRST_QUESTION_AT + nextRampIdx * QUESTION_EVERY + RAMP_DELAY) {
+      if (rampPlan[nextRampIdx]) ramps.push({ s: dist + SPAWN_AHEAD, lane: randInt(0, 2), used: false });
+      nextRampIdx += 1;
+    }
+    ramps.forEach((r) => {
+      if (r.used || r.s - dist > 0.8) return;
+      r.used = true;
+      if (currentLane() === r.lane && jumpY === 0) {
+        jumpV = JUMP_SPEED;
+        showToast('🚀 Youpiii !', 'good');
+        burst(['✨', '💨', '⭐'], 12);
+      }
+    });
     if (nextEventIdx < events.length && gameTime >= eventSpawnTime(nextEventIdx)) {
       if (events[nextEventIdx]) spawnEvent(events[nextEventIdx]);
       nextEventIdx += 1;
@@ -384,6 +413,19 @@ function update(dt) {
       nextCurveChangeAt = gameTime + 5 + Math.random() * 4;
     }
   }
+  // Saut sur un tremplin
+  if (jumpY > 0 || jumpV > 0) {
+    jumpV -= GRAVITY * dt;
+    jumpY += jumpV * dt;
+    if (jumpY <= 0) {
+      jumpY = 0;
+      jumpV = 0;
+      landBump = 1;
+      burst(['💨'], 8);
+    }
+  }
+  landBump = Math.max(0, landBump - dt * 3);
+
   if (toastHideAt !== null && clock >= toastHideAt) {
     eventToast.hidden = true;
     toastHideAt = null;
@@ -408,12 +450,13 @@ function update(dt) {
 
 /* ---------- Dessin ---------- */
 let bob = 0;
+let horizonY = HORIZON;   // bouge quand la voiture pique du nez ou se cabre sur un tremplin
 
 function proj(x, y, z) {
   const sc = FOCAL / z;
   return {
     x: W / 2 + (x + curve * z * z - camX) * sc,
-    y: HORIZON + (CAM_H + bob - y) * sc,
+    y: horizonY + (CAM_H + bob + jumpY - y) * sc,
     sc,
   };
 }
@@ -431,11 +474,11 @@ function trap(x1, y1, hw1, x2, y2, hw2, color) {
 }
 
 function drawSky() {
-  const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  const g = ctx.createLinearGradient(0, 0, 0, horizonY);
   g.addColorStop(0, '#6EC6F5');
   g.addColorStop(1, '#D6F0FF');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, HORIZON + 1);
+  ctx.fillRect(0, 0, W, horizonY + 1);
 
   ctx.fillStyle = '#FFE27A';
   ctx.beginPath();
@@ -461,13 +504,13 @@ function drawSky() {
 function drawHills(off, color, amp, freq) {
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(0, HORIZON + 1);
+  ctx.moveTo(0, horizonY + 1);
   for (let x = 0; x <= W; x += 10) {
     const u = x + off;
     const h = amp * (0.65 + 0.35 * Math.sin(u * freq) + 0.25 * Math.sin(u * freq * 2.7 + 1.3));
-    ctx.lineTo(x, HORIZON - h);
+    ctx.lineTo(x, horizonY - h);
   }
-  ctx.lineTo(W, HORIZON + 1);
+  ctx.lineTo(W, horizonY + 1);
   ctx.closePath();
   ctx.fill();
 }
@@ -475,7 +518,7 @@ function drawHills(off, color, amp, freq) {
 function drawRoad() {
   // Au-delà de la distance d'affichage : l'herbe, ou la mer jusqu'à l'horizon
   ctx.fillStyle = seaStart - dist < DRAW_DIST ? '#3FA6DE' : '#7ED36F';
-  ctx.fillRect(0, HORIZON, W, H - HORIZON);
+  ctx.fillRect(0, horizonY, W, H - horizonY);
 
   const first = Math.floor(dist / SEG_L);
   const count = Math.ceil(DRAW_DIST / SEG_L);
@@ -663,6 +706,15 @@ function drawObjects() {
     if (g.hit || z < NEAR || z > DRAW_DIST) return;
     items.push({ kind: 'gate', z, gate: g });
   });
+  ramps.forEach((r) => {
+    const z = r.s - dist;
+    if (z + RAMP_LEN < NEAR || z > DRAW_DIST) return;
+    items.push({ kind: 'ramp', z: Math.max(z, NEAR), ramp: r });
+  });
+  if (roadEnd !== Infinity) {
+    const z = roadEnd + STOP_ON_SAND + BOY_AHEAD - dist;
+    if (z >= NEAR && z <= DRAW_DIST) items.push({ kind: 'boy', z });
+  }
   bonuses.forEach((b) => {
     const z = b.s - dist;
     if (b.hit || z < NEAR || z > DRAW_DIST) return;
@@ -684,6 +736,8 @@ function drawObjects() {
     else if (item.kind === 'gate') drawGate(item.gate, item.z);
     else if (item.kind === 'bonus') drawBonus(item.bonus, item.z);
     else if (item.kind === 'grandpa') drawGrandpa(item.grandpa, item.z);
+    else if (item.kind === 'ramp') drawRamp(item.ramp);
+    else if (item.kind === 'boy') drawBoyOnBeach(item.z);
     else drawFinish(item.z);
   });
 }
@@ -752,6 +806,43 @@ function drawBonus(b, z) {
   ctx.globalAlpha = 1;
 }
 
+// Un tremplin : une pente rayée orange et jaune posée sur une voie
+function drawRamp(r) {
+  const x = (r.lane - 1) * LANE_W;
+  const z0 = r.s - dist;
+  const STRIPES = 5;
+  ctx.globalAlpha = fogAlpha(z0);
+  for (let i = STRIPES - 1; i >= 0; i--) {
+    let za = z0 + (i / STRIPES) * RAMP_LEN;
+    const zb = z0 + ((i + 1) / STRIPES) * RAMP_LEN;
+    if (zb <= NEAR) continue;
+    if (za < NEAR) za = NEAR;
+    const ha = ((za - z0) / RAMP_LEN) * RAMP_H;
+    const hb = ((zb - z0) / RAMP_LEN) * RAMP_H;
+    const nl = proj(x - RAMP_HALF_W, ha, za), nr = proj(x + RAMP_HALF_W, ha, za);
+    const fl = proj(x - RAMP_HALF_W, hb, zb), fr = proj(x + RAMP_HALF_W, hb, zb);
+    // côtés (plus foncés), puis le dessus
+    const gl = proj(x - RAMP_HALF_W, 0, zb), gr = proj(x + RAMP_HALF_W, 0, zb);
+    const gnl = proj(x - RAMP_HALF_W, 0, za), gnr = proj(x + RAMP_HALF_W, 0, za);
+    ctx.fillStyle = '#C8561E';
+    [[gnl, nl, fl, gl], [gnr, nr, fr, gr]].forEach((poly) => {
+      ctx.beginPath();
+      poly.forEach((pt, k) => (k ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y)));
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.fillStyle = i % 2 === 0 ? '#FF8C42' : '#FFD23F';
+    ctx.beginPath();
+    ctx.moveTo(nl.x, nl.y);
+    ctx.lineTo(nr.x, nr.y);
+    ctx.lineTo(fr.x, fr.y);
+    ctx.lineTo(fl.x, fl.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 // Un papi qui traverse tranquillement avec sa canne
 function drawGrandpa(g, z) {
   const ground = proj(grandpaX(g), 0, z);
@@ -809,6 +900,215 @@ function drawGrandpa(g, z) {
   }
   ctx.lineCap = 'butt';
   ctx.globalAlpha = 1;
+}
+
+/* ---------- Le petit garçon qui danse à l'arrivée ---------- */
+const BOY_AHEAD = 4.5;   // il danse sur le sable, juste devant la voiture arrêtée
+
+// Dessine le garçon debout en (x, gy), s = pixels par mètre, t = temps de la danse.
+// Trois danses ridicules qui s'enchaînent : la poule, le « floss » et le disco.
+function drawBoy(c, x, gy, s, t) {
+  const beat = t * 8;
+  const move = Math.floor(t / 2.4) % 3;
+  const b = Math.sin(beat);
+  const bounce = Math.abs(b) * 0.07;
+  const hipX = move === 1 ? -b * 0.1 : Math.sin(beat / 2) * 0.05;
+  const hipY = -(0.55 + bounce - (move === 0 ? 0.1 : 0));
+  const tilt = move === 1 ? b * 0.12 : Math.sin(beat / 2) * 0.15;
+  const SKIN = '#FFD2A8', SHIRT = '#FF8A3D', HAIR = '#F9D548', GLASSES = '#2F6FE0';
+
+  c.save();
+  c.translate(x, gy);
+  c.scale(s, s);
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+
+  // ombre
+  c.fillStyle = 'rgba(46, 42, 77, 0.2)';
+  c.beginPath();
+  c.ellipse(0, 0, 0.32, 0.06, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // jambes et baskets
+  [-1, 1].forEach((side) => {
+    let foot = [side * 0.13, 0];
+    let knee;
+    if (move === 0) {                 // accroupi, genoux écartés
+      foot = [side * 0.22, 0];
+      knee = [hipX + side * 0.3, hipY * 0.5];
+    } else if (move === 2) {          // un pied en l'air, puis l'autre
+      const up = Math.max(0, Math.sin(beat / 2) * side);
+      foot = [side * (0.13 + up * 0.28), -up * 0.35];
+      knee = [hipX + side * (0.12 + up * 0.15), hipY * 0.5 - up * 0.2];
+    } else {
+      knee = [(hipX + foot[0]) / 2 + side * 0.03, hipY / 2];
+    }
+    c.strokeStyle = SKIN;
+    c.lineWidth = 0.09;
+    c.beginPath();
+    c.moveTo(hipX + side * 0.08, hipY);
+    c.lineTo(knee[0], knee[1]);
+    c.lineTo(foot[0], foot[1]);
+    c.stroke();
+    c.fillStyle = '#E8453C';
+    c.beginPath();
+    c.ellipse(foot[0] + side * 0.04, foot[1] - 0.02, 0.09, 0.05, 0, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  // short
+  c.fillStyle = '#3D5A98';
+  c.beginPath();
+  c.roundRect(hipX - 0.18, hipY - 0.08, 0.36, 0.18, 0.05);
+  c.fill();
+
+  // Le haut du corps se dandine autour des hanches
+  c.translate(hipX, hipY);
+  c.rotate(tilt);
+
+  // bras : épaule → coude → main
+  [-1, 1].forEach((side) => {
+    const sh = [side * 0.16, -0.34];
+    let elbow, hand;
+    if (move === 0) {                 // la poule : les coudes battent comme des ailes
+      const flap = Math.sin(beat * 2) * 0.1;
+      elbow = [side * 0.36, -0.28 - flap];
+      hand = [side * 0.12, -0.26];
+    } else if (move === 1) {          // le floss : les bras balancent d'un côté à l'autre
+      elbow = [sh[0] + b * 0.16, -0.18];
+      hand = [side * 0.08 + b * 0.38, -0.02];
+    } else {                          // disco : un bras au ciel, l'autre en bas
+      const high = Math.sin(beat / 2) * side > 0;
+      elbow = high ? [side * 0.3, -0.58] : [side * 0.28, -0.14];
+      hand = high ? [side * 0.36, -0.86] : [side * 0.3, 0.06];
+    }
+    c.strokeStyle = SHIRT;
+    c.lineWidth = 0.1;
+    c.beginPath();
+    c.moveTo(sh[0], sh[1]);
+    c.lineTo(elbow[0], elbow[1]);
+    c.stroke();
+    c.strokeStyle = SKIN;
+    c.lineWidth = 0.075;
+    c.beginPath();
+    c.moveTo(elbow[0], elbow[1]);
+    c.lineTo(hand[0], hand[1]);
+    c.stroke();
+  });
+
+  // tee-shirt avec une grosse étoile
+  c.fillStyle = SHIRT;
+  c.beginPath();
+  c.roundRect(-0.18, -0.42, 0.36, 0.44, 0.09);
+  c.fill();
+  c.fillStyle = '#FFE27A';
+  c.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.09 : 0.04;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const px = Math.cos(a) * r, py = -0.2 + Math.sin(a) * r;
+    if (i) c.lineTo(px, py); else c.moveTo(px, py);
+  }
+  c.closePath();
+  c.fill();
+
+  // tête qui dodeline
+  c.translate(0, -0.42);
+  c.rotate(Math.sin(beat * 2) * 0.15);
+  const hy = -0.17;
+  c.fillStyle = SKIN;
+  c.beginPath();
+  c.arc(0, hy, 0.17, 0, Math.PI * 2);
+  c.fill();
+
+  // cheveux blonds en épis
+  c.fillStyle = HAIR;
+  c.beginPath();
+  c.arc(0, hy - 0.02, 0.18, Math.PI * 1.05, Math.PI * 1.95);
+  c.closePath();
+  c.fill();
+  c.beginPath();
+  c.moveTo(-0.15, hy - 0.1);
+  [[-0.12, hy - 0.28], [-0.06, hy - 0.17], [0, hy - 0.32], [0.06, hy - 0.17], [0.13, hy - 0.27], [0.16, hy - 0.08]]
+    .forEach(([px, py]) => c.lineTo(px, py));
+  c.closePath();
+  c.fill();
+
+  // lunettes bleues
+  c.strokeStyle = GLASSES;
+  c.lineWidth = 0.028;
+  [-1, 1].forEach((side) => {
+    c.beginPath();
+    c.arc(side * 0.075, hy, 0.058, 0, Math.PI * 2);
+    c.stroke();
+  });
+  c.beginPath();
+  c.moveTo(-0.017, hy);
+  c.lineTo(0.017, hy);
+  c.stroke();
+  // yeux qui roulent
+  c.fillStyle = '#2E2A4D';
+  const look = Math.sin(beat) * 0.018;
+  [-1, 1].forEach((side) => {
+    c.beginPath();
+    c.arc(side * 0.075 + look, hy + 0.005, 0.017, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  // joues, grand sourire et langue tirée
+  c.fillStyle = 'rgba(255, 111, 145, 0.45)';
+  [-1, 1].forEach((side) => {
+    c.beginPath();
+    c.arc(side * 0.12, hy + 0.07, 0.03, 0, Math.PI * 2);
+    c.fill();
+  });
+  c.fillStyle = '#9A2F3F';
+  c.beginPath();
+  c.arc(0, hy + 0.06, 0.065, 0.1 * Math.PI, 0.9 * Math.PI);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#FF6F91';
+  c.beginPath();
+  c.ellipse(0.015, hy + 0.12, 0.028, 0.035, 0, 0, Math.PI * 2);
+  c.fill();
+
+  c.restore();
+}
+
+// Des notes de musique qui s'envolent autour de lui
+function drawNotes(c, x, gy, s, t) {
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.font = `${Math.round(0.3 * s)}px ${EMOJI_FONT}`;
+  for (let i = 0; i < 3; i++) {
+    const k = (t * 0.7 + i / 3) % 1;
+    c.globalAlpha = Math.sin(k * Math.PI);
+    const side = i % 2 === 0 ? -1 : 1;
+    c.fillText(i === 1 ? '🎶' : '🎵', x + side * (0.45 + k * 0.2) * s, gy - (1.1 + k * 0.6) * s);
+  }
+  c.globalAlpha = 1;
+}
+
+function drawBoyOnBeach(z) {
+  const p = proj(0, 0, z);
+  ctx.globalAlpha = fogAlpha(z);
+  drawBoy(ctx, p.x, p.y, p.sc, clock);
+  ctx.globalAlpha = 1;
+  if (p.sc > 20) drawNotes(ctx, p.x, p.y, p.sc, clock);
+}
+
+// Il continue sa danse sur la carte du score
+const danceCanvas = document.getElementById('danceCanvas');
+const danceCtx = danceCanvas.getContext('2d');
+const DANCE_W = 180, DANCE_H = 190;
+danceCanvas.width = DANCE_W * dpr;
+danceCanvas.height = DANCE_H * dpr;
+
+function drawDanceCard() {
+  danceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  danceCtx.clearRect(0, 0, DANCE_W, DANCE_H);
+  drawBoy(danceCtx, DANCE_W / 2, DANCE_H - 12, 110, clock);
+  drawNotes(danceCtx, DANCE_W / 2, DANCE_H - 12, 110, clock);
 }
 
 function drawCockpit() {
@@ -938,7 +1238,9 @@ function burst(chars, count) {
 }
 
 function render() {
-  bob = speed > 0 ? Math.sin(dist * 0.9) * 0.012 : 0;
+  bob = (speed > 0 && jumpY === 0 ? Math.sin(dist * 0.9) * 0.012 : 0) - Math.sin(landBump * Math.PI) * 0.12;
+  // En l'air, la voiture se cabre puis pique du nez : l'horizon descend puis remonte
+  horizonY = HORIZON + jumpV * 5;
   drawSky();
   drawRoad();
   drawObjects();
@@ -982,6 +1284,7 @@ function frame(ts) {
   update(dt);
   render();
   updateHud();
+  if (state === 'done') drawDanceCard();
   requestAnimationFrame(frame);
 }
 

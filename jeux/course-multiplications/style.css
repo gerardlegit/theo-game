@@ -473,6 +473,12 @@ kbd {
   text-align: center;
   box-shadow: 0 14px 0 rgba(0, 0, 0, 0.2);
 }
+.dance-canvas {
+  display: block;
+  width: 180px;
+  height: 190px;
+  margin: -1.2rem auto -.2rem;
+}
 .win-title {
   font-family: 'Baloo 2', sans-serif;
   font-size: 1.5rem;
