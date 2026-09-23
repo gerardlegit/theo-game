@@ -10,10 +10,15 @@ const FIRST_QUESTION_AT = 1;
 const ANSWER_DELAY = 13;       // secondes entre l'apparition de la question et le passage des panneaux
 const TOTAL_QUESTIONS = 9;     // questions à 1 s, 21 s, … 161 s : la dernière passe à 174 s, avant l'arrivée
 const MAX_POINTS = TOTAL_QUESTIONS * 2;   // avec un bonus ×2 à chaque question
-// Entre deux questions, parfois un bonus ×2 ou un papi qui traverse :
+// Entre deux questions, parfois un bonus ×2 :
 // on le croise 6 s après les panneaux, bien avant la question suivante
 const EVENT_DELAY = 6;
 const GRANDPA_WALK = 1;        // m/s : le papi ne court pas !
+// De plus en plus de papis au fil de la course : 1, 1, 2, 2, 3, 3, 4, 4 entre deux réponses
+const grandpaCountForGap = (k) => Math.min(4, 1 + Math.floor(k / 2));
+// Moments où un papi peut être croisé (en s après les panneaux) : jamais en même temps que
+// le bonus (6 s), le tremplin (13 s) ou un autre papi, pour qu'on puisse toujours l'éviter
+const GRANDPA_SLOTS = [2.5, 4, 7.5, 9, 10.5, 15, 16.5];
 // Tremplins : on les croise 13 s après les panneaux, entre le bonus/papi et la question suivante
 const RAMP_DELAY = 13;
 const RAMP_LEN = 5, RAMP_H = 0.9, RAMP_HALF_W = 1.3;
@@ -94,10 +99,12 @@ let clock = 0;
 let points = 0;
 let correctCount = 0;
 let bonusActive = false;
-let events = [];              // pour chaque intervalle entre deux questions : 'bonus', 'grandpa' ou null
+let events = [];              // pour chaque intervalle entre deux questions : 'bonus' ou null
 let nextEventIdx = 0;
 let bonuses = [];             // { s, lane, resolved, hit }
 let grandpas = [];            // { s, startX, dir, spawnT, resolved, hit }
+let grandpaPlan = [];         // moments d'apparition des papis, dans l'ordre
+let nextGrandpaIdx = 0;
 let toastHideAt = null;
 let roadEnd = Infinity, seaStart = Infinity;
 let decel = 12;
@@ -212,30 +219,44 @@ function resolveQuestion() {
 
 /* ---------- Bonus ×2 et papis ---------- */
 function planEvents() {
-  // 2 ou 3 bonus et 2 ou 3 papis, répartis au hasard entre les 9 questions
+  // 2 ou 3 bonus, répartis au hasard entre les 9 questions
   const gaps = TOTAL_QUESTIONS - 1;
-  const list = [
-    ...Array(randInt(2, 3)).fill('bonus'),
-    ...Array(randInt(2, 3)).fill('grandpa'),
-  ];
+  const list = Array(randInt(2, 3)).fill('bonus');
   while (list.length < gaps) list.push(null);
   return shuffle(list);
+}
+
+function planGrandpas() {
+  const times = [];
+  for (let k = 0; k < TOTAL_QUESTIONS - 1; k++) {
+    shuffle(GRANDPA_SLOTS).slice(0, grandpaCountForGap(k)).forEach((slot) => {
+      // il apparaît au loin ANSWER_DELAY s avant d'être croisé
+      times.push(FIRST_QUESTION_AT + k * QUESTION_EVERY + slot);
+    });
+  }
+  return times.sort((a, b) => a - b);
 }
 
 // Apparaît en même temps qu'une question + EVENT_DELAY, donc passe EVENT_DELAY s après ses panneaux
 const eventSpawnTime = (k) => FIRST_QUESTION_AT + k * QUESTION_EVERY + EVENT_DELAY;
 
-function spawnEvent(kind) {
-  const s = dist + SPAWN_AHEAD;
+function spawnBonus() {
+  bonuses.push({ s: dist + SPAWN_AHEAD, lane: randInt(0, 2), resolved: false, hit: false });
+}
+
+function spawnGrandpa() {
+  // Le papi marche à vitesse constante et sera pile au milieu d'une voie quand la voiture arrive
   const lane = randInt(0, 2);
-  if (kind === 'bonus') {
-    bonuses.push({ s, lane, resolved: false, hit: false });
-  } else {
-    // Le papi marche à vitesse constante et sera pile au milieu d'une voie quand la voiture arrive
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    const targetX = (lane - 1) * LANE_W;
-    grandpas.push({ s, startX: targetX - dir * GRANDPA_WALK * ANSWER_DELAY, dir, spawnT: gameTime, resolved: false, hit: false });
-  }
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const targetX = (lane - 1) * LANE_W;
+  grandpas.push({
+    s: dist + SPAWN_AHEAD,
+    startX: targetX - dir * GRANDPA_WALK * ANSWER_DELAY,
+    dir,
+    spawnT: gameTime,
+    resolved: false,
+    hit: false,
+  });
 }
 
 const grandpaX = (g) => g.startX + g.dir * GRANDPA_WALK * (gameTime - g.spawnT);
@@ -297,6 +318,8 @@ function resetGame() {
   landBump = 0;
   bonuses = [];
   grandpas = [];
+  grandpaPlan = planGrandpas();
+  nextGrandpaIdx = 0;
   toastHideAt = null;
   eventToast.hidden = true;
   roadEnd = Infinity;
@@ -379,8 +402,12 @@ function update(dt) {
         burst(['✨', '💨', '⭐'], 12);
       }
     });
+    while (nextGrandpaIdx < grandpaPlan.length && gameTime >= grandpaPlan[nextGrandpaIdx]) {
+      spawnGrandpa();
+      nextGrandpaIdx += 1;
+    }
     if (nextEventIdx < events.length && gameTime >= eventSpawnTime(nextEventIdx)) {
-      if (events[nextEventIdx]) spawnEvent(events[nextEventIdx]);
+      if (events[nextEventIdx] === 'bonus') spawnBonus();
       nextEventIdx += 1;
     }
     if (currentQuestion && !currentQuestion.resolved && currentQuestion.s - dist <= HIT_Z) {
