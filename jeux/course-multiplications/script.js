@@ -1,6 +1,7 @@
 import { fetchTopScores, submitScore, isLeaderboardConfigured } from "../../shared/leaderboard.js";
 
-const GAME_ID = "course-multiplications";
+// "-2" : nouveau classement depuis l'arrivée des bonus ×2 et des papis (les scores ne se comparent plus)
+const GAME_ID = "course-multiplications-2";
 
 /* ---------- Règles ---------- */
 const GAME_DURATION = 180;     // la route dure 3 minutes
@@ -8,6 +9,11 @@ const QUESTION_EVERY = 20;     // une multiplication toutes les 20 secondes
 const FIRST_QUESTION_AT = 1;
 const ANSWER_DELAY = 13;       // secondes entre l'apparition de la question et le passage des panneaux
 const TOTAL_QUESTIONS = 9;     // questions à 1 s, 21 s, … 161 s : la dernière passe à 174 s, avant l'arrivée
+const MAX_POINTS = TOTAL_QUESTIONS * 2;   // avec un bonus ×2 à chaque question
+// Entre deux questions, parfois un bonus ×2 ou un papi qui traverse :
+// on le croise 6 s après les panneaux, bien avant la question suivante
+const EVENT_DELAY = 6;
+const GRANDPA_WALK = 1;        // m/s : le papi ne court pas !
 
 /* ---------- Monde (en mètres) ---------- */
 const SPEED = 25;                          // 90 km/h
@@ -19,6 +25,9 @@ const SEG_L = 6;                           // longueur d'une bande de route (alt
 const GATE_W = 2.8, GATE_BOTTOM = 0.5, GATE_TOP = 2.4;
 const HIT_Z = 2.2;                         // distance à laquelle on traverse un panneau
 const LANE_COLORS = ['#FF6F91', '#4FB8E8', '#F2B01E'];
+const ROAD_AFTER_FINISH = 40;  // la route s'arrête 40 m après l'arche…
+const BEACH_LEN = 30;          // … puis 30 m de plage avant la mer
+const STOP_ON_SAND = 6;        // la voiture s'arrête un peu sur le sable
 
 /* ---------- Caméra / écran ---------- */
 const W = 1000, H = 625;
@@ -54,14 +63,17 @@ const scoreForm = document.getElementById('scoreForm');
 const pseudoInput = document.getElementById('pseudoInput');
 const scoreSaved = document.getElementById('scoreSaved');
 const leaderboardList = document.getElementById('leaderboardList');
+const eventToast = document.getElementById('eventToast');
+const questionBonus = document.getElementById('questionBonus');
+const bonusBadge = document.getElementById('bonusBadge');
 
 document.getElementById('totalCount').textContent = String(TOTAL_QUESTIONS);
 
 /* ---------- Classement : le module partagé classe "le plus petit d'abord" ----------
- * On enregistre donc le nombre de réponses ratées + 1 (toujours > 0).
+ * On enregistre donc (points max − points + 1), toujours > 0.
  */
-const encodeScore = (pts) => TOTAL_QUESTIONS - pts + 1;
-const decodePoints = (value) => TOTAL_QUESTIONS + 1 - value;
+const encodeScore = (pts) => MAX_POINTS - pts + 1;
+const decodePoints = (value) => MAX_POINTS + 1 - value;
 
 /* ---------- État de la partie ---------- */
 let state = 'ready';   // ready → playing → finishing → done
@@ -75,6 +87,15 @@ let bgOffset = 0;
 let clock = 0;
 
 let points = 0;
+let correctCount = 0;
+let bonusActive = false;
+let events = [];              // pour chaque intervalle entre deux questions : 'bonus', 'grandpa' ou null
+let nextEventIdx = 0;
+let bonuses = [];             // { s, lane, resolved, hit }
+let grandpas = [];            // { s, startX, dir, spawnT, resolved, hit }
+let toastHideAt = null;
+let roadEnd = Infinity, seaStart = Infinity;
+let decel = 12;
 let questionIndex = 0;
 let nextQuestionAt = FIRST_QUESTION_AT;
 let currentQuestion = null;   // { a, b, answer, options, s, resolved }
@@ -151,28 +172,95 @@ function spawnQuestion() {
   hideBannerAt = null;
 }
 
+// Voie dans laquelle se trouve la voiture en ce moment
+const currentLane = () => clamp(Math.round(camX / LANE_W) + 1, 0, 2);
+
 function resolveQuestion() {
   const q = currentQuestion;
   q.resolved = true;
-  const hitLane = clamp(Math.round(camX / LANE_W) + 1, 0, 2);
-  const gate = gates[hitLane];
+  const gate = gates[currentLane()];
   gate.hit = true;
+  const gain = bonusActive ? 2 : 1;
 
   questionText.textContent = `${q.a} × ${q.b} = ${q.answer}`;
   questionBanner.classList.add('answered');
   if (gate.correct) {
-    points += 1;
+    points += gain;
+    correctCount += 1;
     questionBanner.classList.add('good');
-    questionFeedback.textContent = 'Bravo ! +1 point ⭐';
-    burst(['⭐', '✨', '🌟'], 26);
+    questionFeedback.textContent = gain === 2 ? 'Bravo ! Bonus ×2 : +2 points ⭐⭐' : 'Bravo ! +1 point ⭐';
+    burst(['⭐', '✨', '🌟'], gain === 2 ? 40 : 26);
     flash = { color: '88, 201, 123', life: 1 };
   } else {
     questionBanner.classList.add('bad');
-    questionFeedback.textContent = `Oups ! La bonne réponse était ${q.answer}`;
+    questionFeedback.textContent = `Oups ! La bonne réponse était ${q.answer}${bonusActive ? ' (bonus ×2 perdu)' : ''}`;
     burst(['💨', '💥'], 10);
     flash = { color: '232, 87, 87', life: 1 };
   }
+  bonusActive = false;
   hideBannerAt = gameTime + 3;
+}
+
+/* ---------- Bonus ×2 et papis ---------- */
+function planEvents() {
+  // 2 ou 3 bonus et 2 ou 3 papis, répartis au hasard entre les 9 questions
+  const gaps = TOTAL_QUESTIONS - 1;
+  const list = [
+    ...Array(randInt(2, 3)).fill('bonus'),
+    ...Array(randInt(2, 3)).fill('grandpa'),
+  ];
+  while (list.length < gaps) list.push(null);
+  return shuffle(list);
+}
+
+// Apparaît en même temps qu'une question + EVENT_DELAY, donc passe EVENT_DELAY s après ses panneaux
+const eventSpawnTime = (k) => FIRST_QUESTION_AT + k * QUESTION_EVERY + EVENT_DELAY;
+
+function spawnEvent(kind) {
+  const s = dist + SPAWN_AHEAD;
+  const lane = randInt(0, 2);
+  if (kind === 'bonus') {
+    bonuses.push({ s, lane, resolved: false, hit: false });
+  } else {
+    // Le papi marche à vitesse constante et sera pile au milieu d'une voie quand la voiture arrive
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const targetX = (lane - 1) * LANE_W;
+    grandpas.push({ s, startX: targetX - dir * GRANDPA_WALK * ANSWER_DELAY, dir, spawnT: gameTime, resolved: false, hit: false });
+  }
+}
+
+const grandpaX = (g) => g.startX + g.dir * GRANDPA_WALK * (gameTime - g.spawnT);
+
+function showToast(text, kind) {
+  eventToast.textContent = text;
+  eventToast.className = `event-toast ${kind}`;
+  eventToast.hidden = false;
+  toastHideAt = clock + 2.4;
+}
+
+function resolveEvents() {
+  bonuses.forEach((b) => {
+    if (b.resolved || b.s - dist > HIT_Z) return;
+    b.resolved = true;
+    if (currentLane() === b.lane) {
+      b.hit = true;
+      bonusActive = true;
+      showToast('✨ Bonus ×2 ! La prochaine bonne réponse vaut 2 points', 'good');
+      burst(['✨', '⭐', '💛'], 30);
+      flash = { color: '255, 201, 60', life: 1 };
+    }
+  });
+  grandpas.forEach((g) => {
+    if (g.resolved || g.s - dist > HIT_Z) return;
+    g.resolved = true;
+    if (Math.abs(grandpaX(g) - camX) < 1.5) {
+      g.hit = true;
+      points = Math.max(0, points - 1);
+      showToast('👴 Oh non, attention à Papi ! −1 point', 'bad');
+      burst(['💫', '💢', '👴'], 14);
+      flash = { color: '232, 87, 87', life: 1 };
+    }
+  });
 }
 
 /* ---------- Déroulement ---------- */
@@ -187,6 +275,17 @@ function resetGame() {
   curveTarget = 0;
   nextCurveChangeAt = 4;
   points = 0;
+  correctCount = 0;
+  bonusActive = false;
+  events = planEvents();
+  nextEventIdx = 0;
+  bonuses = [];
+  grandpas = [];
+  toastHideAt = null;
+  eventToast.hidden = true;
+  roadEnd = Infinity;
+  seaStart = Infinity;
+  decel = 12;
   questionIndex = 0;
   nextQuestionAt = FIRST_QUESTION_AT;
   currentQuestion = null;
@@ -211,12 +310,14 @@ function startGame() {
 function endGame() {
   state = 'done';
   questionBanner.hidden = true;
-  const plural = points > 1 ? 's' : '';
+  const plural = (n) => (n > 1 ? 's' : '');
   let cheer = 'Continue de t\'entraîner, tu vas y arriver ! 💪';
-  if (points === TOTAL_QUESTIONS) cheer = 'Un sans-faute, champion des multiplications ! 🏆';
-  else if (points >= TOTAL_QUESTIONS - 2) cheer = 'Superbe course ! 🚗💨';
-  else if (points >= TOTAL_QUESTIONS / 2) cheer = 'Belle course, bien joué ! 👏';
-  winScore.innerHTML = `<strong>${points}</strong> bonne${plural} réponse${plural} sur ${TOTAL_QUESTIONS}<br>${cheer}`;
+  if (correctCount === TOTAL_QUESTIONS) cheer = 'Un sans-faute, champion des multiplications ! 🏆';
+  else if (correctCount >= TOTAL_QUESTIONS - 2) cheer = 'Superbe course ! 🚗💨';
+  else if (correctCount >= TOTAL_QUESTIONS / 2) cheer = 'Belle course, bien joué ! 👏';
+  winScore.innerHTML =
+    `<strong>${points}</strong> point${plural(points)}<br>` +
+    `${correctCount} bonne${plural(correctCount)} réponse${plural(correctCount)} sur ${TOTAL_QUESTIONS}<br>${cheer}`;
   scoreForm.style.display = 'block';
   scoreSaved.style.display = 'none';
   pseudoInput.value = '';
@@ -236,9 +337,9 @@ function update(dt) {
     gameTime += dt;
     speed = Math.min(SPEED, speed + 30 * dt);
   } else if (state === 'finishing') {
-    speed = Math.max(0, speed - 12 * dt);
+    speed = Math.max(0, speed - decel * dt);
     if (speed === 0) {
-      if (doneAt === null) doneAt = clock + 0.6;
+      if (doneAt === null) doneAt = clock + 1.6; // le temps d'admirer la plage
       else if (clock >= doneAt) endGame();
     }
   }
@@ -249,30 +350,44 @@ function update(dt) {
       spawnQuestion();
       nextQuestionAt += QUESTION_EVERY;
     }
+    if (nextEventIdx < events.length && gameTime >= eventSpawnTime(nextEventIdx)) {
+      if (events[nextEventIdx]) spawnEvent(events[nextEventIdx]);
+      nextEventIdx += 1;
+    }
     if (currentQuestion && !currentQuestion.resolved && currentQuestion.s - dist <= HIT_Z) {
       resolveQuestion();
     }
+    resolveEvents();
     if (hideBannerAt !== null && gameTime >= hideBannerAt) {
       questionBanner.hidden = true;
       hideBannerAt = null;
     }
-    // L'arche d'arrivée apparaît au loin pour être franchie pile à 3:00
+    // L'arche d'arrivée apparaît au loin pour être franchie pile à 3:00 ; après elle, la plage
     if (!finishLine && gameTime >= GAME_DURATION - ANSWER_DELAY) {
       finishLine = { s: dist + SPEED * (GAME_DURATION - gameTime) };
+      roadEnd = Math.ceil((finishLine.s + ROAD_AFTER_FINISH) / SEG_L) * SEG_L;
+      seaStart = roadEnd + BEACH_LEN;
     }
     if (finishLine && dist >= finishLine.s) {
       state = 'finishing';
       questionBanner.hidden = true;
+      // freinage calculé pour s'arrêter juste après la fin de la route, sur le sable
+      decel = (speed * speed) / (2 * Math.max(1, roadEnd + STOP_ON_SAND - dist));
       burst(['🎉', '⭐', '🎊'], 30);
     }
 
-    // Virages doux
-    if (gameTime >= nextCurveChangeAt) {
+    // Virages doux, puis ligne droite pour l'arrivée
+    if (finishLine) {
+      curveTarget = 0;
+    } else if (gameTime >= nextCurveChangeAt) {
       curveTarget = [-0.0008, -0.0004, 0, 0, 0.0004, 0.0008][randInt(0, 5)];
       nextCurveChangeAt = gameTime + 5 + Math.random() * 4;
     }
   }
-  if (state === 'finishing') curveTarget = 0;
+  if (toastHideAt !== null && clock >= toastHideAt) {
+    eventToast.hidden = true;
+    toastHideAt = null;
+  }
   curve += (curveTarget - curve) * Math.min(1, dt * 0.6);
   bgOffset += curve * speed * dt * 900;
 
@@ -336,8 +451,11 @@ function drawSky() {
     ctx.fillText('☁️', cx, y);
   });
 
+  // Les collines s'effacent quand on approche de la mer : on ne voit plus que l'horizon
+  ctx.globalAlpha = clamp((seaStart - dist - 80) / 250, 0, 1);
   drawHills(bgOffset * 0.25, '#B7D7E8', 55, 0.011);
   drawHills(bgOffset * 0.5, '#8FD17E', 30, 0.019);
+  ctx.globalAlpha = 1;
 }
 
 function drawHills(off, color, amp, freq) {
@@ -355,20 +473,36 @@ function drawHills(off, color, amp, freq) {
 }
 
 function drawRoad() {
-  ctx.fillStyle = '#7ED36F';
+  // Au-delà de la distance d'affichage : l'herbe, ou la mer jusqu'à l'horizon
+  ctx.fillStyle = seaStart - dist < DRAW_DIST ? '#3FA6DE' : '#7ED36F';
   ctx.fillRect(0, HORIZON, W, H - HORIZON);
 
   const first = Math.floor(dist / SEG_L);
   const count = Math.ceil(DRAW_DIST / SEG_L);
+  const wave = Math.floor(clock * 1.5);
   for (let j = count; j >= 0; j--) {
     const idx = first + j;
-    let zNear = idx * SEG_L - dist;
+    const s = idx * SEG_L;
+    let zNear = s - dist;
     const zFar = zNear + SEG_L;
     if (zFar <= NEAR) continue;
     if (zNear < NEAR) zNear = NEAR;
     const a = proj(0, 0, zNear);
     const b = proj(0, 0, zFar);
     const even = idx % 2 === 0;
+
+    if (s >= seaStart) {
+      // La mer, avec des vagues qui avancent et de l'écume sur le bord
+      ctx.fillStyle = s === seaStart ? '#DDF4FF' : ((idx + wave) % 2 === 0 ? '#3FA6DE' : '#4DB2E6');
+      ctx.fillRect(0, b.y, W, a.y - b.y + 1);
+      continue;
+    }
+    if (s >= roadEnd) {
+      // La plage : plus de route
+      ctx.fillStyle = even ? '#F6DFA4' : '#F0D593';
+      ctx.fillRect(0, b.y, W, a.y - b.y + 1);
+      continue;
+    }
 
     ctx.fillStyle = even ? '#7ED36F' : '#73C863';
     ctx.fillRect(0, b.y, W, a.y - b.y + 1);
@@ -392,7 +526,7 @@ function drawEmoji(char, x, groundY, px) {
 }
 
 function drawScenery(item) {
-  const p = proj(item.x, 0, item.z);
+  const p = proj(item.x, item.y || 0, item.z);
   const px = item.h * p.sc;
   if (px < 4 || px > 900 || p.x < -px || p.x > W + px) return;
   ctx.globalAlpha = fogAlpha(item.z);
@@ -500,7 +634,7 @@ function drawObjects() {
   const last = Math.floor((dist + DRAW_DIST) / SPACING);
   for (let idx = first; idx <= last; idx++) {
     const z = idx * SPACING - dist;
-    if (z < NEAR) continue;
+    if (z < NEAR || idx * SPACING > roadEnd - 6) continue;
     [-1, 1].forEach((side) => {
       const r = hash(idx * 2 + (side > 0 ? 1 : 0));
       if (r < 0.15) return;
@@ -514,10 +648,30 @@ function drawObjects() {
     });
   }
 
+  // La plage et la mer au bout de la route
+  if (roadEnd !== Infinity) {
+    const dolphinJump = Math.max(0, Math.sin(clock * 2.2)) * 1.6;
+    BEACH_DECOR.forEach((d) => {
+      const z = roadEnd + d.ds - dist;
+      if (z < NEAR || z > DRAW_DIST) return;
+      items.push({ kind: 'scenery', z, x: d.x, h: d.h, char: d.char, y: d.char === '🐬' ? dolphinJump : 0 });
+    });
+  }
+
   gates.forEach((g) => {
     const z = g.s - dist;
     if (g.hit || z < NEAR || z > DRAW_DIST) return;
     items.push({ kind: 'gate', z, gate: g });
+  });
+  bonuses.forEach((b) => {
+    const z = b.s - dist;
+    if (b.hit || z < NEAR || z > DRAW_DIST) return;
+    items.push({ kind: 'bonus', z, bonus: b });
+  });
+  grandpas.forEach((g) => {
+    const z = g.s - dist;
+    if (g.hit || z < NEAR || z > DRAW_DIST) return;
+    items.push({ kind: 'grandpa', z, grandpa: g });
   });
   if (finishLine) {
     const z = finishLine.s - dist;
@@ -528,8 +682,133 @@ function drawObjects() {
   items.forEach((item) => {
     if (item.kind === 'scenery') drawScenery(item);
     else if (item.kind === 'gate') drawGate(item.gate, item.z);
+    else if (item.kind === 'bonus') drawBonus(item.bonus, item.z);
+    else if (item.kind === 'grandpa') drawGrandpa(item.grandpa, item.z);
     else drawFinish(item.z);
   });
+}
+
+// ds = distance après la fin de la route (la mer commence à BEACH_LEN)
+const BEACH_DECOR = [
+  { ds: 8, x: 15, h: 6, char: '🌴' },
+  { ds: 12, x: -8, h: 6, char: '🌴' },
+  { ds: 12, x: 3, h: 0.35, char: '🐚' },
+  { ds: 14, x: -1.5, h: 0.5, char: '🦀' },
+  { ds: 17, x: 5, h: 2.4, char: '⛱️' },
+  { ds: 20, x: 9, h: 6.5, char: '🌴' },
+  { ds: 22, x: -4, h: 2.4, char: '⛱️' },
+  { ds: 25, x: 1.5, h: 1, char: '🏰' },
+  { ds: 26, x: -14, h: 7, char: '🌴' },
+  { ds: BEACH_LEN + 35, x: 6, h: 1.8, char: '🐬' },
+  { ds: BEACH_LEN + 70, x: -18, h: 8, char: '⛵' },
+  { ds: BEACH_LEN + 160, x: 30, h: 9, char: '⛵' },
+  { ds: BEACH_LEN + 240, x: 60, h: 14, char: '🏝️' },
+  { ds: BEACH_LEN + 280, x: -70, h: 20, char: '🚢' },
+];
+
+function drawBonus(b, z) {
+  const x = (b.lane - 1) * LANE_W;
+  const lift = 1.2 + Math.sin(clock * 4) * 0.15;
+  const ground = proj(x, 0, z);
+  const c = proj(x, lift, z);
+  const sc = ground.sc;
+  const half = 0.8 * sc;
+  if (half < 1.5) return;
+  ctx.globalAlpha = fogAlpha(z);
+
+  // ombre au sol
+  ctx.fillStyle = 'rgba(46, 42, 77, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(ground.x, ground.y, half * 0.8, half * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const g = ctx.createLinearGradient(0, c.y - half, 0, c.y + half);
+  g.addColorStop(0, '#FFE37A');
+  g.addColorStop(1, '#F2A71E');
+  ctx.shadowColor = 'rgba(255, 214, 80, 0.9)';
+  ctx.shadowBlur = Math.min(30, 0.5 * sc);
+  ctx.fillStyle = g;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = Math.max(1, 0.1 * sc);
+  ctx.beginPath();
+  ctx.roundRect(c.x - half, c.y - half, half * 2, half * 2, 0.35 * sc);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.stroke();
+
+  const fontPx = 0.95 * sc;
+  if (fontPx >= 5) {
+    ctx.font = `800 ${Math.round(fontPx)}px 'Baloo 2', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = 'rgba(160, 90, 0, 0.6)';
+    ctx.lineWidth = Math.max(1, 0.12 * sc);
+    ctx.strokeText('×2', c.x, c.y + fontPx * 0.06);
+    ctx.fillText('×2', c.x, c.y + fontPx * 0.06);
+    ctx.font = `${Math.round(0.5 * sc)}px ${EMOJI_FONT}`;
+    ctx.fillText('✨', c.x + half, c.y - half);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Un papi qui traverse tranquillement avec sa canne
+function drawGrandpa(g, z) {
+  const ground = proj(grandpaX(g), 0, z);
+  const sc = ground.sc;
+  if (sc * 1.7 < 4) return;
+  const gx = ground.x, gy = ground.y;
+  const P = (dx, y) => [gx + dx * sc, gy - y * sc];
+  const swing = Math.sin(clock * 7) * 0.16;
+  const dir = g.dir;
+  ctx.globalAlpha = fogAlpha(z);
+  ctx.lineCap = 'round';
+
+  // ombre
+  ctx.fillStyle = 'rgba(46, 42, 77, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(gx, gy, 0.45 * sc, 0.1 * sc, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // jambes
+  ctx.strokeStyle = '#6B5B4B';
+  ctx.lineWidth = Math.max(1, 0.13 * sc);
+  [swing, -swing].forEach((footX) => {
+    ctx.beginPath();
+    ctx.moveTo(...P(0, 0.85));
+    ctx.lineTo(...P(footX, 0.05));
+    ctx.stroke();
+  });
+
+  // gilet
+  ctx.fillStyle = '#C9824A';
+  ctx.beginPath();
+  ctx.roundRect(gx - 0.24 * sc, gy - 1.38 * sc, 0.48 * sc, 0.6 * sc, 0.12 * sc);
+  ctx.fill();
+
+  // bras et canne, du côté où il marche
+  ctx.strokeStyle = '#C9824A';
+  ctx.lineWidth = Math.max(1, 0.1 * sc);
+  ctx.beginPath();
+  ctx.moveTo(...P(0.12 * dir, 1.28));
+  ctx.lineTo(...P(0.38 * dir, 1.0));
+  ctx.stroke();
+  ctx.strokeStyle = '#8B5A2B';
+  ctx.lineWidth = Math.max(1, 0.05 * sc);
+  ctx.beginPath();
+  ctx.moveTo(...P(0.38 * dir, 1.02));
+  ctx.lineTo(...P(0.5 * dir + swing * 0.4, 0));
+  ctx.stroke();
+
+  // tête
+  const headPx = 0.55 * sc;
+  if (headPx >= 3) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    drawEmoji('👴', gx, gy - 1.3 * sc, headPx);
+  }
+  ctx.lineCap = 'butt';
+  ctx.globalAlpha = 1;
 }
 
 function drawCockpit() {
@@ -594,6 +873,18 @@ function drawCockpit() {
   ctx.fillStyle = '#FFC93C';
   ctx.font = "800 24px 'Baloo 2', sans-serif";
   ctx.fillText(`⭐ ${points}`, W - 170, 587);
+  if (bonusActive) {
+    // le bonus ×2 clignote doucement sur le tableau de bord
+    ctx.globalAlpha = 0.65 + 0.35 * Math.sin(clock * 6);
+    ctx.fillStyle = '#FFC93C';
+    ctx.beginPath();
+    ctx.roundRect(W - 245, 518, 150, 36, 12);
+    ctx.fill();
+    ctx.fillStyle = '#2E2A4D';
+    ctx.font = "800 20px 'Baloo 2', sans-serif";
+    ctx.fillText('✨ ×2', W - 170, 537);
+    ctx.globalAlpha = 1;
+  }
 
   // Volant : il tourne quand on change de voie
   const steerAngle = clamp(((lane - 1) * LANE_W - camX) * 0.18 + curve * 400, -0.8, 0.8);
@@ -676,6 +967,8 @@ function updateHud() {
   const pct = `${clamp(gameTime / GAME_DURATION, 0, 1) * 100}%`;
   routeFill.style.width = pct;
   routeCar.style.left = pct;
+  bonusBadge.hidden = !bonusActive;
+  questionBonus.hidden = !bonusActive;
   if (currentQuestion && !currentQuestion.resolved) {
     questionBarFill.style.width = `${clamp((currentQuestion.s - dist) / SPAWN_AHEAD, 0, 1) * 100}%`;
   }

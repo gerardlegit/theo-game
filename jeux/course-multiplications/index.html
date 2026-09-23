@@ -20,6 +20,7 @@
   <div class="hud">
     <div class="hud-item">⏱️ <span id="timer">3:00</span></div>
     <div class="hud-item">⭐ <span id="pointsCount">0</span> point(s)</div>
+    <div class="hud-item hud-bonus" id="bonusBadge" hidden>✨ Bonus ×2</div>
     <div class="hud-item">Question <span id="questionCount">0</span> / <span id="totalCount">9</span></div>
     <button id="restart">Recommencer</button>
   </div>
@@ -45,9 +46,12 @@
             <span class="opt opt-1"></span>
             <span class="opt opt-2"></span>
           </div>
+          <p class="question-bonus" id="questionBonus" hidden>✨ Bonus ×2 : cette bonne réponse vaut 2 points !</p>
           <div class="question-bar"><div class="question-bar-fill" id="questionBarFill"></div></div>
           <p class="question-feedback" id="questionFeedback"></p>
         </div>
+
+        <div class="event-toast" id="eventToast" hidden></div>
 
         <div class="start-overlay" id="startOverlay">
           <div class="start-card">
@@ -56,7 +60,9 @@
               <li><span class="keys"><kbd>←</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Q</kbd><kbd>D</kbd></span> pour changer de voie (ou touche l'écran à gauche / à droite)</li>
               <li>✖️ Toutes les 20 secondes, une multiplication apparaît</li>
               <li>🪧 Passe à travers le panneau de la bonne réponse : +1 point ⭐</li>
-              <li>🏁 La route dure 3 minutes : combien de bonnes réponses ?</li>
+              <li>✨ Attrape un bonus <strong>×2</strong> : ta prochaine bonne réponse vaut 2 points</li>
+              <li>👴 Attention aux papis qui traversent : −1 point si tu les touches</li>
+              <li>🏁 La route mène à la plage en 3 minutes : combien de points ?</li>
             </ul>
             <button id="startBtn">🚗 C'est parti !</button>
           </div>
@@ -71,16 +77,16 @@
 
     <aside class="leaderboard" id="leaderboard">
       <h2>🏆 Classement</h2>
-      <p class="leaderboard-sub">Top 20 mondial (le plus de bonnes réponses !)</p>
+      <p class="leaderboard-sub">Top 20 mondial (le plus de points !)</p>
       <ol class="leaderboard-list" id="leaderboardList"></ol>
-      <p class="leaderboard-note">⭐ 1 point par bonne réponse, 9 multiplications par course.</p>
+      <p class="leaderboard-note">⭐ 1 point par bonne réponse (2 avec un bonus ×2), −1 si tu touches un papi. 9 multiplications par course.</p>
     </aside>
   </section>
 
   <!-- Arrivée -->
   <div class="win-banner" id="winBanner">
     <div class="win-card">
-      <p class="win-title">Tu es arrivé au bout de la route ! 🏁</p>
+      <p class="win-title">Tu es arrivé à la plage ! 🏖️</p>
       <p id="winScore"></p>
 
       <div id="scoreForm">
