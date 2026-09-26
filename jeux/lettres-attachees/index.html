@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lettres Magiques — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&family=Playwrite+FR+Moderne:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🔤 Lettres Magiques</h1>
+    <p>Retourne une carte et trouve la même lettre dans l'autre écriture !</p>
+  </header>
+
+  <section class="hud">
+    <div class="hud-item">Cartes : <span id="done">0</span> / 25</div>
+    <div class="hud-item">⭐ Bonnes réponses : <span id="good">0</span></div>
+    <button id="restart">Recommencer</button>
+  </section>
+
+  <div class="game-layout">
+    <main class="board" id="board" aria-label="Plateau de 25 cartes"></main>
+
+    <aside class="leaderboard" id="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub">Top 20 mondial des bonnes réponses</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+    </aside>
+  </div>
+
+  <div class="question-overlay" id="questionOverlay" role="dialog" aria-modal="true" aria-labelledby="questionHint">
+    <div class="question-card">
+      <div class="question-top">
+        <p class="question-hint" id="questionHint"></p>
+        <button class="speak-btn" id="speakBtn" aria-label="Écouter la consigne">🔊</button>
+      </div>
+      <div class="question-model" id="questionModel"></div>
+      <div class="choices" id="choices"></div>
+      <p class="feedback" id="feedback" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div class="win-banner" id="winBanner">
+    <div class="win-card">
+      <p class="win-title">Bravo ! 🎉</p>
+      <p class="win-stars" id="winStars"></p>
+      <p id="winStats"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon score</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
+
+      <button id="playAgain">Rejouer</button>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
