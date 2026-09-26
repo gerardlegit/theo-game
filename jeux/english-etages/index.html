@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>English à tous les étages — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🏢 English à tous les étages</h1>
+    <p>Aidez Colette à monter les 10 étages en trouvant chaque mot anglais !</p>
+  </header>
+
+  <section class="hud" id="hud">
+    <div class="hud-item">⏱ <span id="clock">0:00</span></div>
+    <div class="hud-item">Étage <span id="floorNum">1</span> / 10</div>
+    <div class="hud-item">Cartes <span id="cardNum">0</span> / 5</div>
+    <button id="restart">Recommencer</button>
+  </section>
+
+  <div class="game-layout">
+    <main class="building-wrap" id="buildingWrap" aria-label="L'immeuble : 10 étages de 5 cartes">
+      <div class="facade" id="facade"></div>
+      <div class="lady lady-game" id="gameLady"></div>
+    </main>
+
+    <aside class="leaderboard" id="leaderboard">
+      <h2>🏆 Classement</h2>
+      <p class="leaderboard-sub">Top 20 mondial des plus rapides</p>
+      <ol class="leaderboard-list" id="leaderboardList"></ol>
+    </aside>
+  </div>
+
+  <!-- Introduction : Colette arrive au pied de l'immeuble -->
+  <div class="intro" id="intro">
+    <div class="intro-stage">
+      <div class="cloud c1"></div>
+      <div class="cloud c2"></div>
+      <div class="facade mini" id="miniFacade"></div>
+      <div class="street"></div>
+      <div class="lady lady-intro" id="introLady"></div>
+      <p class="bubble" id="introBubble">Oh là là… 10 étages !</p>
+    </div>
+    <div class="intro-panel">
+      <h2>🏢 English à tous les étages</h2>
+      <p class="intro-lead">Colette veut monter tout en haut de son immeuble. À chaque étage, 5 fenêtres cachent un mot.</p>
+      <ul class="rules">
+        <li><strong>Étages 1, 3, 5, 7, 9 :</strong> un mot <strong>anglais</strong> apparaît (🔊 pour l'écouter). Trouvez sa traduction en <strong>français</strong>.</li>
+        <li><strong>Étages 2, 4, 6, 8, 10 :</strong> un mot <strong>français</strong> apparaît. Trouvez-le en <strong>anglais</strong>.</li>
+        <li>Le mot disparaît après quelques secondes : retenez-le bien !</li>
+        <li>Une seule erreur et la partie est perdue. Le chronomètre tourne !</li>
+      </ul>
+      <button class="big-btn" id="startBtn">Commencer ▶</button>
+    </div>
+  </div>
+
+  <!-- Une carte : le mot, puis les 4 propositions -->
+  <div class="q-overlay" id="qOverlay" role="dialog" aria-modal="true" aria-labelledby="qInstr">
+    <div class="q-card">
+      <p class="q-where" id="qWhere"></p>
+      <p class="q-instr" id="qInstr"></p>
+
+      <div class="q-show" id="qShow">
+        <div class="q-word" id="qWord"></div>
+        <div class="q-bar"><span id="qBar"></span></div>
+        <div class="q-actions">
+          <button class="listen-btn" id="listenBtn">🔊 Écouter</button>
+          <button class="big-btn" id="readyBtn">J'ai retenu →</button>
+        </div>
+      </div>
+
+      <div class="q-answer" id="qAnswer">
+        <button class="listen-btn" id="relistenBtn">🔊 Réécouter le mot</button>
+        <div class="q-choices" id="qChoices"></div>
+        <p class="q-feedback" id="qFeedback" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+
+  <p class="toast" id="toast" aria-live="polite"></p>
+
+  <!-- Fin de partie -->
+  <div class="end-overlay" id="endOverlay">
+    <div class="end-card">
+      <div class="end-stage" id="endStage">
+        <div class="rain-cloud">☁️<span class="drops"></span></div>
+        <div class="sparkles">✨🎶✨</div>
+        <div class="lady lady-end" id="endLady"></div>
+      </div>
+      <p class="end-title" id="endTitle"></p>
+      <p class="end-text" id="endText"></p>
+
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entrez votre pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Votre pseudo">
+        <div class="score-actions">
+          <button id="saveScore">Enregistrer mon temps</button>
+          <button id="skipScore" class="ghost-btn">Passer</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved">Temps enregistré ! 🎉</p>
+
+      <button class="big-btn" id="playAgain">Rejouer</button>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
