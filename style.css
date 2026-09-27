@@ -160,9 +160,10 @@ body {
 .card-10 { transform: rotate(1.9deg); }
 .card-11 { transform: rotate(-2.2deg); }
 .card-12 { transform: rotate(1.6deg); }
+.card-13 { transform: rotate(-1.2deg); }
 
 .card:hover { transform: rotate(0deg) translateY(-6px); }
-.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover, .card-5:hover, .card-6:hover, .card-7:hover, .card-8:hover, .card-9:hover, .card-10:hover, .card-11:hover, .card-12:hover { transform: rotate(0deg) translateY(-6px); }
+.card-1:hover, .card-2:hover, .card-3:hover, .card-4:hover, .card-5:hover, .card-6:hover, .card-7:hover, .card-8:hover, .card-9:hover, .card-10:hover, .card-11:hover, .card-12:hover, .card-13:hover { transform: rotate(0deg) translateY(-6px); }
 
 .card-blob {
   position: absolute;
@@ -184,6 +185,38 @@ body {
 .card-10 .card-blob { background: var(--pink); }
 .card-11 .card-blob { background: var(--yellow); }
 .card-12 .card-blob { background: var(--sky); }
+.card-13 .card-blob { background: #FF2D55; box-shadow: 0 0 24px rgba(255, 45, 85, .7); }
+
+/* ---------- La Quête : la carte du jeu ultime ---------- */
+.card-ultimate {
+  color: #fff;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(255, 45, 85, .35), transparent 55%),
+    linear-gradient(160deg, #1B0B3A, #07051A);
+  box-shadow: 0 10px 0 rgba(46, 42, 77, 0.25), 0 0 0 2px #35F2FF, 0 14px 34px rgba(255, 45, 85, .35);
+}
+.card-ultimate h3 {
+  font-size: 1.6rem;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(53, 242, 255, .9), 2px 2px 0 #FF4FD8;
+}
+.card-ultimate p { color: #CFC6F0; }
+.card-ultimate .card-icon { filter: drop-shadow(0 0 10px rgba(255, 45, 85, .9)); }
+.card-ultimate .tag-play { background: #35F2FF; color: #07051A; }
+.ultimate-badge {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: .8rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #07051A;
+  background: #FFD23F;
+  padding: .15rem .7rem;
+  border-radius: 999px;
+}
+@media (min-width: 560px) {
+  .card-ultimate { grid-column: span 2; }
+}
 
 .card-icon {
   font-size: 2.4rem;

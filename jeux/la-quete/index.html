@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05030F">
+<title>La Quête — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Exo+2:ital,wght@0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ ÉCRAN TITRE ============ -->
+  <section class="screen" id="scrTitle">
+    <div class="bg" id="titleBg"></div>
+    <div class="title-omega" id="titleOmega"></div>
+    <canvas class="fx" id="titleFx"></canvas>
+    <div class="scanlines"></div>
+    <a class="back-link" href="../../index.html">← La Cabane</a>
+    <div class="title-wrap">
+      <p class="title-eyebrow">La Cabane à Jeux présente</p>
+      <h1 class="game-title" data-text="LA QUÊTE">LA QUÊTE</h1>
+      <p class="title-tag">Une seule arme contre OMÉGA : <strong>ta logique</strong>.</p>
+      <div class="title-btns">
+        <button class="neon-btn primary" id="btnNew">▶ Nouvelle quête</button>
+        <button class="neon-btn" id="btnContinue" hidden>Continuer la quête</button>
+        <button class="neon-btn ghost" id="btnScores">🏆 Classement</button>
+      </div>
+      <p class="title-note">Pour les 9 – 12 ans · Seul ton temps de réflexion est chronométré</p>
+    </div>
+  </section>
+
+  <!-- ============ INTRO / HISTOIRE ============ -->
+  <section class="screen" id="scrStory">
+    <div class="story-art" id="storyArt"></div>
+    <div class="scanlines"></div>
+    <div class="story-caption">
+      <p class="story-text" id="storyText"></p>
+      <div class="story-foot">
+        <span class="story-dots" id="storyDots"></span>
+        <button class="neon-btn small" id="storyNext">Suivant ▸</button>
+      </div>
+    </div>
+    <button class="skip-btn" id="storySkip">Passer ⏭</button>
+  </section>
+
+  <!-- ============ CHOIX DU HÉROS ============ -->
+  <section class="screen" id="scrSelect">
+    <div class="bg" id="selectBg"></div>
+    <canvas class="fx" id="selectFx"></canvas>
+    <div class="select-wrap">
+      <h2 class="screen-title">Choisis ton héros</h2>
+      <p class="screen-sub">Chacun a un pouvoir spécial, utilisable une fois par combat.</p>
+      <div class="hero-cards" id="heroCards"></div>
+      <button class="neon-btn primary" id="btnChoose" disabled>Commencer l'aventure ▸</button>
+    </div>
+  </section>
+
+  <!-- ============ CARTE DU MONDE ============ -->
+  <section class="screen" id="scrMap">
+    <div class="map-stage">
+      <div class="map-frame" id="mapFrame"></div>
+    </div>
+    <div class="map-card" id="mapCard"></div>
+  </section>
+
+  <!-- ============ COMBAT ============ -->
+  <section class="screen" id="scrBattle">
+    <div class="stage" id="stage">
+      <div class="bg" id="stageBg"></div>
+      <canvas class="fx" id="stageFx"></canvas>
+      <div class="ground-glow"></div>
+      <div class="fighter hero-f" id="fHero"><div class="sprite" id="heroSprite"></div><div class="shield-bubble" id="shieldBubble"></div></div>
+      <div class="bip-f" id="fBip"></div>
+      <div class="fighter foe-f" id="fFoe"><div class="sprite" id="foeSprite"></div></div>
+      <div class="bar foe-bar" id="foeBar">
+        <span class="bar-name" id="foeName"></span>
+        <div class="hp" id="foeHp"></div>
+      </div>
+      <div class="bar hero-bar">
+        <span class="bar-name" id="heroName"></span>
+        <div class="hearts" id="hearts"></div>
+      </div>
+      <button class="power-btn" id="btnPower" disabled></button>
+      <div class="fx-layer" id="fxLayer"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <div class="panel" id="panel" aria-live="polite">
+      <div class="panel-inner">
+        <div class="panel-head">
+          <span class="p-type" id="pType"></span>
+          <span class="p-step" id="pStep"></span>
+        </div>
+        <p class="p-question" id="pQuestion"></p>
+        <div class="p-visual" id="pVisual"></div>
+        <div class="p-choices" id="pChoices"></div>
+        <div class="p-feedback" id="pFeedback">
+          <p class="fb-title" id="fbTitle"></p>
+          <p class="fb-text" id="fbText"></p>
+          <button class="neon-btn small primary" id="btnNext">Continuer ▸</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FIN ============ -->
+  <section class="screen" id="scrEnd">
+    <div class="bg" id="endBg"></div>
+    <div class="end-parade" id="endParade"></div>
+    <canvas class="fx" id="endFx"></canvas>
+    <div class="end-card">
+      <p class="end-kicker">Mission accomplie</p>
+      <h2 class="end-title">Le monde est libre !</h2>
+      <p class="end-text" id="endText"></p>
+      <div class="end-stats" id="endStats"></div>
+      <div class="score-form" id="scoreForm">
+        <label for="pseudoInput">Entre ton pseudo pour rejoindre le classement mondial :</label>
+        <div class="score-row">
+          <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo" autocomplete="off">
+          <button class="neon-btn small primary" id="saveScore">Enregistrer</button>
+        </div>
+      </div>
+      <p class="score-msg" id="scoreMsg"></p>
+      <div class="end-btns">
+        <button class="neon-btn" id="btnShowScores">🏆 Classement</button>
+        <button class="neon-btn primary" id="btnReplay">Rejouer</button>
+        <a class="neon-btn ghost" href="../../index.html">La Cabane</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BARRE DU HAUT (carte + combat) ============ -->
+  <header class="hud" id="hud">
+    <button class="hud-btn" id="btnMenu" aria-label="Menu">☰</button>
+    <div class="hud-hero" id="hudHero"></div>
+    <div class="hud-time" title="Temps de réflexion"><span class="hud-ic">⏱</span><span id="hudTime">0:00</span></div>
+    <div class="hud-frags" id="hudFrags" aria-label="Fragments de code"></div>
+  </header>
+
+  <button class="sound-btn" id="btnSound" aria-label="Son"></button>
+
+  <!-- ============ DIALOGUES ============ -->
+  <div class="dialog" id="dialog" role="dialog" aria-live="polite">
+    <div class="d-portrait" id="dPortrait"></div>
+    <div class="d-box">
+      <p class="d-name" id="dName"></p>
+      <p class="d-text" id="dText"></p>
+      <span class="d-next">▼</span>
+    </div>
+  </div>
+
+  <!-- ============ FENÊTRES ============ -->
+  <div class="modal" id="menuModal" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="modal-card">
+      <h3 id="menuTitle">Pause</h3>
+      <button class="neon-btn primary" id="mResume">Reprendre</button>
+      <button class="neon-btn" id="mMap">Retour à la carte</button>
+      <button class="neon-btn ghost" id="mTitle">Écran titre</button>
+      <p class="modal-note">Ta progression est sauvegardée après chaque robot libéré.</p>
+    </div>
+  </div>
+
+  <div class="modal" id="scoresModal" role="dialog" aria-modal="true" aria-labelledby="scoresTitle">
+    <div class="modal-card wide">
+      <h3 id="scoresTitle">🏆 Les héros les plus rapides</h3>
+      <p class="modal-note">Top 20 mondial — temps de réflexion total</p>
+      <ol class="lb-list" id="lbList"></ol>
+      <button class="neon-btn" id="closeScores">Fermer</button>
+    </div>
+  </div>
+
+  <div class="wipe" id="wipe"></div>
+  <div class="toast" id="toast" aria-live="polite"></div>
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
