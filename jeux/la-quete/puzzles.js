@@ -172,74 +172,167 @@ function genSequence(level) {
 
 /* ==========================================================================
    2. ENGRENAGES — ENGRENOX
+   Des machines entières : roues qui se ramifient, courroies droites ou
+   croisées, boucles (qui tournent ou se bloquent), roues piège reliées à rien.
    ========================================================================== */
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const GAP = 3; // les dents se chevauchent légèrement
-const TOOTH = 7;
+const GAP = 2;        // les dents s'emboîtent légèrement
+const TOOTH = 6;      // hauteur des dents
+const PITCH = 12;     // écart entre deux dents : le rayon dépend du nombre de dents
+const CLEAR = 18;     // espace minimum entre deux roues qui ne se touchent pas
+const HUB = 0.55;     // taille d'une poulie de courroie, par rapport à sa roue
+const TEETH = [10, 12, 15, 16, 18, 20, 24, 30, 36];
+const radiusOf = (t) => (t * PITCH) / (2 * Math.PI);
+const deg = (d) => (d * Math.PI) / 180;
 
-function buildGearChain(n, jam) {
-  const radii = [24, 30, 36, 42];
-  const gears = [{ x: 0, y: 0, r: pick(radii) }];
-  const edges = [];
-  for (let i = 1; i < n; i++) {
-    let placed = false;
-    for (let t = 0; t < 40 && !placed; t++) {
-      const r = pick(radii), prev = gears[i - 1];
-      const a = ((i % 2 ? -1 : 1) * ri(12, 58) * Math.PI) / 180;
-      const d = prev.r + r + GAP;
-      const g = { x: prev.x + Math.cos(a) * d, y: prev.y + Math.sin(a) * d, r };
-      if (gears.every((o, j) => j === i - 1 || dist(o, g) > o.r + g.r + TOOTH * 2 + 6)) {
-        gears.push(g); edges.push([i - 1, i]); placed = true;
-      }
-    }
-    if (!placed) return null;
+function distSeg(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/** Une nouvelle roue a-t-elle de la place (sans toucher les roues, les courroies ni la flèche du moteur) ? */
+function roomFor(sys, g, ignore = []) {
+  if (!sys.gears.every((o, k) => ignore.includes(k) || dist(o, g) >= o.r + g.r + 2 * TOOTH + CLEAR)) return false;
+  const m = sys.gears[0], R = m.r + TOOTH + 9;
+  for (const a of [-150, -90, -30]) {
+    const p = { x: m.x + Math.cos(deg(a)) * R, y: m.y + Math.sin(deg(a)) * R };
+    if (dist(p, g) < g.r + TOOTH + 12) return false;
   }
-  let jamIdx = -1;
-  if (jam) {
-    const ks = shuffle([...Array(n - 1).keys()]);
-    outer: for (const k of ks) {
-      for (const r of shuffle(radii)) {
-        const A = gears[k], B = gears[k + 1];
-        const ra = A.r + r + GAP, rb = B.r + r + GAP, d = dist(A, B);
-        if (d > ra + rb || d < Math.abs(ra - rb)) continue;
-        const aa = (ra * ra - rb * rb + d * d) / (2 * d), h = Math.sqrt(Math.max(0, ra * ra - aa * aa));
-        const mx = A.x + (aa * (B.x - A.x)) / d, my = A.y + (aa * (B.y - A.y)) / d;
-        for (const s of shuffle([1, -1])) {
-          const g = { x: mx + (s * h * (B.y - A.y)) / d, y: my - (s * h * (B.x - A.x)) / d, r };
-          if (gears.every((o, j) => j === k || j === k + 1 || dist(o, g) > o.r + g.r + TOOTH * 2 + 6)) {
-            gears.push(g); jamIdx = gears.length - 1;
-            edges.push([k, jamIdx], [k + 1, jamIdx]);
-            break outer;
-          }
+  return sys.links.every((l) => l.type === 'mesh'
+    || distSeg(g, sys.gears[l.a], sys.gears[l.b]) > g.r + TOOTH + HUB * Math.max(sys.gears[l.a].r, sys.gears[l.b].r) + 10);
+}
+
+const degree = (sys, i) => sys.links.filter((l) => l.a === i || l.b === i).length;
+
+function addMesh(sys, parent, teeth, angle) {
+  const p = sys.gears[parent], r = radiusOf(teeth), d = p.r + r + GAP;
+  const g = { x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, r, teeth };
+  if (!roomFor(sys, g, [parent])) return -1;
+  sys.gears.push(g);
+  sys.links.push({ a: parent, b: sys.gears.length - 1, type: 'mesh' });
+  return sys.gears.length - 1;
+}
+
+function addBelt(sys, parent, teeth, angle, crossed) {
+  const p = sys.gears[parent], r = radiusOf(teeth), d = p.r + r + 2 * TOOTH + ri(55, 95);
+  const g = { x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, r, teeth };
+  if (!roomFor(sys, g)) return -1;
+  // Le trajet de la courroie ne doit passer sur aucune autre roue.
+  const clear = sys.gears.every((o, k) => k === parent || distSeg(o, p, g) > o.r + TOOTH + HUB * Math.max(p.r, r) + 10);
+  if (!clear) return -1;
+  sys.gears.push(g);
+  sys.links.push({ a: parent, b: sys.gears.length - 1, type: crossed ? 'cross' : 'belt' });
+  return sys.gears.length - 1;
+}
+
+/** Une roue qui touche deux roues à la fois : ça ferme une boucle, qui bloque tout (jam) ou non. */
+function addBridge(sys, jam) {
+  const n = sys.gears.length;
+  const { dir } = solveSystem(sys, 1);
+  const pairs = [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    // La nouvelle roue tourne à l'inverse de ses deux voisines : possible seulement si elles tournent pareil.
+    // (Deux roues déjà en contact + la nouvelle = un triangle, le blocage classique.)
+    if ((dir[i] !== dir[j]) === jam) pairs.push([i, j]);
+  }
+  for (const [i, j] of shuffle(pairs)) {
+    for (const teeth of shuffle(TEETH.slice(0, 7))) {
+      const A = sys.gears[i], B = sys.gears[j], r = radiusOf(teeth);
+      const ra = A.r + r + GAP, rb = B.r + r + GAP, d = dist(A, B);
+      if (d > ra + rb - 4 || d < Math.abs(ra - rb)) continue;
+      const aa = (ra * ra - rb * rb + d * d) / (2 * d), h = Math.sqrt(Math.max(0, ra * ra - aa * aa));
+      const mx = A.x + (aa * (B.x - A.x)) / d, my = A.y + (aa * (B.y - A.y)) / d;
+      for (const s of shuffle([1, -1])) {
+        const g = { x: mx + (s * h * (B.y - A.y)) / d, y: my - (s * h * (B.x - A.x)) / d, r, teeth };
+        if (roomFor(sys, g, [i, j])) {
+          sys.gears.push(g);
+          const k = sys.gears.length - 1;
+          sys.links.push({ a: i, b: k, type: 'mesh' }, { a: j, b: k, type: 'mesh' });
+          return k;
         }
       }
     }
-    if (jamIdx < 0) return null;
   }
-  return { gears, edges, jamIdx };
+  return -1;
 }
 
-/** Sens de chaque roue (1 = horaire, -1 = anti-horaire) ; null si le système est bloqué. */
-function gearDirections(gears, edges, motorDir) {
-  const dir = new Array(gears.length).fill(0);
-  dir[0] = motorDir;
-  const queue = [0];
-  while (queue.length) {
-    const i = queue.shift();
-    for (const [a, b] of edges) {
-      const j = a === i ? b : b === i ? a : -1;
-      if (j < 0) continue;
-      if (dir[j] === 0) { dir[j] = -dir[i]; queue.push(j); }
-      else if (dir[j] === dir[i]) return null;
+/** Une roue piège : tout près d'une autre, mais sans la toucher. */
+function addDecoy(sys) {
+  for (const o of shuffle([...sys.gears.keys()].slice(1))) {
+    for (let t = 0; t < 14; t++) {
+      const O = sys.gears[o], teeth = pick(TEETH.slice(1, 7)), r = radiusOf(teeth);
+      const a = Math.random() * Math.PI * 2, d = O.r + r + 2 * TOOTH + ri(11, 14);
+      const g = { x: O.x + Math.cos(a) * d, y: O.y + Math.sin(a) * d, r, teeth };
+      if (roomFor(sys, g, [o])) { sys.gears.push(g); return sys.gears.length - 1; }
     }
   }
-  return dir;
+  return -1;
+}
+
+function buildSystem({ meshes, belts, bridge, decoy, motorTeeth }) {
+  const sys = { gears: [{ x: 0, y: 0, teeth: motorTeeth, r: radiusOf(motorTeeth) }], links: [], bridge: -1, decoy: -1 };
+  const perPart = Math.ceil(meshes / (belts + 1));
+  let from = 0, made = 0;
+  for (let part = 0; part <= belts; part++) {
+    let need = Math.min(perPart, meshes - made), tries = 0;
+    while (need > 0 && tries++ < 300) {
+      const cands = [...sys.gears.keys()].filter((k) => k >= from && degree(sys, k) < 3);
+      if (!cands.length) return null;
+      const parent = pick(cands.slice(-3));
+      const angle = Math.random() < 0.75 ? deg(ri(-75, 75)) : Math.random() * Math.PI * 2;
+      if (addMesh(sys, parent, pick(TEETH), angle) >= 0) { need--; made++; }
+    }
+    if (need > 0) return null;
+    if (part < belts) {
+      let k = -1;
+      for (let t = 0; t < 80 && k < 0; t++) {
+        const cands = [...sys.gears.keys()].filter((c) => c >= from && degree(sys, c) < 3);
+        k = addBelt(sys, pick(cands.slice(-2)), pick(TEETH.slice(2)), deg(ri(-40, 40)), Math.random() < 0.5);
+      }
+      if (k < 0) return null;
+      from = k;
+    }
+  }
+  if (bridge && (sys.bridge = addBridge(sys, bridge === 'jam')) < 0) return null;
+  if (decoy && (sys.decoy = addDecoy(sys)) < 0) return null;
+  const xs = sys.gears.flatMap((g) => [g.x - g.r, g.x + g.r]), ys = sys.gears.flatMap((g) => [g.y - g.r, g.y + g.r]);
+  const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+  if (w / h < 0.9 || w / h > 3.4) return null;
+  return sys;
+}
+
+/** Sens de chaque roue (1 horaire, -1 inverse, 0 immobile), chemin depuis le moteur, et blocage éventuel. */
+function solveSystem(sys, motorDir) {
+  const n = sys.gears.length;
+  const dir = new Array(n).fill(0), par = new Array(n).fill(-1), via = new Array(n).fill(null), depth = new Array(n).fill(0);
+  dir[0] = motorDir;
+  const queue = [0];
+  let conflict = null;
+  while (queue.length) {
+    const i = queue.shift();
+    for (const l of sys.links) {
+      const j = l.a === i ? l.b : l.b === i ? l.a : -1;
+      if (j < 0) continue;
+      const want = l.type === 'belt' ? dir[i] : -dir[i];
+      if (dir[j] === 0) { dir[j] = want; par[j] = i; via[j] = l.type; depth[j] = depth[i] + 1; queue.push(j); }
+      else if (dir[j] !== want && !conflict) conflict = [i, j];
+    }
+  }
+  let loop = [];
+  if (conflict) {
+    const up = (k) => { const p = []; for (; k >= 0; k = par[k]) p.push(k); return p; };
+    const pa = up(conflict[0]), pb = up(conflict[1]);
+    const lca = pa.find((k) => pb.includes(k));
+    loop = [...pa.slice(0, pa.indexOf(lca) + 1), ...pb.slice(0, pb.indexOf(lca))];
+  }
+  return { dir, par, via, depth, jam: !!conflict, loop };
 }
 
 function motorArrow(r, cw) {
   const R = r + TOOTH + 9;
-  const a0 = (-150 * Math.PI) / 180, a1 = (-30 * Math.PI) / 180;
+  const a0 = deg(-150), a1 = deg(-30);
   const [sx, sy] = cw ? [Math.cos(a0) * R, Math.sin(a0) * R] : [Math.cos(a1) * R, Math.sin(a1) * R];
   const [ex, ey] = cw ? [Math.cos(a1) * R, Math.sin(a1) * R] : [Math.cos(a0) * R, Math.sin(a0) * R];
   const ea = cw ? a1 : a0;
@@ -255,91 +348,211 @@ function motorArrow(r, cw) {
     <polygon points="${head}" fill="#FF4FD8"/>`;
 }
 
+/** Courroie entre deux poulies : tangentes extérieures (droite) ou intérieures (croisée). */
+function beltSVG(A, B, crossed) {
+  const ra = A.r * HUB, rb = B.r * HUB;
+  const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
+  const al = Math.acos((crossed ? ra + rb : ra - rb) / d);
+  const lines = [1, -1].map((s) => {
+    const a = th + s * al, k = crossed ? -1 : 1;
+    return `M${(A.x + ra * Math.cos(a)).toFixed(1)} ${(A.y + ra * Math.sin(a)).toFixed(1)} L${(B.x + k * rb * Math.cos(a)).toFixed(1)} ${(B.y + k * rb * Math.sin(a)).toFixed(1)}`;
+  }).join(' ');
+  const pulley = (g, r) => `<circle cx="${g.x.toFixed(1)}" cy="${g.y.toFixed(1)}" r="${r.toFixed(1)}" class="pulley"/>`;
+  return `<g class="belt ${crossed ? 'crossed' : ''}">${pulley(A, ra)}${pulley(B, rb)}<path d="${lines}" class="belt-out"/><path d="${lines}" class="belt-in"/></g>`;
+}
+
 let gearUid = 0;
-function gearsVisual(gears, dir, motorDir, target) {
+function systemSVG(sys, sol, motorDir, { target = -1, letters = {}, teeth = false } = {}) {
   const id = `gz${++gearUid}`;
-  const pad = 70;
-  const minX = Math.min(...gears.map((g) => g.x - g.r)) - pad, maxX = Math.max(...gears.map((g) => g.x + g.r)) + pad;
-  const minY = Math.min(...gears.map((g) => g.y - g.r)) - pad, maxY = Math.max(...gears.map((g) => g.y + g.r)) + pad;
-  const items = gears.map((g, i) => {
-    const teeth = Math.max(8, Math.round((2 * Math.PI * g.r) / 14));
+  const pad = 46;
+  const minX = Math.min(...sys.gears.map((g) => g.x - g.r)) - pad, maxX = Math.max(...sys.gears.map((g) => g.x + g.r)) + pad;
+  const minY = Math.min(...sys.gears.map((g) => g.y - g.r)) - pad - 14, maxY = Math.max(...sys.gears.map((g) => g.y + g.r)) + pad;
+  const s = Math.max(1, Math.max(maxX - minX, maxY - minY) / 520);
+  const loop = new Set(sol.loop);
+  const items = sys.gears.map((g, i) => {
     const fill = i === 0 ? `url(#${id}m)` : i === target ? `url(#${id}t)` : `url(#${id}s)`;
-    const cls = dir ? (dir[i] > 0 ? 'cw' : 'ccw') : '';
+    const cls = sol.jam ? (loop.has(i) ? 'jam-part' : '') : sol.dir[i] > 0 ? 'cw' : sol.dir[i] < 0 ? 'ccw' : 'still';
     return `<g transform="translate(${g.x.toFixed(1)} ${g.y.toFixed(1)})">
-      <g class="gear ${cls}" style="animation-duration:${(g.r / 11).toFixed(2)}s">
+      <g class="gear ${cls}" style="animation-duration:${(g.r / 10).toFixed(2)}s">
         <circle r="${g.r + TOOTH + 1}" fill="none"/>
-        <path d="${gearPath(g.r, teeth, TOOTH)}" fill="${fill}" stroke="#0A0F1C" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle r="${(g.r * 0.62).toFixed(1)}" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="3"/>
-        <circle r="${(g.r * 0.24).toFixed(1)}" fill="#0A0F1C"/>
-        <circle cy="${(-g.r * 0.62).toFixed(1)}" r="3.5" fill="rgba(255,255,255,.55)"/>
+        <path d="${gearPath(g.r, g.teeth, TOOTH)}" fill="${fill}" stroke="#0A0F1C" stroke-width="2.2" stroke-linejoin="round"/>
+        <circle r="${(g.r * 0.7).toFixed(1)}" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="2.5"/>
+        <circle r="${(g.r * 0.2).toFixed(1)}" fill="#0A0F1C"/>
+        <circle cy="${(-g.r * 0.7).toFixed(1)}" r="3" fill="rgba(255,255,255,.6)"/>
       </g>
     </g>`;
   }).join('');
-  // Flèche du moteur et étoile dessinées par-dessus toutes les roues.
-  const m = gears[0];
-  const labels = `<g transform="translate(${m.x.toFixed(1)} ${m.y.toFixed(1)})">${motorArrow(m.r, motorDir > 0)}<text class="gear-label" y="6">⚡</text></g>`
-    + (target >= 0 ? `<g transform="translate(${gears[target].x.toFixed(1)} ${gears[target].y.toFixed(1)})"><text class="gear-label star" y="7">★</text></g>` : '');
-  return `<svg class="gears" viewBox="${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}" aria-label="Des engrenages">
+  const belts = sys.links.filter((l) => l.type !== 'mesh').map((l) => beltSVG(sys.gears[l.a], sys.gears[l.b], l.type === 'cross')).join('');
+  const at = (g, inner) => `<g transform="translate(${g.x.toFixed(1)} ${g.y.toFixed(1)})">${inner}</g>`;
+  let labels = at(sys.gears[0], `${motorArrow(sys.gears[0].r, motorDir > 0)}${teeth ? '' : `<text class="gear-label" y="${7 * s}" style="font-size:${20 * s}px">⚡</text>`}`);
+  sys.gears.forEach((g, i) => {
+    const big = Math.min(26 * s, g.r * 1.1);
+    if (teeth) {
+      const fs = Math.min(16 * s, g.r * 0.8);
+      if (i === target) {
+        labels += at(g, `<text class="gear-label star" y="${(-g.r * 0.08).toFixed(1)}" style="font-size:${(fs * 0.95).toFixed(1)}px">★</text>
+          <text class="gear-label teeth" y="${(g.r * 0.62).toFixed(1)}" style="font-size:${(fs * 0.85).toFixed(1)}px">${g.teeth}</text>`);
+      } else {
+        labels += at(g, `<text class="gear-label teeth ${i === 0 ? 'motor' : ''}" y="${(fs * 0.36).toFixed(1)}" style="font-size:${fs.toFixed(1)}px">${g.teeth}</text>`);
+      }
+    } else if (i === target) {
+      labels += at(g, `<text class="gear-label star" y="${(big * 0.36).toFixed(1)}" style="font-size:${big.toFixed(1)}px">★</text>`);
+    } else if (letters[i]) {
+      labels += at(g, `<text class="gear-label letter" y="${(big * 0.36).toFixed(1)}" style="font-size:${big.toFixed(1)}px">${letters[i]}</text>`);
+    }
+  });
+  const hasBelt = sys.links.some((l) => l.type !== 'mesh');
+  const legend = hasBelt ? `<div class="gear-legend"><span><i class="lg-belt"></i>Courroie droite : même sens</span><span><i class="lg-belt crossed"></i>Courroie croisée : sens inverse</span></div>` : '';
+  return `${legend}<svg class="gears" viewBox="${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}" aria-label="Une machine à engrenages">
     <defs>
       <linearGradient id="${id}s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C9D3DE"/><stop offset="1" stop-color="#5F6B7A"/></linearGradient>
       <linearGradient id="${id}m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9BE8"/><stop offset="1" stop-color="#9B2CC4"/></linearGradient>
       <linearGradient id="${id}t" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE58A"/><stop offset="1" stop-color="#D9901A"/></linearGradient>
-    </defs>${items}${labels}</svg>`;
+    </defs>${items}${belts}${labels}</svg>`;
 }
 
+const ARROW = (d) => (d > 0 ? '↻' : '↺');
+const LINK_TXT = { mesh: '→', belt: '═', cross: '✕' };
+const RULES = '<span class="rules">(→ roues qui se touchent : sens inverse · ═ courroie droite : même sens · ✕ courroie croisée : sens inverse)</span>';
+
+/** « ⚡↻ → ↺ ═ ↺ ✕ ↻ » : le chemin du mouvement, du moteur jusqu'à la roue k. */
+function pathText(sol, k) {
+  const chain = [];
+  for (let i = k; i >= 0; i = sol.par[i]) chain.unshift(i);
+  return chain.map((i, n) => `${n === 0 ? '⚡' : ` ${LINK_TXT[sol.via[i]]} `}${ARROW(sol.dir[i])}`).join('');
+}
+
+const DIR_NAME = { 1: "dans le sens des aiguilles d'une montre", '-1': 'dans le sens inverse des aiguilles' };
+const JAM_TXT = "Regarde la boucle de roues en rouge : en faisant le tour, chaque roue doit tourner à l'inverse de sa voisine… et on revient au départ avec le mauvais sens (la boucle a un nombre impair de roues). Impossible : <b>tout se bloque</b> !";
+
+function gearChoices(ans) {
+  return [
+    { html: `${rotIcon(true)}<span>Sens des aiguilles d'une montre</span>`, correct: ans === 'cw' },
+    { html: `${rotIcon(false)}<span>Sens inverse des aiguilles</span>`, correct: ans === 'ccw' },
+    { html: `<span class="ic-jam">⛔</span><span>Tout se bloque !</span>`, correct: ans === 'jam' },
+    { html: `<span class="ic-jam">💤</span><span>Elle n'est reliée à rien</span>`, correct: ans === 'still' },
+  ];
+}
+
+const listFr = (arr) => (arr.length === 1 ? arr[0] : `${arr.slice(0, -1).join(', ')} et ${arr[arr.length - 1]}`);
+
+function frac(num, den) {
+  const g = (a, b) => (b ? g(b, a % b) : a);
+  const k = g(num, den);
+  return [num / k, den / k];
+}
+const FRAC_TXT = { '1/3': '⅓ de tour', '1/2': '½ tour', '2/3': '⅔ de tour', '1/1': '1 tour', '3/2': '1 tour ½', '2/1': '2 tours', '3/1': '3 tours', '4/1': '4 tours' };
+
 function genGears(level) {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const n = level === 1 ? ri(3, 4) : level === 2 ? ri(4, 6) : ri(5, 7);
-    const jam = level >= 2 && Math.random() < (level === 2 ? 0.3 : 0.4);
-    const countQ = level === 3 && !jam && Math.random() < 0.45;
-    const layout = buildGearChain(n, jam);
-    if (!layout) continue;
-    const { gears, edges } = layout;
+  const cfg = {
+    1: { meshes: [5, 6], belts: [0, 0], bridge: 0.3, decoy: 0.3 },
+    2: { meshes: [6, 7], belts: [1, 1], bridge: 0.35, decoy: 0.3 },
+    3: { meshes: [7, 8], belts: [1, 2], bridge: 0.4, decoy: 0.35 },
+  }[level];
+  const kind = level === 1 ? 'dir'
+    : level === 2 ? pick(['dir', 'dir', 'dir', 'count', 'multi'])
+      : pick(['dir', 'dir', 'multi', 'multi', 'speed', 'speed']);
+
+  let bridge = kind !== 'speed' && Math.random() < cfg.bridge
+    ? (kind === 'dir' && Math.random() < 0.55 ? 'jam' : 'loop') : false;
+  let decoy = !bridge && Math.random() < cfg.decoy;
+  for (let attempt = 0; attempt < 400; attempt++) {
+    if (attempt === 250) { bridge = false; decoy = false; }
+    const sys = buildSystem({
+      meshes: ri(...cfg.meshes), belts: ri(...cfg.belts), bridge, decoy,
+      motorTeeth: kind === 'speed' ? pick([24, 30, 36]) : pick(TEETH.slice(2, 7)),
+    });
+    if (!sys) continue;
     const motorDir = pick([1, -1]);
-    const dir = gearDirections(gears, edges, motorDir);
-    if (jam !== (dir === null)) continue;
+    const sol = solveSystem(sys, motorDir);
+    if (kind !== 'dir' && sol.jam) continue;
+    const base = { type: 'gears', title: 'Engrenages', layout: 'grid' };
+    const reveal = (el) => { const s = el.querySelector('.gears'); if (s) s.classList.add(sol.jam ? 'jam' : 'go'); };
+    const Q = `Le moteur <b class="c-motor">⚡</b> tourne dans le sens de la flèche.`;
+    const n = sys.gears.length;
 
-    const base = { type: 'gears', title: 'Engrenages', layout: 'list' };
-    const reveal = (el) => {
-      const s = el.querySelector('.gears');
-      if (s) s.classList.add(dir ? 'go' : 'jam');
-    };
-
-    if (countQ) {
-      const same = dir.filter((d) => d === motorDir).length;
+    if (kind === 'dir') {
+      let target;
+      if (sys.decoy >= 0 && Math.random() < 0.45) target = sys.decoy;
+      else {
+        const minDepth = level + 1;
+        const cands = [...sys.gears.keys()].filter((k) => k !== sys.decoy && k > 0 && sol.depth[k] >= minDepth);
+        if (!cands.length) continue;
+        target = pick(cands);
+      }
+      const ans = target === sys.decoy ? 'still' : sol.jam ? 'jam' : sol.dir[target] > 0 ? 'cw' : 'ccw';
+      const explain = ans === 'still'
+        ? "Regarde bien : la roue ★ ne touche aucune autre roue (il reste un petit espace entre les dents) et aucune courroie ne l'entraîne. <b>Elle ne tourne pas</b>, même si tout le reste bouge !"
+        : ans === 'jam' ? JAM_TXT
+          : `On suit le mouvement depuis le moteur jusqu'à la roue ★ : <span class="path">${pathText(sol, target)}</span> ${RULES}<br>La roue ★ tourne donc <b>${DIR_NAME[sol.dir[target]]}</b>.`;
       return {
-        ...base, layout: 'grid',
-        question: `Le moteur <b class="c-motor">⚡</b> tourne dans le sens de la flèche. Combien de roues tournent dans le <b>même sens</b> que lui (en le comptant) ?`,
-        visual: gearsVisual(gears, dir, motorDir, -1),
-        choices: numberChoices(same, [n - same, same + 1, same - 1, n]),
-        explain: `Chaque roue tourne dans le sens inverse de sa voisine : une roue sur deux tourne comme le moteur (la 1re, la 3e, la 5e…). Cela fait <b>${same}</b> roues.`,
+        ...base, question: `${Q} Dans quel sens tourne la roue <b class="c-star">★</b> ?`,
+        visual: systemSVG(sys, sol, motorDir, { target }), choices: gearChoices(ans), explain, reveal,
+      };
+    }
+
+    if (kind === 'count') {
+      const ccw = sol.dir.filter((d) => d < 0).length;
+      const still = sol.dir.filter((d) => d === 0).length;
+      return {
+        ...base,
+        question: `${Q} En comptant toutes les roues de la machine (moteur compris), combien tournent dans le sens <b>inverse</b> des aiguilles d'une montre ↺ ?`,
+        visual: systemSVG(sys, sol, motorDir),
+        choices: numberChoices(ccw, [n - ccw, ccw + 1, ccw - 1, n - ccw - still, ccw + still]),
+        explain: `En suivant chaque chemin depuis le moteur, <b>${ccw}</b> roues tournent ↺ et ${n - ccw - still} tournent ↻${still ? `, et ${still} n'est reliée à rien (elle ne tourne pas)` : ''}. ${RULES}`,
         reveal,
       };
     }
 
-    const target = level === 1 ? n - 1 : ri(2, n - 1);
-    const ans = dir === null ? 'jam' : dir[target] > 0 ? 'cw' : 'ccw';
-    const name = (d) => (d > 0 ? "dans le sens des aiguilles d'une montre" : 'dans le sens inverse');
-    let explain;
-    if (dir === null) {
-      explain = `Regarde les trois roues qui se touchent toutes les trois : la 1re fait tourner la 2e dans l'autre sens, la 2e fait tourner la 3e dans l'autre sens… mais la 3e touche aussi la 1re, qui devrait alors tourner dans les deux sens à la fois ! Impossible : <b>tout se bloque</b>.`;
-    } else {
-      const steps = dir.slice(0, target + 1).map((d) => (d > 0 ? '↻' : '↺')).join(' ');
-      explain = `Deux roues qui se touchent tournent en sens inverse. Du moteur jusqu'à la roue ★ : ${steps}. La roue ★ tourne donc <b>${name(dir[target])}</b>.`;
+    if (kind === 'multi') {
+      const pool = shuffle([...sys.gears.keys()].filter((k) => k > 0 && (sol.depth[k] >= 2 || k === sys.decoy)));
+      if (pool.length < 4) continue;
+      const chosen = pool.slice(0, 4).sort((a, b) => sys.gears[a].x - sys.gears[b].x);
+      const letters = {};
+      chosen.forEach((k, i) => { letters[k] = 'ABCD'[i]; });
+      const good = chosen.filter((k) => sol.dir[k] > 0).map((k) => letters[k]);
+      if (good.length === 0 || good.length === 4) continue;
+      const key = (set) => [...set].sort().join('');
+      const opts = new Map([[key(good), good]]);
+      for (let t = 0; t < 60 && opts.size < 4; t++) {
+        const set = new Set(good);
+        const flips = ri(1, 2);
+        for (let f = 0; f < flips; f++) { const l = pick(['A', 'B', 'C', 'D']); if (set.has(l)) set.delete(l); else set.add(l); }
+        if (set.size > 0) opts.set(key(set), [...set].sort());
+      }
+      if (opts.size < 4) continue;
+      const detail = chosen.map((k) => `${letters[k]} ${sol.dir[k] === 0 ? '💤 (reliée à rien)' : ARROW(sol.dir[k])}`).join(' · ');
+      return {
+        ...base, layout: 'grid',
+        question: `${Q} Quelles roues tournent dans le sens des aiguilles d'une montre ↻ ?`,
+        visual: systemSVG(sys, sol, motorDir, { letters }),
+        choices: shuffle([...opts.entries()]).map(([k, set]) => ({ html: `<span class="word">${listFr(set)}</span>`, correct: k === key(good) })),
+        explain: `En suivant le mouvement depuis le moteur : ${detail}. ${RULES}<br>Les roues qui tournent ↻ sont donc <b>${listFr(good)}</b>.`,
+        reveal,
+      };
     }
+
+    // kind === 'speed' : combien de tours fait la roue ★ quand le moteur fait 1 tour ?
+    const tm = sys.gears[0].teeth;
+    const cands = [...sys.gears.keys()].filter((k) => k > 0 && sol.depth[k] >= 3 && sol.dir[k] !== 0
+      && FRAC_TXT[frac(tm, sys.gears[k].teeth).join('/')]);
+    if (!cands.length) continue;
+    const target = pick(cands);
+    const tt = sys.gears[target].teeth;
+    const good = frac(tm, tt).join('/');
+    const inverse = frac(tt, tm).join('/');
+    const pool = Object.keys(FRAC_TXT).filter((f) => f !== good);
+    const traps = [...(FRAC_TXT[inverse] && inverse !== good ? [inverse] : []), ...shuffle(pool.filter((f) => f !== inverse))].slice(0, 3);
     return {
       ...base,
-      question: `Le moteur <b class="c-motor">⚡</b> tourne dans le sens de la flèche. Dans quel sens tourne la roue <b class="c-star">★</b> ?`,
-      visual: gearsVisual(gears, dir, motorDir, target),
-      choices: [
-        { html: `${rotIcon(true)}<span>Sens des aiguilles d'une montre</span>`, correct: ans === 'cw' },
-        { html: `${rotIcon(false)}<span>Sens inverse des aiguilles</span>`, correct: ans === 'ccw' },
-        { html: `<span class="ic-jam">⛔</span><span>Tout se bloque !</span>`, correct: ans === 'jam' },
-      ],
-      explain, reveal,
+      question: `Chaque roue montre son nombre de dents. Quand le moteur <b class="c-motor">⚡</b> fait <b>1 tour</b>, combien de tours fait la roue <b class="c-star">★</b> ?`,
+      visual: systemSVG(sys, sol, motorDir, { target, teeth: true }),
+      choices: shuffle([good, ...traps]).map((f) => ({ html: `<span class="word">${FRAC_TXT[f]}</span>`, correct: f === good })),
+      explain: `Chaque dent qui passe fait avancer une dent de la roue voisine (une courroie fait pareil). Les roues du milieu ne changent donc rien au total : on compare seulement le moteur (<b>${tm} dents</b>) et la roue ★ (<b>${tt} dents</b>). ${tm} ÷ ${tt} = <b>${FRAC_TXT[good]}</b>.`,
+      reveal,
     };
   }
-  return genGears(1);
+  return genGears(Math.max(1, level - 1));
 }
 
 /* ==========================================================================

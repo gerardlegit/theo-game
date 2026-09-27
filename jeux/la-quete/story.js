@@ -113,7 +113,8 @@ export const ZONES = [
     ],
     tip: [
       ['bip', "Retiens bien : deux roues qui se touchent tournent toujours en sens contraire."],
-      ['bip', "Et si trois roues se touchent toutes entre elles… elles ne peuvent plus tourner : tout se bloque !"],
+      ['bip', "Si des roues forment une boucle avec un nombre impair de roues… elles ne peuvent plus tourner : tout se bloque !"],
+      ['bip', "Attention aussi aux courroies : une courroie droite garde le même sens, une courroie croisée l'inverse. Et méfie-toi des roues qui ont l'air de toucher… mais ne touchent rien !"],
     ],
     freed: [
       ['foe', "Clonk… clonk ? Mes rouages tournent pour MOI, maintenant ! Quelle sensation !"],

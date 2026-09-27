@@ -715,14 +715,30 @@ body.ticking .hud-ic { animation: tick 1s steps(2) infinite; }
 .ic-arrow { width: 36px; height: 36px; display: block; }
 .choice .ic-arrow { width: 40px; height: 40px; }
 
-.gears { display: block; width: 100%; max-height: 250px; margin: 0 auto; overflow: visible; }
+.gears { display: block; width: 100%; max-height: 340px; margin: 0 auto; overflow: visible; }
 .gear-label { font-family: var(--display); font-weight: 900; font-size: 20px; text-anchor: middle; fill: #fff; paint-order: stroke; stroke: #0A0F1C; stroke-width: 4px; }
 .gear-label.star { fill: var(--gold); font-size: 24px; }
 .gear { transform-box: fill-box; transform-origin: center; }
 .gears.go .gear.cw { animation: spin linear infinite; }
 .gears.go .gear.ccw { animation: spin linear infinite reverse; }
-.gears.jam .gear { animation: jam .1s linear 8; }
-.gears.jam { filter: drop-shadow(0 0 10px rgba(255, 45, 85, .7)); }
+.gears.jam .gear.jam-part { animation: jam .1s linear 10; }
+.gears.jam .gear.jam-part path { stroke: #FF2D55; stroke-width: 5; }
+.gears.jam { filter: drop-shadow(0 0 10px rgba(255, 45, 85, .5)); }
+.gear-label.letter { fill: var(--cyan); }
+.gear-label.teeth { fill: #fff; stroke-width: 3px; }
+.gear-label.teeth.motor { fill: #FFD6F6; }
+.belt .pulley { fill: #1A1D26; stroke: #FFC93C; stroke-width: 4; }
+.belt .belt-out { fill: none; stroke: #0A0F1C; stroke-width: 8; stroke-linecap: round; }
+.belt .belt-in { fill: none; stroke: #FFC93C; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 10 6; }
+.gears.go .belt .belt-in { animation: flow 1s linear infinite; }
+.belt.crossed .pulley { stroke: #FF8A3D; }
+.belt.crossed .belt-in { stroke: #FF8A3D; }
+.gear-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-bottom: 6px; font-size: .82rem; color: var(--muted); }
+.gear-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lg-belt { width: 28px; height: 10px; border-top: 3px dashed #FFC93C; border-bottom: 3px dashed #FFC93C; }
+.lg-belt.crossed { border: none; background: linear-gradient(20deg, transparent 42%, #FF8A3D 42% 58%, transparent 58%), linear-gradient(-20deg, transparent 42%, #FF8A3D 42% 58%, transparent 58%); }
+.fb-text .path { font-family: var(--display); font-weight: 800; letter-spacing: .06em; color: #fff; white-space: nowrap; }
+.fb-text .rules { display: block; font-size: .82rem; color: var(--muted); margin-top: 4px; }
 @keyframes jam { 50% { transform: rotate(4deg); } }
 .ic-rot { width: 34px; height: 34px; flex: none; color: var(--cyan); }
 .ic-jam { font-size: 1.6rem; line-height: 1; }
@@ -1137,7 +1153,7 @@ body.ticking .hud-ic { animation: tick 1s steps(2) infinite; }
   .p-question { font-size: .98rem; margin-bottom: 8px; }
   .choice { min-height: 46px; }
   .seq-cell { min-width: 40px; height: 44px; font-size: 1rem; }
-  .gears { max-height: 170px; }
+  .gears { max-height: 200px; }
   .maze { width: min(100%, 220px); }
   .alpha { display: none; }
   .map-stage { padding-bottom: 96px; }
