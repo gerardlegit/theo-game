@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#A9DBF3">
 <title>English à tous les étages — La Cabane à Jeux</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
@@ -10,103 +11,145 @@
 </head>
 <body>
 
-  <a class="back-link" href="../../index.html">← La Cabane</a>
+  <!-- ================= Écran 1 : la rue, les trois immeubles ================= -->
+  <section class="screen screen-select" id="screenSelect">
+    <header class="topbar">
+      <a class="icon-btn" href="../../index.html" aria-label="Retour à la Cabane">←</a>
+      <h1 class="enamel"><span>English</span><small>à tous les étages</small></h1>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="rankBtn" aria-label="Voir les classements">🏆</button>
+        <button class="icon-btn sound-btn" aria-label="Couper ou remettre le son">🔔</button>
+      </div>
+    </header>
 
-  <header class="game-header">
-    <h1>🏢 English à tous les étages</h1>
-    <p>Aidez Colette à monter les 10 étages en trouvant chaque mot anglais !</p>
-  </header>
+    <div class="scene" id="selectScene">
+      <div class="sky" data-sky></div>
+      <div class="eiffel-wrap" data-eiffel></div>
+      <div class="skyline-wrap" data-skyline></div>
+      <div class="buildings" id="buildings"></div>
+      <div class="pavement">
+        <div class="lamp" data-lamp></div>
+        <div class="cafe" data-cafe></div>
+      </div>
+      <div class="lady lady-select with-baguette" id="selectLady"></div>
+      <p class="bubble" id="selectBubble">Bonjour ! Quel immeuble&nbsp;?</p>
+    </div>
 
-  <section class="hud" id="hud">
-    <div class="hud-item">⏱ <span id="clock">0:00</span></div>
-    <div class="hud-item">Étage <span id="floorNum">1</span> / 10</div>
-    <div class="hud-item">Cartes <span id="cardNum">0</span> / 5</div>
-    <button id="restart">Recommencer</button>
+    <footer class="select-foot">
+      <p>Touchez un immeuble pour choisir votre niveau</p>
+      <button class="link-btn" id="rulesBtn">Comment jouer&nbsp;?</button>
+    </footer>
   </section>
 
-  <div class="game-layout">
-    <main class="building-wrap" id="buildingWrap" aria-label="L'immeuble : 10 étages de 5 cartes">
-      <div class="facade" id="facade"></div>
-      <div class="lady lady-game" id="gameLady"></div>
-    </main>
+  <!-- ================= Écran 2 : l'ascension ================= -->
+  <section class="screen screen-climb" id="screenClimb" hidden>
+    <header class="topbar climb-bar">
+      <button class="icon-btn" id="quitBtn" aria-label="Quitter l'immeuble">✕</button>
+      <span class="pill level-pill" id="levelPill"></span>
+      <span class="pill">⏱ <b id="clock">0:00</b></span>
+      <span class="pill">🏢 <b id="floorNum">1</b><small>/10</small></span>
+      <button class="icon-btn sound-btn" aria-label="Couper ou remettre le son">🔔</button>
+    </header>
 
-    <aside class="leaderboard" id="leaderboard">
-      <h2>🏆 Classement</h2>
-      <p class="leaderboard-sub">Top 20 mondial des plus rapides</p>
-      <ol class="leaderboard-list" id="leaderboardList"></ol>
-    </aside>
-  </div>
-
-  <!-- Introduction : Colette arrive au pied de l'immeuble -->
-  <div class="intro" id="intro">
-    <div class="intro-stage">
-      <div class="cloud c1"></div>
-      <div class="cloud c2"></div>
-      <div class="facade mini" id="miniFacade"></div>
-      <div class="street"></div>
-      <div class="lady lady-intro" id="introLady"></div>
-      <p class="bubble" id="introBubble">Oh là là… 10 étages !</p>
+    <div class="climb-view" id="climbView">
+      <div class="sky" data-sky></div>
+      <div class="eiffel-wrap" data-eiffel id="climbEiffel"></div>
+      <div class="skyline-wrap" data-skyline id="climbSkyline"></div>
+      <div class="tower" id="tower">
+        <div class="facade" id="facade"></div>
+        <div class="lady lady-game" id="gameLady"></div>
+      </div>
     </div>
-    <div class="intro-panel">
-      <h2>🏢 English à tous les étages</h2>
-      <p class="intro-lead">Colette veut monter tout en haut de son immeuble. À chaque étage, 5 fenêtres cachent un mot.</p>
-      <ul class="rules">
-        <li><strong>Étages 1, 3, 5, 7, 9 :</strong> un mot <strong>anglais</strong> apparaît (🔊 pour l'écouter). Trouvez sa traduction en <strong>français</strong>.</li>
-        <li><strong>Étages 2, 4, 6, 8, 10 :</strong> un mot <strong>français</strong> apparaît. Trouvez-le en <strong>anglais</strong>.</li>
-        <li>Le mot disparaît après quelques secondes : retenez-le bien !</li>
-        <li>Une seule erreur et la partie est perdue. Le chronomètre tourne !</li>
-      </ul>
-      <button class="big-btn" id="startBtn">Commencer ▶</button>
-    </div>
-  </div>
 
-  <!-- Une carte : le mot, puis les 4 propositions -->
-  <div class="q-overlay" id="qOverlay" role="dialog" aria-modal="true" aria-labelledby="qInstr">
-    <div class="q-card">
-      <p class="q-where" id="qWhere"></p>
+    <p class="climb-hint" id="climbHint"></p>
+  </section>
+
+  <!-- ================= La carte : le mot sur l'ardoise, puis 4 propositions ================= -->
+  <div class="sheet-overlay" id="qOverlay" role="dialog" aria-modal="true" aria-labelledby="qInstr" hidden>
+    <div class="sheet q-sheet">
+      <div class="q-head">
+        <span class="q-where" id="qWhere"></span>
+        <span class="q-count" id="qCount"></span>
+      </div>
+
+      <div class="ardoise">
+        <p class="ardoise-lang" id="qLang"></p>
+        <p class="q-word" id="qWord"></p>
+        <p class="q-hidden" id="qHidden">❓</p>
+      </div>
+
       <p class="q-instr" id="qInstr"></p>
 
       <div class="q-show" id="qShow">
-        <div class="q-word" id="qWord"></div>
         <div class="q-bar"><span id="qBar"></span></div>
         <div class="q-actions">
-          <button class="listen-btn" id="listenBtn">🔊 Écouter</button>
-          <button class="big-btn" id="readyBtn">J'ai retenu →</button>
+          <button class="btn btn-yellow listen-btn" id="listenBtn">🔊 Écouter</button>
+          <button class="btn btn-green" id="readyBtn">J'ai retenu&nbsp;→</button>
         </div>
       </div>
 
       <div class="q-answer" id="qAnswer">
-        <button class="listen-btn" id="relistenBtn">🔊 Réécouter le mot</button>
         <div class="q-choices" id="qChoices"></div>
+        <button class="btn btn-yellow listen-btn small" id="relistenBtn">🔊 Réécouter le mot</button>
         <p class="q-feedback" id="qFeedback" aria-live="polite"></p>
       </div>
     </div>
   </div>
 
+  <!-- ================= Règles ================= -->
+  <div class="sheet-overlay" id="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
+    <div class="sheet">
+      <h2 id="rulesTitle">Comment jouer&nbsp;?</h2>
+      <ul class="rules">
+        <li>🏢 Choisissez un immeuble : <strong>Débutant</strong>, <strong>Intermédiaire</strong> ou <strong>Expert</strong>.</li>
+        <li>✨ Chaque étage a <strong>5 fenêtres</strong>. Touchez celles qui brillent.</li>
+        <li><span data-flag="uk"></span> <strong>Étages 1, 3, 5, 7, 9</strong> : un mot anglais s'affiche (🔊 pour l'écouter). Trouvez-le en français.</li>
+        <li><span data-flag="fr"></span> <strong>Étages 2, 4, 6, 8, 10</strong> : un mot français s'affiche. Trouvez-le en anglais.</li>
+        <li>👀 Le mot s'efface après quelques secondes : retenez-le bien !</li>
+        <li>⚠️ <strong>Une seule erreur</strong> et Colette redescend. Le chronomètre tourne !</li>
+      </ul>
+      <button class="btn btn-green wide" data-close>C'est parti&nbsp;!</button>
+    </div>
+  </div>
+
+  <!-- ================= Classements ================= -->
+  <div class="sheet-overlay" id="rankOverlay" role="dialog" aria-modal="true" aria-labelledby="rankTitle" hidden>
+    <div class="sheet">
+      <h2 id="rankTitle">🏆 Les plus rapides</h2>
+      <div class="tabs" id="rankTabs" role="tablist"></div>
+      <ol class="ranking" id="rankList"></ol>
+      <button class="btn btn-green wide" data-close>Fermer</button>
+    </div>
+  </div>
+
   <p class="toast" id="toast" aria-live="polite"></p>
 
-  <!-- Fin de partie -->
-  <div class="end-overlay" id="endOverlay">
+  <!-- ================= Fin de partie ================= -->
+  <div class="end" id="endScreen" hidden>
+    <div class="end-scene" id="endScene">
+      <div class="stars"></div>
+      <div class="eiffel-wrap" data-eiffel></div>
+      <div class="fireworks"><i></i><i></i><i></i><i></i></div>
+      <div class="rain"></div>
+      <div class="roof-top"></div>
+      <div class="lady lady-end" id="endLady"></div>
+    </div>
     <div class="end-card">
-      <div class="end-stage" id="endStage">
-        <div class="rain-cloud">☁️<span class="drops"></span></div>
-        <div class="sparkles">✨🎶✨</div>
-        <div class="lady lady-end" id="endLady"></div>
-      </div>
       <p class="end-title" id="endTitle"></p>
       <p class="end-text" id="endText"></p>
 
-      <div id="scoreForm">
-        <label for="pseudoInput" class="score-label">Entrez votre pseudo pour rejoindre le classement :</label>
-        <input type="text" id="pseudoInput" maxlength="18" placeholder="Votre pseudo">
-        <div class="score-actions">
-          <button id="saveScore">Enregistrer mon temps</button>
-          <button id="skipScore" class="ghost-btn">Passer</button>
-        </div>
+      <div id="scoreForm" class="score-form">
+        <label for="pseudoInput">Votre pseudo pour le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Votre pseudo" autocomplete="nickname">
+        <button class="btn btn-blue" id="saveScore">Enregistrer mon temps</button>
       </div>
-      <p id="scoreSaved" class="score-saved">Temps enregistré ! 🎉</p>
+      <p id="scoreSaved" class="score-saved"></p>
+      <ol class="ranking small" id="endRanking"></ol>
 
-      <button class="big-btn" id="playAgain">Rejouer</button>
+      <div class="end-actions">
+        <button class="btn btn-green" id="againBtn">Rejouer</button>
+        <button class="btn btn-ghost" id="otherBtn">Changer d'immeuble</button>
+      </div>
     </div>
   </div>
 
