@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>La Cabane à Jeux</title>
+<meta name="description" content="Des jeux ludiques et éducatifs pour apprendre en s'amusant : lecture, maths, nature, géographie, sciences et anglais.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -16,112 +17,242 @@
     <div class="floater star star1">✦</div>
     <div class="floater star star2">✦</div>
     <div class="floater kite">🪁</div>
+    <div class="floater book">📚</div>
+    <div class="floater pencil">✏️</div>
   </div>
 
   <header class="hero">
-    <p class="eyebrow">Bienvenue dans</p>
+    <p class="hero-badge">🎈 Jeux ludiques <span>&amp;</span> éducatifs 🎓</p>
     <h1 class="hero-title">
       <span class="line line1">La Cabane</span>
       <span class="line line2">à Jeux</span>
     </h1>
-    <p class="hero-sub">Une petite maison pleine de jeux à explorer, à ton rythme, à ta façon.</p>
-    <a href="#jeux" class="hero-cta">Voir les jeux ↓</a>
+    <p class="hero-sub">Ici, on apprend <strong>en s'amusant</strong> ! Lis, compte, explore le monde et découvre les étoiles… chaque partie te rend un peu plus fort.</p>
+
+    <ul class="hero-stats">
+      <li><strong>10</strong> jeux</li>
+      <li><strong>6</strong> matières</li>
+      <li><strong>1</strong> quête épique</li>
+    </ul>
+
+    <nav class="theme-nav" aria-label="Thèmes">
+      <a href="#lecture" class="chip chip-lecture">📚 Lecture</a>
+      <a href="#maths" class="chip chip-maths">🔢 Maths</a>
+      <a href="#nature" class="chip chip-nature">🌿 Nature</a>
+      <a href="#histoire-geo" class="chip chip-geo">🌍 Histoire-Géo</a>
+      <a href="#science" class="chip chip-science">🔬 Science</a>
+      <a href="#anglais" class="chip chip-anglais">💬 Anglais</a>
+      <a href="#epique" class="chip chip-epic">⚡ Jeu épique</a>
+    </nav>
   </header>
 
-  <main>
-    <section id="jeux" class="shelf">
-      <h2 class="shelf-title">Choisis ton jeu</h2>
+  <section class="promise" aria-label="Pourquoi jouer ici">
+    <div class="promise-item">
+      <span class="promise-icon">🎮</span>
+      <h2>On s'amuse</h2>
+      <p>Des courses, des quiz, des aventures : chaque jeu est d'abord un vrai jeu.</p>
+    </div>
+    <div class="promise-item">
+      <span class="promise-icon">🧠</span>
+      <h2>On apprend</h2>
+      <p>Chaque partie fait travailler une matière de l'école, sans même s'en rendre compte.</p>
+    </div>
+    <div class="promise-item">
+      <span class="promise-icon">⭐</span>
+      <h2>On progresse</h2>
+      <p>Rejoue pour battre ton record et deviens un vrai champion du savoir !</p>
+    </div>
+  </section>
 
+  <main id="jeux">
+
+    <!-- ===== Lecture ===== -->
+    <section id="lecture" class="theme theme-lecture">
+      <header class="theme-head">
+        <span class="theme-icon">📚</span>
+        <div>
+          <h2>Lecture</h2>
+          <p>Les lettres, les mots et les phrases n'auront plus de secret pour toi.</p>
+        </div>
+      </header>
       <div class="cards">
-
-        <a class="card card-1" href="jeux/memory/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🧠</div>
-          <h3>Mémo Animaux</h3>
-          <p>Retrouve toutes les paires le plus vite possible !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-      
-
-        <a class="card card-5" href="jeux/drapeaux/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🏳️</div>
-          <h3>Quiz des Drapeaux</h3>
-          <p>64 pays à découvrir : devine leur drapeau et apprends plein de choses !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-6" href="jeux/continents/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🗺️</div>
-          <h3>Continents</h3>
-          <p>Glisse chaque drapeau sur son pays, sur la carte de chaque continent !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-7" href="jeux/royaume-des-mots/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🧙</div>
-          <h3>Le Royaume des Mots</h3>
-          <p>Une aventure pour réviser le français du CM1 : grammaire, conjugaison et plus !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-8" href="jeux/espace/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🚀</div>
-          <h3>L'Espace</h3>
-          <p>Pilote ton vaisseau et emmène chaque nom jusqu'à sa planète !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-9" href="jeux/quiz-animaux/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🦒</div>
-          <h3>Quiz des Animaux</h3>
-          <p>Animaux communs ou rares : clique vite sur le bon avant la fin du chrono !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-10" href="jeux/course-multiplications/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🏎️</div>
-          <h3>La Course des Multiplications</h3>
-          <p>Au volant de ta voiture, fonce à travers la bonne réponse des tables de 2 à 10 !</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
-        <a class="card card-11" href="jeux/lettres-attachees/index.html">
-          <div class="card-blob"></div>
+        <a class="card" href="jeux/lettres-attachees/index.html">
           <div class="card-icon">🔤</div>
           <h3>Lettres Magiques</h3>
           <p>Retourne les 25 cartes et retrouve chaque lettre en majuscule ou en écriture attachée !</p>
-          <span class="tag tag-play">Jouer</span>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : les lettres</span>
+            <span class="play">Jouer →</span>
+          </div>
         </a>
-
-        <a class="card card-12" href="jeux/english-etages/index.html">
-          <div class="card-blob"></div>
-          <div class="card-icon">🏢</div>
-          <h3>English à tous les étages</h3>
-          <p>Aidez Colette à gravir 10 étages d'un immeuble parisien en trouvant les mots anglais !</p>
-          <span class="tag tag-play">Jouer</span>
+        <a class="card" href="jeux/royaume-des-mots/index.html">
+          <div class="card-icon">🧙</div>
+          <h3>Le Royaume des Mots</h3>
+          <p>Une aventure pour réviser le français du CM1 : grammaire, conjugaison et plus !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : grammaire &amp; conjugaison</span>
+            <span class="play">Jouer →</span>
+          </div>
         </a>
-
-        <a class="card card-13 card-ultimate" href="jeux/la-quete/index.html">
-          <div class="card-blob"></div>
-          <span class="ultimate-badge">Le jeu ultime</span>
-          <div class="card-icon">👁️</div>
-          <h3>La Quête</h3>
-          <p>Affronte OMÉGA, la grande méchante IA ! Libère ses six robots gardiens grâce à ta logique et sauve le monde.</p>
-          <span class="tag tag-play">Jouer</span>
-        </a>
-
       </div>
     </section>
+
+    <!-- ===== Mathématiques ===== -->
+    <section id="maths" class="theme theme-maths">
+      <header class="theme-head">
+        <span class="theme-icon">🔢</span>
+        <div>
+          <h2>Mathématiques</h2>
+          <p>Calcule vite et bien : les nombres deviennent tes meilleurs alliés.</p>
+        </div>
+      </header>
+      <div class="cards">
+        <a class="card" href="jeux/course-multiplications/index.html">
+          <div class="card-icon">🏎️</div>
+          <h3>La Course des Multiplications</h3>
+          <p>Au volant de ta voiture, fonce à travers la bonne réponse des tables de 2 à 10 !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : les tables</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ===== Nature et animaux ===== -->
+    <section id="nature" class="theme theme-nature">
+      <header class="theme-head">
+        <span class="theme-icon">🌿</span>
+        <div>
+          <h2>Nature et animaux</h2>
+          <p>Pars à la rencontre des animaux, des plus communs aux plus rares.</p>
+        </div>
+      </header>
+      <div class="cards">
+        <a class="card" href="jeux/memory/index.html">
+          <div class="card-icon">🧠</div>
+          <h3>Mémo Animaux</h3>
+          <p>Retrouve toutes les paires le plus vite possible !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : mémoire &amp; animaux</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+        <a class="card" href="jeux/quiz-animaux/index.html">
+          <div class="card-icon">🦒</div>
+          <h3>Quiz des Animaux</h3>
+          <p>Animaux communs ou rares : clique vite sur le bon avant la fin du chrono !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : reconnaître les animaux</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ===== Histoire-géographie ===== -->
+    <section id="histoire-geo" class="theme theme-geo">
+      <header class="theme-head">
+        <span class="theme-icon">🌍</span>
+        <div>
+          <h2>Histoire-géographie</h2>
+          <p>Fais le tour du monde : pays, drapeaux et continents t'attendent.</p>
+        </div>
+      </header>
+      <div class="cards">
+        <a class="card" href="jeux/drapeaux/index.html">
+          <div class="card-icon">🏳️</div>
+          <h3>Quiz des Drapeaux</h3>
+          <p>64 pays à découvrir : devine leur drapeau et apprends plein de choses !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : pays &amp; drapeaux</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+        <a class="card" href="jeux/continents/index.html">
+          <div class="card-icon">🗺️</div>
+          <h3>Continents</h3>
+          <p>Glisse chaque drapeau sur son pays, sur la carte de chaque continent !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : lire une carte</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ===== Science ===== -->
+    <section id="science" class="theme theme-science">
+      <header class="theme-head">
+        <span class="theme-icon">🔬</span>
+        <div>
+          <h2>Science</h2>
+          <p>Deviens un petit savant et explore les mystères de l'univers.</p>
+        </div>
+      </header>
+      <div class="cards">
+        <a class="card" href="jeux/espace/index.html">
+          <div class="card-icon">🚀</div>
+          <h3>L'Espace</h3>
+          <p>Pilote ton vaisseau et emmène chaque nom jusqu'à sa planète !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : le système solaire</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ===== Anglais ===== -->
+    <section id="anglais" class="theme theme-anglais">
+      <header class="theme-head">
+        <span class="theme-icon">💬</span>
+        <div>
+          <h2>Anglais</h2>
+          <p>Hello ! Apprends tes premiers mots d'anglais en grimpant les étages.</p>
+        </div>
+      </header>
+      <div class="cards">
+        <a class="card" href="jeux/english-etages/index.html">
+          <div class="card-icon">🏢</div>
+          <h3>English à tous les étages</h3>
+          <p>Aide Colette à gravir 10 étages d'un immeuble parisien en trouvant les mots anglais !</p>
+          <div class="card-foot">
+            <span class="learn">Tu apprends : le vocabulaire</span>
+            <span class="play">Jouer →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
   </main>
 
+  <!-- ===== Jeu épique ===== -->
+  <section id="epique" class="epic">
+    <div class="epic-stars" aria-hidden="true"></div>
+    <div class="epic-inner">
+      <div class="epic-visual" aria-hidden="true">
+        <div class="epic-ring"></div>
+        <div class="epic-ring epic-ring-2"></div>
+        <div class="epic-eye">👁️</div>
+      </div>
+      <div class="epic-text">
+        <p class="epic-kicker">⚡ Jeu épique · Le défi ultime ⚡</p>
+        <h2 class="epic-title" data-text="LA QUÊTE">LA QUÊTE</h2>
+        <p class="epic-lead">OMÉGA, la grande méchante IA, a pris le contrôle du monde ! Toi seul peux l'arrêter.</p>
+        <ul class="epic-features">
+          <li><span>🤖</span> Libère ses 6 robots gardiens</li>
+          <li><span>🧩</span> Résous des énigmes de logique</li>
+          <li><span>🌍</span> Sauve le monde !</li>
+        </ul>
+        <a class="epic-cta" href="jeux/la-quete/index.html">Lancer la quête ▶</a>
+        <p class="epic-note">Pour les aventuriers les plus courageux : fais travailler ta logique comme jamais.</p>
+      </div>
+    </div>
+  </section>
+
   <footer class="foot">
+    <p>La Cabane à Jeux — des jeux ludiques et éducatifs pour apprendre en s'amusant.</p>
     <p>De nouveaux jeux arrivent régulièrement dans la cabane 🏡</p>
   </footer>
 
