@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Train des Doudous — La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>🚂 Le Train des Doudous</h1>
+    <p>Installe chaque doudou sur le bon siège en résolvant l'énigme du contrôleur !</p>
+  </header>
+
+  <!-- ===== Départ : la grande gare de Paris ===== -->
+  <section class="screen" id="screenIntro">
+    <div class="scene-wrap">
+      <div class="scene" id="introScene">
+        <svg id="introSvg" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+        <p class="caption" id="introCaption"></p>
+        <button class="skip-btn" id="skipIntro" hidden>Passer ⏭</button>
+      </div>
+      <div class="start-card" id="startCard">
+        <div class="lineup" id="startLineup"></div>
+        <p class="start-title">En voiture, les doudous !</p>
+        <p class="start-text">Un ours, un panda, un chien, un tigre et un wombat partent en vacances avec leurs petits. Dans le train, chaque siège a un numéro : aide-les à s'asseoir en résolvant <strong>10 énigmes de calcul</strong> !</p>
+        <div class="start-actions">
+          <button class="btn btn-green" id="startBtn">▶ Voir le départ</button>
+          <button class="btn btn-sky" id="continueBtn" hidden></button>
+        </div>
+        <button class="ghost-btn" id="resetBtn" hidden>Recommencer une nouvelle partie</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Le jeu : le wagon vu d'en haut ===== -->
+  <section class="screen" id="screenGame" hidden>
+    <div class="hud">
+      <div class="hud-item">🚃 Niveau <span id="levelNum">1</span> / 10</div>
+      <div class="hud-item" id="pointsPill">⭐ <span id="pointsCount">0</span> point<span id="pointsPlural"></span></div>
+      <button class="hud-btn" id="hintBtn">💡 Indice</button>
+      <button class="hud-btn" id="shuffleBtn">🔀 Nouveaux numéros</button>
+      <button class="hud-btn hud-round" id="soundBtn" aria-label="Couper le son">🔊</button>
+    </div>
+
+    <nav class="level-strip" id="levelStrip" aria-label="Niveaux"></nav>
+
+    <div class="game-layout">
+      <div class="stage-col">
+        <div class="rule-card">
+          <div class="controller" id="controller"></div>
+          <div class="rule-body">
+            <p class="rule-kicker">📢 Énigme du contrôleur · niveau <span id="ruleLevel">1</span></p>
+            <h2 id="ruleTitle"></h2>
+            <p class="rule-text" id="ruleText"></p>
+            <p class="rule-formula" id="ruleFormula"></p>
+            <p class="rule-example" id="ruleExample"></p>
+          </div>
+        </div>
+
+        <div class="wagon-wrap">
+          <div class="wagon" id="wagon"></div>
+        </div>
+
+        <div class="quai" id="quai">
+          <p class="quai-label" id="quaiLabel">🛤️ Sur le quai : fais glisser chaque doudou sur un siège (ou touche le doudou, puis le siège)</p>
+          <div class="quai-slots" id="quaiSlots"></div>
+        </div>
+
+        <div class="check-row">
+          <span class="remaining" id="remaining"></span>
+          <button class="btn btn-pink" id="checkBtn" disabled>🚦 Vérifier</button>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="carnet">
+          <h2>📒 Carnet du contrôleur</h2>
+          <div class="carnet-rows" id="carnetRows"></div>
+          <div class="carnet-sums" id="carnetSums"></div>
+          <ul class="feedback" id="feedback"></ul>
+        </div>
+
+        <div class="leaderboard">
+          <h2>🏆 Classement général</h2>
+          <p class="leaderboard-sub">Top 20 mondial : 1 point par niveau réussi</p>
+          <ol class="leaderboard-list" id="leaderboardList"></ol>
+          <button class="btn btn-sky btn-small" id="openScoreBtn" disabled>🏆 Inscrire mes points</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== Arrivée : les Alpes ===== -->
+  <section class="screen" id="screenOutro" hidden>
+    <div class="scene-wrap">
+      <div class="scene scene-alps" id="outroScene">
+        <svg id="outroSvg" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+        <p class="caption" id="outroCaption"></p>
+      </div>
+      <div class="start-card end-card" id="endCard" hidden>
+        <p class="start-title">Bravo, tout le monde est arrivé au ski ! 🎉</p>
+        <p class="start-text" id="endText"></p>
+        <div class="start-actions">
+          <button class="btn btn-sky" id="endScoreBtn">🏆 Inscrire mon score</button>
+          <button class="btn btn-green" id="newGameBtn">🔁 Nouvelle partie</button>
+        </div>
+        <button class="ghost-btn" id="backToLevelsBtn">Revoir les niveaux</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Niveau réussi -->
+  <div class="modal" id="levelModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-doudous" id="modalDoudous"></div>
+      <p class="win-title" id="modalTitle"></p>
+      <p class="modal-text" id="modalText"></p>
+      <p class="modal-question">Que veux-tu faire ?</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="replayBtn">🔁 Refaire ce niveau</button>
+        <button class="btn btn-green" id="nextBtn">Niveau suivant ➡️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enregistrement du score -->
+  <div class="modal" id="scoreModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="scoreTitle">
+      <p class="win-title" id="scoreTitle">🏆 Classement général</p>
+      <p class="modal-text" id="scoreText"></p>
+      <div id="scoreForm">
+        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
+        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo" autocomplete="off">
+        <div class="score-actions">
+          <button class="btn btn-sky" id="saveScore">Enregistrer mon score</button>
+          <button class="ghost-btn" id="skipScore">Plus tard</button>
+        </div>
+      </div>
+      <p id="scoreSaved" class="score-saved"></p>
+      <button class="btn btn-green" id="closeScore" hidden>Fermer</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
