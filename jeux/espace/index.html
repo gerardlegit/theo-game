@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>L'Espace — La Cabane à Jeux</title>
+<title>Mission Cosmos — La Cabane à Jeux</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -13,36 +13,60 @@
   <a class="back-link" href="../../index.html">← La Cabane</a>
 
   <header class="game-header">
-    <h1>🚀 L'Espace</h1>
-    <p>Pilote ton vaisseau et emmène chaque nom jusqu'à la bonne image !</p>
+    <h1>🚀 Mission Cosmos</h1>
+    <p>Pilote ton vaisseau et prends en photo tout ce qui est écrit sur ton ordre de mission !</p>
   </header>
 
   <div class="hud">
     <div class="hud-item">⏱️ <span id="timer">0</span> s</div>
-    <div class="hud-item">Livrés : <span id="deliveredCount">0</span> / <span id="totalCount">0</span></div>
+    <div class="hud-item">📸 <span id="photoCount">0</span> / <span id="totalCount">0</span></div>
+    <div class="hud-item">⭐ <span id="starCount">0</span></div>
+    <button id="carnetBtn" class="hud-btn">📖 Carnet <span id="carnetCount">0</span></button>
+    <button id="soundBtn" class="hud-btn" aria-label="Couper ou remettre le son">🔊</button>
     <button id="restart">Recommencer</button>
   </div>
 
   <section class="game-layout">
     <div class="stage-col">
       <div class="stage" id="stage">
-        <canvas id="spaceCanvas" width="1000" height="640"></canvas>
+        <canvas id="spaceCanvas"></canvas>
 
-        <div class="fact-toast" id="factToast" hidden></div>
+        <div class="mission-panel" id="missionPanel">
+          <button class="mission-head" id="missionToggle" aria-expanded="true">
+            📜 <span class="mission-head-text">Ordre de mission</span>
+          </button>
+          <ol class="mission-list" id="missionList"></ol>
+        </div>
 
-        <div class="start-overlay" id="startOverlay">
-          <div class="start-card">
-            <p class="start-title">Prêt pour le décollage ?</p>
-            <ul class="how-to">
-              <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter</li>
-              <li>🧲 Touche un nom pour l'attraper avec ton rayon</li>
-              <li>🪐 Emmène-le jusqu'à la bonne image</li>
-              <li><kbd>Espace</kbd> pour lâcher un nom</li>
-              <li>⏱️ 1 seconde = 1 point : fais le moins de points possible&nbsp;!</li>
-            </ul>
-            <button id="startBtn">🚀 Décoller !</button>
+        <div class="photo-card" id="photoCard" hidden>
+          <div class="pc-pic"><img id="pcImg" alt=""></div>
+          <div class="pc-body">
+            <p class="pc-tag" id="pcTag"></p>
+            <p class="pc-name"><span id="pcName"></span> <small id="pcKind"></small></p>
+            <p class="pc-fact" id="pcFact"></p>
+            <p class="pc-wow" id="pcWow"></p>
           </div>
         </div>
+
+        <div class="copilot" id="copilot">
+          <svg class="bip" viewBox="0 0 80 84" aria-hidden="true">
+            <line x1="40" y1="16" x2="40" y2="6" stroke="#C9CED8" stroke-width="3"/>
+            <circle class="bip-antenna" cx="40" cy="6" r="4.5" fill="#FF6F91"/>
+            <circle cx="9" cy="42" r="6" fill="#FFC93C" stroke="#2E2A4D" stroke-width="2.5"/>
+            <circle cx="71" cy="42" r="6" fill="#FFC93C" stroke="#2E2A4D" stroke-width="2.5"/>
+            <rect x="24" y="66" width="32" height="14" rx="6" fill="#C9CED8" stroke="#2E2A4D" stroke-width="2.5"/>
+            <rect x="12" y="16" width="56" height="52" rx="22" fill="#E8EDF5" stroke="#2E2A4D" stroke-width="3"/>
+            <rect x="19" y="25" width="42" height="31" rx="13" fill="#1C2260"/>
+            <g class="bip-eyes">
+              <ellipse cx="31" cy="38" rx="5" ry="6.5" fill="#9EE7FF"/>
+              <ellipse cx="49" cy="38" rx="5" ry="6.5" fill="#9EE7FF"/>
+            </g>
+            <path class="bip-mouth" d="M33 48 Q40 53 47 48" stroke="#9EE7FF" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </svg>
+          <div class="bubble" id="bubble"></div>
+        </div>
+
+        <canvas class="minimap" id="minimap" aria-label="Carte du système solaire"></canvas>
       </div>
 
       <div class="touch-pad" id="touchPad" aria-label="Commandes tactiles">
@@ -52,23 +76,62 @@
           <button data-dir="right" class="dpad-right" aria-label="Droite">▶</button>
           <button data-dir="down" class="dpad-down" aria-label="Bas">▼</button>
         </div>
-        <button id="dropBtn" class="drop-btn">Lâcher</button>
+        <button id="turboBtn" class="turbo-btn">⚡ Turbo</button>
       </div>
     </div>
 
     <aside class="leaderboard" id="leaderboard">
       <h2>🏆 Classement</h2>
+      <div class="lb-tabs" role="tablist">
+        <button data-lb="cadet" role="tab">🧒 Cadet</button>
+        <button data-lb="commandant" role="tab">🧑‍🚀 Commandant</button>
+      </div>
       <p class="leaderboard-sub">Top 20 mondial (le moins de points !)</p>
       <ol class="leaderboard-list" id="leaderboardList"></ol>
-      <p class="leaderboard-note">🧮 1 point par seconde : plus tu es rapide, moins tu as de points.</p>
+      <p class="leaderboard-note">🧮 1 point par seconde, et chaque ⭐ étoile d'or enlève 1 point.</p>
     </aside>
   </section>
+
+  <!-- Ordre de mission (écran de départ) -->
+  <div class="start-overlay" id="startOverlay">
+    <div class="order-card">
+      <div class="order-head">
+        <p class="order-agency">Agence Spatiale de la Cabane</p>
+        <p class="order-title">ORDRE DE MISSION <span id="orderNumber"></span></p>
+        <span class="stamp">URGENT</span>
+      </div>
+      <p class="order-story" id="orderStory"></p>
+
+      <div class="mode-switch" role="radiogroup" aria-label="Niveau">
+        <button class="mode-btn" data-mode="cadet" role="radio">🧒 Cadet<small>Je vois les noms et les images</small></button>
+        <button class="mode-btn" data-mode="commandant" role="radio">🧑‍🚀 Commandant<small>Je résous des énigmes</small></button>
+      </div>
+
+      <p class="order-sub">📸 À prendre en photo :</p>
+      <ol class="order-list" id="orderList"></ol>
+
+      <ul class="how-to">
+        <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter — ou garde le doigt / la souris appuyé(e) sur l'espace</li>
+        <li><kbd>Espace</kbd> ou double-tape : ⚡ TURBO</li>
+        <li>📸 Approche-toi d'un objet : la photo se prend toute seule</li>
+        <li>⭐ Chaque étoile d'or = 1 seconde en moins · ☄️ Gare aux astéroïdes et au trou noir !</li>
+      </ul>
+
+      <div class="order-actions">
+        <button id="startBtn">🚀 Décoller !</button>
+        <button id="newOrderBtn" class="ghost-btn">🎲 Une autre mission</button>
+      </div>
+      <p class="order-sign">Signé : <em>Général Gloubi</em>, chef des étoiles ⭐</p>
+    </div>
+  </div>
 
   <!-- Victoire -->
   <div class="win-banner" id="winBanner">
     <div class="win-card">
       <p class="win-title">Mission accomplie, astronaute ! 🚀✨</p>
+      <div class="win-photos" id="winPhotos"></div>
       <p id="winTime"></p>
+      <p id="winCarnet" class="win-carnet"></p>
 
       <div id="scoreForm">
         <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
@@ -80,7 +143,21 @@
       </div>
       <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
 
-      <button id="playAgain">Nouvelle mission</button>
+      <div class="win-actions">
+        <button id="playAgain">Nouvelle mission</button>
+        <button id="winCarnetBtn" class="ghost-btn">📖 Mon carnet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Carnet de l'explorateur -->
+  <div class="carnet-overlay" id="carnet" hidden>
+    <div class="carnet-card" role="dialog" aria-labelledby="carnetTitle">
+      <button class="carnet-close" id="carnetClose" aria-label="Fermer">✕</button>
+      <h2 id="carnetTitle">📖 Carnet de l'explorateur</h2>
+      <p class="carnet-sub" id="carnetSub"></p>
+      <div class="carnet-detail" id="carnetDetail" hidden></div>
+      <div class="carnet-grid" id="carnetGrid"></div>
     </div>
   </div>
 
