@@ -1,20 +1,25 @@
 // ============================================================================
 // Les 10 énigmes du contrôleur.
 //
-// Chaque niveau tire au hasard un numéro (de 1 à 99, tous différents) pour
+// Chaque niveau tire au hasard un numéro (de 1 à 50, tous différents) pour
 // chacun des 24 sièges du wagon, en cachant toujours une solution parmi eux
 // ("plant" : 5 couples [gros, petit]). N'importe quelle solution qui respecte
 // la règle est acceptée, pas seulement celle qui a été cachée.
 //
 //   pair : règle à respecter dans CHAQUE famille (g = siège du gros, e = du petit)
-//   sum  : règle sur les totaux (gs = sièges des 5 gros, es = des 5 petits)
+//   sum  : règle sur l'ensemble des gros et des petits (gs = sièges des 5 gros, es = des 5 petits)
 // ============================================================================
 
 export const SEAT_COUNT = 24;
+// Numéro de siège le plus grand : au-delà, c'est trop dur pour des enfants de 9 ans
+export const MAX_NUM = 50;
 
 const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const total = (list) => list.reduce((a, b) => a + b, 0);
 const addition = (list) => `${list.join(' + ')} = ${total(list)}`;
+const sorted = (list) => [...list].sort((a, b) => a - b);
+/** Vrai si les 5 numéros se suivent (dans n'importe quel ordre), ex. 14, 12, 13, 16, 15. */
+const isRun = (list) => sorted(list).every((v, i, arr) => i === 0 || v === arr[i - 1] + 1);
 
 export function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -29,7 +34,7 @@ function withFillers(numbers) {
   const used = new Set(numbers);
   const seats = [...numbers];
   while (seats.length < SEAT_COUNT) {
-    const v = rand(1, 99);
+    const v = rand(1, MAX_NUM);
     if (!used.has(v)) {
       used.add(v);
       seats.push(v);
@@ -46,7 +51,7 @@ function makePairs(n, smallMin, smallMax, big, taken = new Set()) {
     for (let k = 0; k < 300 && pairs.length < n; k++) {
       const e = rand(smallMin, smallMax);
       const g = big(e);
-      if (g < 1 || g > 99 || g === e || used.has(e) || used.has(g)) continue;
+      if (g < 1 || g > MAX_NUM || g === e || used.has(e) || used.has(g)) continue;
       used.add(e);
       used.add(g);
       pairs.push([g, e]);
@@ -64,7 +69,7 @@ function makePairsWithKidsTotal(big, smallMin, smallMax, target, decoyMax, decoy
     es.push(target - total(es));
     if (es.some((e) => e < smallMin || e > smallMax)) continue;
     const all = es.flatMap((e) => [e, big(e)]);
-    if (all.some((v) => v < 1 || v > 99) || new Set(all).size !== 10) continue;
+    if (all.some((v) => v < 1 || v > MAX_NUM) || new Set(all).size !== 10) continue;
     const plant = es.map((e) => [big(e), e]);
     try {
       const extra = makePairs(decoys, smallMin, decoyMax, big, new Set(all));
@@ -104,7 +109,7 @@ export const LEVELS = [
       wrong: (g, e) => `le gros est sur ${g} et le petit sur ${e} : ${g} est plus petit que ${e} !`,
     },
     generate() {
-      const nums = shuffle(Array.from({ length: 99 }, (_, i) => i + 1)).slice(0, 10).sort((a, b) => a - b);
+      const nums = shuffle(Array.from({ length: MAX_NUM }, (_, i) => i + 1)).slice(0, 10).sort((a, b) => a - b);
       const plant = [0, 1, 2, 3, 4].map((i) => [nums[i + 5], nums[i]]);
       return { seats: withFillers(nums), plant };
     },
@@ -116,28 +121,34 @@ export const LEVELS = [
     example: 'Exemple : petit sur 7 → gros sur 14 (7 × 2 = 14)',
     pair: relation((e) => `${e} × 2`, (e) => e * 2),
     generate() {
-      const plant = makePairs(5, 2, 49, (e) => e * 2);
+      const plant = makePairs(5, 2, 25, (e) => e * 2);
       return { seats: withFillers(plant.flat()), plant };
     },
   },
   {
-    title: 'La balance',
-    rule: 'Additionne les numéros : la <b>somme des 5 gros</b> doit être <b>égale</b> à la <b>somme des 5 petits</b>.',
-    formula: `${G} + ${G} + … = ${P} + ${P} + …`,
-    example: 'Exemple avec 2 familles : gros 10 + 5 = 15 et petits 9 + 6 = 15 ✓',
+    title: 'Les numéros qui se suivent',
+    rule: "Les 5 <b>petits</b> doivent s'asseoir sur 5 numéros <b>qui se suivent</b>, et les 5 <b>gros</b> aussi sur 5 numéros <b>qui se suivent</b>.",
+    formula: `5 ${P}s qui se suivent &nbsp;et&nbsp; 5 ${G} qui se suivent`,
+    example: 'Exemple : petits sur 12, 13, 14, 15, 16 et gros sur 30, 31, 32, 33, 34 ✓',
     sum: {
-      ok: (gs, es) => total(gs) === total(es),
-      lines: (gs, es) => [`Gros : ${addition(gs)}`, `Petits : ${addition(es)}`],
-      wrong: (gs, es) => `Les gros font ${total(gs)} et les petits ${total(es)} : ce n'est pas pareil !`,
+      ok: (gs, es) => isRun(gs) && isRun(es),
+      lines: (gs, es) => [
+        `Gros rangés : ${sorted(gs).join(', ')} ${isRun(gs) ? '✓ ils se suivent' : '✗ ils ne se suivent pas'}`,
+        `Petits rangés : ${sorted(es).join(', ')} ${isRun(es) ? '✓ ils se suivent' : '✗ ils ne se suivent pas'}`,
+      ],
+      wrong: (gs, es) => {
+        const bad = [!isRun(gs) && `les gros (${sorted(gs).join(', ')})`, !isRun(es) && `les petits (${sorted(es).join(', ')})`].filter(Boolean);
+        return `Range les numéros dans l'ordre : ${bad.join(' et ')} ne se suivent pas. Il ne doit manquer aucun numéro !`;
+      },
     },
     generate() {
+      // deux suites de 5 numéros, séparées par au moins un numéro libre
       for (;;) {
-        const nums = shuffle(Array.from({ length: 45 }, (_, i) => i + 4)).slice(0, 9);
-        const es = nums.slice(0, 5);
-        const gs = nums.slice(5);
-        const last = total(es) - total(gs);
-        if (last < 1 || last > 99 || nums.includes(last)) continue;
-        gs.push(last);
+        const a = rand(1, MAX_NUM - 4);
+        const b = rand(1, MAX_NUM - 4);
+        if (Math.abs(a - b) < 6) continue;
+        const es = [0, 1, 2, 3, 4].map((i) => a + i);
+        const gs = [0, 1, 2, 3, 4].map((i) => b + i);
         const plant = es.map((e, i) => [gs[i], e]);
         return { seats: withFillers([...es, ...gs]), plant };
       }
@@ -150,7 +161,7 @@ export const LEVELS = [
     example: 'Exemple : petit sur 23 → gros sur 38 (23 + 15 = 38)',
     pair: relation((e) => `${e} + 15`, (e) => e + 15),
     generate() {
-      const plant = makePairs(5, 1, 84, (e) => e + 15);
+      const plant = makePairs(5, 1, 35, (e) => e + 15);
       return { seats: withFillers(plant.flat()), plant };
     },
   },
@@ -176,7 +187,7 @@ export const LEVELS = [
     example: 'Exemple : petit sur 9 → gros sur 27 (9 × 3 = 27)',
     pair: relation((e) => `${e} × 3`, (e) => e * 3),
     generate() {
-      const plant = makePairs(5, 2, 33, (e) => e * 3);
+      const plant = makePairs(5, 2, 16, (e) => e * 3);
       return { seats: withFillers(plant.flat()), plant };
     },
   },
@@ -187,7 +198,7 @@ export const LEVELS = [
     example: 'Exemple : petit sur 6 → gros sur 36 (6 × 6 = 36)',
     pair: relation((e) => `${e} × ${e}`, (e) => e * e),
     generate() {
-      const plant = makePairs(5, 2, 9, (e) => e * e);
+      const plant = makePairs(5, 2, 7, (e) => e * e);
       return { seats: withFillers(plant.flat()), plant };
     },
   },
@@ -198,7 +209,7 @@ export const LEVELS = [
     example: 'Exemple : petit sur 12 → 12 × 2 = 24, puis 24 + 1 = 25',
     pair: relation((e) => `${e} × 2 + 1`, (e) => e * 2 + 1),
     generate() {
-      const plant = makePairs(5, 1, 49, (e) => e * 2 + 1);
+      const plant = makePairs(5, 1, 24, (e) => e * 2 + 1);
       return { seats: withFillers(plant.flat()), plant };
     },
   },
@@ -210,7 +221,7 @@ export const LEVELS = [
     pair: relation((e) => `${e} + 20`, (e) => e + 20),
     sum: kidsTotal(50),
     generate() {
-      return makePairsWithKidsTotal((e) => e + 20, 2, 20, 50, 40);
+      return makePairsWithKidsTotal((e) => e + 20, 2, 20, 50, 30);
     },
   },
   {
@@ -221,7 +232,7 @@ export const LEVELS = [
     pair: relation((e) => `${e} × 2 + 3`, (e) => e * 2 + 3),
     sum: kidsTotal(40),
     generate() {
-      return makePairsWithKidsTotal((e) => e * 2 + 3, 1, 16, 40, 40);
+      return makePairsWithKidsTotal((e) => e * 2 + 3, 1, 16, 40, 23);
     },
   },
 ];
