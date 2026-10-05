@@ -63,6 +63,8 @@ const FAR = {
   trounoir: { x: -2550, y: 2550, r: 80 },
 };
 const OVNI_HOME = { x: 1700, y: 3150 };
+const OVNI_FLEE_SPEED = 170;       // bien moins vite que le vaisseau (430)
+const OVNI_ENERGY = 1.6;           // s de fuite avant d'être tout essoufflé
 const SOCK_HOME = { x: 330, y: 320 };   // entre Mercure et Vénus
 const WORMHOLES = [{ x: -1540, y: -560 }, { x: -450, y: -3600 }];
 
@@ -316,7 +318,8 @@ function buildWorld() {
   // Les objets lointains d'abord : ils sont dessinés derrière tout le reste
   Object.entries(FAR).forEach(([id, f]) => {
     const b = makeBody(id, f.r, { motion: 'fixed', x: f.x, y: f.y });
-    b.range = id === 'trounoir' ? 230 : f.r + 50;
+    // le trou noir se photographie de loin, là où il n'attire encore que doucement
+    b.range = id === 'trounoir' ? 460 : f.r + 50;
   });
   makeBody('soleil', 130, { motion: 'fixed', range: 310 });
 
@@ -336,7 +339,7 @@ function buildWorld() {
   makeBody('fusee', 30, { motion: 'rocket', dist: 690, period: 55, phase: Math.random() * TAU });
   makeBody('chaussette', 24, { motion: 'drift' });
   makeBody('comete', 40, { motion: 'comet', a: 1950, e: 0.78, period: 150, tilt: rand(0, TAU), phase: Math.random() * TAU });
-  makeBody('ovni', 36, { motion: 'ovni', ox: 0, oy: 0 });
+  makeBody('ovni', 36, { motion: 'ovni', ox: 0, oy: 0, energy: OVNI_ENERGY, range: 36 + 130 });
 
   // La ceinture d'astéroïdes, entre Mars et Jupiter
   if (!rockArts.length) rockArts = Array.from({ length: 6 }, (_, i) => renderArt('asteroide', 24, 2, 1000 + i * 7919));
@@ -432,11 +435,16 @@ function updateBodies(dt) {
         if (dt && ship && state === 'playing' && !photographed.has('ovni')) {
           const dx = b.x - ship.x, dy = b.y - ship.y;
           const d = Math.hypot(dx, dy);
-          if (d < 300 && d > 1) {
-            b.ox += (dx / d) * 250 * dt;
-            b.oy += (dy / d) * 250 * dt;
-            sayOnce('ovni', BIP.ovni, 15, 2);
+          if (d < 300 && d > 1 && b.energy > 0) {
+            b.ox += (dx / d) * OVNI_FLEE_SPEED * dt;
+            b.oy += (dy / d) * OVNI_FLEE_SPEED * dt;
+            b.energy -= dt;
+            if (b.energy <= 0) sayOnce('ovniTired', BIP.ovniTired, 15, 3);
+            else sayOnce('ovni', BIP.ovni, 15, 2);
+          } else if (d < 500) {
+            // essoufflé : il ne fuit plus, c'est le moment de la photo !
           } else {
+            b.energy = Math.min(OVNI_ENERGY, b.energy + dt * 0.5);
             const k = Math.pow(0.7, dt);
             b.ox *= k; b.oy *= k;
           }
@@ -882,10 +890,13 @@ function updateShip(dt, now) {
     sayOnce('blackhole', BIP.blackhole, 12, 3);
     if (Math.random() < 0.3) shake = Math.max(shake, 0.08);
     if (bd < BH_DEATH) {
+      // l'appareil photo se déclenche toujours avant de finir en spaghetti
+      const lastPhoto = !photographed.has('trounoir');
+      if (lastPhoto) takePhoto(bh);
       ship.spaghetti = 1.8;
       ship.vx = ship.vy = 0;
       sfx.spaghetti();
-      say(pick(BIP.spaghetti), 4, 5000);
+      say(lastPhoto ? pick(BIP.spaghettiPhoto) : pick(BIP.spaghetti), 4, 5000);
       addFloater('🍝 SPAGHETTIFICATION !', ship.x, ship.y - 50, '#FFC93C', 26);
       return;
     }

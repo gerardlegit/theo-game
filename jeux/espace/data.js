@@ -326,6 +326,9 @@ export const BIP = {
   spaghetti: [
     "Oh non, on a été transformés en spaghettis ! Retour à la Terre pour se remettre en forme…",
   ],
+  spaghettiPhoto: [
+    "CLIC ! Photo prise juste avant de devenir des spaghettis ! Retour à la Terre…",
+  ],
   edge: [
     "Hé, on sort de la carte ! L'Univers n'a pas de bord… mais notre carte, si !",
     "Demi-tour, chef ! Il n'y a plus rien à photographier par là.",
@@ -336,6 +339,7 @@ export const BIP = {
   turbo: ["TURBOOOOO !", "Accroche-toi à tes chaussettes !"],
   almost: ["Plus qu'une photo, chef ! On y est presque !"],
   ovni: ["Il s'enfuit ! Rattrape-le, chef !", "Reviens, petit OVNI ! On veut juste une photo !"],
+  ovniTired: ["Il est tout essoufflé ! Vite, la photo !", "Ha ha, il n'a plus de carburant ! Approche-toi !"],
   sock: ["Beurk ! Cette odeur… c'est la chaussette du Général Gloubi !"],
   idle: [
     "Euh… chef ? On fait une pause pique-nique ?",
