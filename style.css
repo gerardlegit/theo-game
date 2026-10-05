@@ -191,56 +191,46 @@ body {
 .hero-art::before {
   content: "";
   position: absolute;
-  width: 88%;
+  width: 72%;
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 68%);
+  border-radius: 28px;
+  transform: rotate(45deg);
+  background: rgba(255, 255, 255, .16);
+  border: 3px solid rgba(255, 255, 255, .35);
 }
 .cabin {
   position: relative;
-  width: min(100%, 420px);
+  width: min(100%, 400px);
   height: auto;
-  filter: drop-shadow(0 18px 18px rgba(20, 40, 120, .3));
-  animation: float 5s ease-in-out infinite;
+  image-rendering: pixelated;
+  filter: drop-shadow(10px 10px 0 rgba(20, 40, 120, .35));
+  animation: float 1.6s steps(1, end) infinite;
 }
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-12px); }
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-8px); }
 }
 
-.cabin .wave-hand {
-  transform-box: view-box;
-  transform-origin: 110px 200px;
-  animation: wave 1.6s ease-in-out infinite;
+.cabin .wave-hand { animation: pixel-wave .5s steps(1, end) infinite; }
+@keyframes pixel-wave {
+  0%  { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
 }
-@keyframes wave {
-  0%, 100% { transform: rotate(0deg); }
-  20%      { transform: rotate(14deg); }
-  40%      { transform: rotate(-6deg); }
-  60%      { transform: rotate(14deg); }
-  80%      { transform: rotate(0deg); }
-}
-.cabin .eyes {
-  transform-box: view-box;
-  transform-origin: 94px 175px;
-  animation: blink 4s infinite;
-}
+.cabin .eyes { animation: blink 4s steps(1, end) infinite; }
 @keyframes blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95%           { transform: scaleY(.1); }
+  0%  { opacity: 1; }
+  94% { opacity: 0; }
+  97% { opacity: 1; }
 }
 .cabin .puff {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: smoke 3.6s ease-out infinite;
   opacity: 0;
+  animation: smoke 2.4s steps(4, end) infinite;
 }
-.cabin .p2 { animation-delay: 1.2s; }
-.cabin .p3 { animation-delay: 2.4s; }
+.cabin .p2 { animation-delay: .8s; }
+.cabin .p3 { animation-delay: 1.6s; }
 @keyframes smoke {
-  0%   { transform: translate(0, 10px) scale(.5); opacity: 0; }
-  20%  { opacity: .9; }
-  100% { transform: translate(18px, -34px) scale(1.6); opacity: 0; }
+  0%   { transform: translate(0, 2px); opacity: 1; }
+  100% { transform: translate(3px, -4px); opacity: 0; }
 }
 
 .theme-nav {
