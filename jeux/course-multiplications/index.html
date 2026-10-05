@@ -2,112 +2,224 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>La Course des Multiplications — La Cabane à Jeux</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1B1846">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>La Course des Calculs — La Cabane à Jeux</title>
 <link rel="icon" href="../../favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Lilita+One&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <a class="back-link" href="../../index.html">← La Cabane</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M12 9v4.4l2.8 1.8M9.5 2.8h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.2" height="14" rx="1.6" fill="currentColor"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6" fill="currentColor"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 3.5h10v5.2a5 5 0 0 1-10 0z" fill="currentColor"/><path d="M7 5.5H4.2v1.3A3.6 3.6 0 0 0 7.6 10.4M17 5.5h2.8v1.3a3.6 3.6 0 0 1-3.4 3.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 13.5v3.5M8 20.5h8M9.5 17h5v3.5h-5z" fill="currentColor" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M9.4 9.4a2.7 2.7 0 1 1 3.8 2.5c-.8.4-1.2 1-1.2 1.9v.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9.5 5.5L16 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11m0-11l-11 11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V3.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6 4h13v9H6z" fill="#fff"/><path d="M6 4h3.25v3H6zM12.5 4h3.25v3H12.5zM9.25 7h3.25v3H9.25zM15.75 7H19v3h-3.25zM6 10h3.25v3H6zM12.5 10h3.25v3H12.5z" fill="#2E2A4D"/></symbol>
+  </defs>
+</svg>
 
-  <header class="game-header">
-    <h1>🏎️ La Course des Multiplications</h1>
-    <p>Conduis ta voiture à travers le panneau de la bonne réponse !</p>
-  </header>
+<div class="app">
+  <main class="stage" id="stage">
+    <canvas id="game" aria-label="La route, vue de derrière la voiture"></canvas>
 
-  <div class="hud">
-    <div class="hud-item">⏱️ <span id="timer">3:00</span></div>
-    <div class="hud-item">⭐ <span id="pointsCount">0</span> point(s)</div>
-    <div class="hud-item hud-bonus" id="bonusBadge" hidden>✨ Bonus ×2</div>
-    <div class="hud-item">Question <span id="questionCount">0</span> / <span id="totalCount">9</span></div>
-    <button id="restart">Recommencer</button>
-  </div>
+    <!-- ================= HUD ================= -->
+    <div class="hud" id="hud" hidden>
+      <div class="hud-top">
+        <div class="hud-group">
+          <button class="icon-btn" id="pauseBtn" aria-label="Pause"><svg><use href="#i-pause"/></svg></button>
+          <div class="pill pill-timer"><svg class="pill-icon"><use href="#i-clock"/></svg><span id="timer">3:00</span></div>
+        </div>
 
-  <div class="route-progress" aria-hidden="true">
-    <div class="route-track">
-      <div class="route-fill" id="routeFill"></div>
-      <span class="route-car" id="routeCar">🚗</span>
-      <span class="route-flag">🏁</span>
-    </div>
-  </div>
-
-  <section class="game-layout">
-    <div class="stage-col">
-      <div class="stage" id="stage">
-        <canvas id="roadCanvas"></canvas>
-
-        <!-- Multiplication en cours -->
-        <div class="question-banner" id="questionBanner" hidden>
-          <p class="question-text" id="questionText"></p>
-          <div class="question-options" id="questionOptions">
-            <span class="opt opt-0"></span>
-            <span class="opt opt-1"></span>
-            <span class="opt opt-2"></span>
+        <div class="trip" aria-hidden="true">
+          <div class="trip-track" id="tripTrack">
+            <div class="trip-fill" id="tripFill"></div>
+            <div class="trip-ticks" id="tripTicks"></div>
+            <div class="trip-car" id="tripCar"></div>
           </div>
-          <p class="question-bonus" id="questionBonus" hidden>✨ Bonus ×2 : cette bonne réponse vaut 2 points !</p>
-          <div class="question-bar"><div class="question-bar-fill" id="questionBarFill"></div></div>
-          <p class="question-feedback" id="questionFeedback"></p>
+          <svg class="trip-flag"><use href="#i-flag"/></svg>
         </div>
 
-        <div class="event-toast" id="eventToast" hidden></div>
+        <div class="hud-group hud-right">
+          <div class="pill pill-bonus" id="bonusBadge" hidden>×2</div>
+          <div class="pill pill-points" id="pointsPill"><svg class="pill-icon star"><use href="#i-star"/></svg><span id="points">0</span></div>
+        </div>
+      </div>
 
-        <div class="start-overlay" id="startOverlay">
-          <div class="start-card">
-            <p class="start-title">Prêt à prendre la route ?</p>
-            <ul class="how-to">
-              <li><span class="keys"><kbd>←</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Q</kbd><kbd>D</kbd></span> pour changer de voie (ou touche l'écran à gauche / à droite)</li>
-              <li>✖️ Toutes les 20 secondes, une multiplication apparaît</li>
-              <li>🪧 Passe à travers le panneau de la bonne réponse : +1 point ⭐</li>
-              <li>✨ Attrape un bonus <strong>×2</strong> : ta prochaine bonne réponse vaut 2 points</li>
-              <li>👴 Attention aux papis qui traversent, de plus en plus nombreux : −1 point si tu les touches</li>
-              <li>🛹 Fonce sur un tremplin pour faire un saut !</li>
-              <li>🏁 La route mène à la plage en 3 minutes : combien de points ?</li>
-            </ul>
-            <button id="startBtn">🚗 C'est parti !</button>
+      <section class="qcard" id="qcard" hidden aria-live="polite">
+        <div class="qcard-head">
+          <span class="qcard-count">Question <b id="qNum">1</b>/<span id="qTotal">9</span></span>
+          <span class="qcard-bonus" id="qBonus" hidden>Bonus ×2 : 2 points !</span>
+        </div>
+        <p class="qcard-text" id="qText"></p>
+        <div class="qcard-opts" id="qOpts">
+          <span class="opt opt-0"></span>
+          <span class="opt opt-1"></span>
+          <span class="opt opt-2"></span>
+        </div>
+        <div class="qcard-bar"><i id="qBar"></i></div>
+        <p class="qcard-feedback" id="qFeedback"></p>
+      </section>
+
+      <div class="toast" id="toast" hidden></div>
+    </div>
+
+    <div class="touch-controls" id="touchControls" hidden>
+      <button class="steer steer-left" id="leftBtn" aria-label="Voie de gauche"><svg><use href="#i-back"/></svg></button>
+      <button class="steer steer-right" id="rightBtn" aria-label="Voie de droite"><svg><use href="#i-next"/></svg></button>
+    </div>
+
+    <div class="countdown" id="countdown" hidden aria-live="assertive">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <span class="countdown-num" id="countdownNum">3</span>
+    </div>
+
+    <!-- ================= Menu ================= -->
+    <section class="screen menu" id="menuScreen">
+      <div class="menu-topbar">
+        <a class="chip-btn" href="../../index.html"><svg><use href="#i-back"/></svg>La Cabane</a>
+        <button class="icon-btn light sound-btn" aria-label="Couper le son"><svg><use href="#i-sound"/></svg></button>
+      </div>
+
+      <div class="menu-body">
+        <h1 class="logo">
+          <span class="logo-small">La</span>
+          <span class="logo-big">Course</span>
+          <span class="logo-ribbon">des calculs</span>
+        </h1>
+
+        <p class="menu-label">Choisis ta course</p>
+        <div class="modes">
+          <button class="mode-card mode-mul" data-mode="mul">
+            <span class="mode-icon">×</span>
+            <span class="mode-text">
+              <span class="mode-name">des Multiplications</span>
+              <span class="mode-hint">Les tables de 2 à 10</span>
+              <span class="mode-best" data-best="mul"></span>
+            </span>
+            <span class="mode-go"><svg><use href="#i-next"/></svg></span>
+          </button>
+          <button class="mode-card mode-add" data-mode="add">
+            <span class="mode-icon">+</span>
+            <span class="mode-text">
+              <span class="mode-name">des Additions</span>
+              <span class="mode-hint">Des petits nombres jusqu’à 100</span>
+              <span class="mode-best" data-best="add"></span>
+            </span>
+            <span class="mode-go"><svg><use href="#i-next"/></svg></span>
+          </button>
+        </div>
+
+        <div class="garage">
+          <p class="menu-label">Ta voiture</p>
+          <div class="swatches" id="swatches" role="radiogroup" aria-label="Couleur de la voiture"></div>
+        </div>
+
+        <div class="menu-actions">
+          <button class="chip-btn" id="helpBtn"><svg><use href="#i-help"/></svg>Comment jouer</button>
+          <button class="chip-btn" id="boardBtn"><svg><use href="#i-trophy"/></svg>Classement</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Comment jouer ================= -->
+    <section class="screen sheet-screen" id="helpScreen" hidden>
+      <div class="sheet">
+        <button class="icon-btn sheet-close" data-close aria-label="Fermer"><svg><use href="#i-close"/></svg></button>
+        <h2 class="sheet-title">Comment jouer ?</h2>
+        <ul class="rules">
+          <li><span class="rule-ico keys"><kbd>←</kbd><kbd>→</kbd></span><span><b>Change de voie</b> avec les flèches (ou <kbd>Q</kbd> <kbd>D</kbd>). Sur téléphone, touche la gauche ou la droite de l’écran.</span></li>
+          <li><span class="rule-ico c-pink">?</span><span>Toutes les 20 secondes, un <b>calcul</b> apparaît en haut de l’écran.</span></li>
+          <li><span class="rule-ico c-green"><svg><use href="#i-star"/></svg></span><span>Fonce à travers le <b>panneau de la bonne réponse</b> : +1 point !</span></li>
+          <li><span class="rule-ico c-gold">×2</span><span>Attrape une <b>pièce ×2</b> : ta prochaine bonne réponse vaut 2 points.</span></li>
+          <li><span class="rule-ico c-orange">👴</span><span>Attention aux <b>papis</b> qui traversent : −1 point si tu ne les évites pas.</span></li>
+          <li><span class="rule-ico c-sky">🛹</span><span>Monte sur un <b>tremplin</b> pour faire un grand saut !</span></li>
+          <li><span class="rule-ico c-ink"><svg><use href="#i-flag"/></svg></span><span>En 3 minutes, la route mène à <b>la plage</b>. Combien de points vas-tu gagner ?</span></li>
+        </ul>
+        <button class="big-btn btn-yellow" data-close>J’ai compris !</button>
+      </div>
+    </section>
+
+    <!-- ================= Classement ================= -->
+    <section class="screen sheet-screen" id="boardScreen" hidden>
+      <div class="sheet">
+        <button class="icon-btn sheet-close" data-close aria-label="Fermer"><svg><use href="#i-close"/></svg></button>
+        <h2 class="sheet-title">Classement mondial</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-tab="mul">× Multiplications</button>
+          <button class="tab" role="tab" data-tab="add">+ Additions</button>
+        </div>
+        <ol class="board" id="boardList"></ol>
+        <p class="sheet-note">1 point par bonne réponse (2 avec un bonus ×2), −1 par papi touché. 9 calculs par course.</p>
+      </div>
+    </section>
+
+    <!-- ================= Pause ================= -->
+    <section class="screen pause-screen" id="pauseScreen" hidden>
+      <div class="sheet sheet-small">
+        <h2 class="sheet-title">Pause</h2>
+        <button class="big-btn btn-green" id="resumeBtn">Reprendre</button>
+        <button class="big-btn btn-white" id="restartBtn">Recommencer</button>
+        <button class="big-btn btn-white" id="quitBtn">Retour au menu</button>
+        <button class="chip-btn dark sound-btn sound-chip"><svg><use href="#i-sound"/></svg><span>Son</span></button>
+      </div>
+    </section>
+
+    <!-- ================= Arrivée ================= -->
+    <section class="screen end-screen" id="endScreen" hidden>
+      <div class="sheet end-card">
+        <div class="end-main">
+        <canvas id="danceCanvas" class="dance" aria-label="Un petit garçon blond à lunettes bleues fait une danse rigolote"></canvas>
+        <p class="end-kicker" id="endKicker">Bienvenue à la plage !</p>
+        <div class="end-stars" id="endStars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+        <p class="end-score"><span id="endPoints">0</span> <small id="endPointsLabel">points</small></p>
+        <p class="end-record" id="endRecord" hidden>Nouveau record !</p>
+        <p class="end-cheer" id="endCheer"></p>
+        <ul class="end-stats">
+          <li><b id="statGood">0</b><span>bonnes réponses</span></li>
+          <li><b id="statBonus">0</b><span>bonus ×2</span></li>
+          <li><b id="statPapi">0</b><span>papis touchés</span></li>
+        </ul>
+        </div>
+
+        <div class="end-side">
+        <form class="score-form" id="scoreForm">
+          <label for="pseudoInput">Ton pseudo pour le classement mondial</label>
+          <div class="score-row">
+            <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo" autocomplete="nickname">
+            <button type="submit" class="big-btn btn-sky small" id="saveScore">Enregistrer</button>
           </div>
+        </form>
+        <p class="score-msg" id="scoreMsg" hidden></p>
+
+        <div class="end-board">
+          <p class="end-board-title"><svg><use href="#i-trophy"/></svg> <span id="endBoardTitle">Top 10</span></p>
+          <ol class="board compact" id="endBoardList"></ol>
+        </div>
+
+        <div class="end-actions">
+          <button class="big-btn btn-green" id="againBtn">Rejouer</button>
+          <button class="big-btn btn-white" id="menuBtn">Autre course</button>
+        </div>
         </div>
       </div>
+    </section>
+  </main>
+</div>
 
-      <div class="touch-pad" aria-label="Commandes tactiles">
-        <button id="leftBtn" class="steer-btn" aria-label="Voie de gauche">◀</button>
-        <button id="rightBtn" class="steer-btn" aria-label="Voie de droite">▶</button>
-      </div>
-    </div>
-
-    <aside class="leaderboard" id="leaderboard">
-      <h2>🏆 Classement</h2>
-      <p class="leaderboard-sub">Top 20 mondial (le plus de points !)</p>
-      <ol class="leaderboard-list" id="leaderboardList"></ol>
-      <p class="leaderboard-note">⭐ 1 point par bonne réponse (2 avec un bonus ×2), −1 si tu touches un papi. 9 multiplications par course.</p>
-    </aside>
-  </section>
-
-  <!-- Arrivée -->
-  <div class="win-banner" id="winBanner">
-    <div class="win-card">
-      <canvas id="danceCanvas" class="dance-canvas" aria-label="Un petit garçon blond à lunettes bleues fait une danse rigolote"></canvas>
-      <p class="win-title">Tu es arrivé à la plage ! 🏖️</p>
-      <p id="winScore"></p>
-
-      <div id="scoreForm">
-        <label for="pseudoInput" class="score-label">Entre ton pseudo pour rejoindre le classement :</label>
-        <input type="text" id="pseudoInput" maxlength="18" placeholder="Ton pseudo">
-        <div class="score-actions">
-          <button id="saveScore">Enregistrer mon score</button>
-          <button id="skipScore" class="ghost-btn">Passer</button>
-        </div>
-      </div>
-      <p id="scoreSaved" class="score-saved">Score enregistré ! 🎉</p>
-
-      <button id="playAgain">Nouvelle course</button>
-    </div>
-  </div>
-
-  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
-
-  <script type="module" src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>
