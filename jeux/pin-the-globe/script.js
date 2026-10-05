@@ -1,6 +1,7 @@
 import { Globe, distanceKm } from './globe.js';
 import { CITIES, CONTINENTS } from './data.js';
 import { PLACES, KINDS } from './places.js';
+import { ANIMALS, ANIMAL_KINDS } from './animals.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 // Le classement mondial est chargé à part : si Firebase est injoignable,
@@ -9,13 +10,55 @@ const leaderboard = import('../../shared/leaderboard.js').catch(() => null);
 
 const ROUNDS = 10;
 const HINT_PENALTY = 500;
+
+// Titres de fin de partie des modes à points, du meilleur au moins bon.
+const RANKS_MONUMENTS = [
+  { min: 10, emoji: '🏆', title: 'Maître des merveilles', text: 'Un sans-faute ! Tu connais les trésors de la planète par cœur.' },
+  { min: 8, emoji: '🌟', title: 'Grand explorateur', text: 'Bravo ! Presque toutes les merveilles sont à leur place.' },
+  { min: 6, emoji: '🧭', title: 'Aventurier', text: 'Très beau voyage ! Encore un petit effort pour le sans-faute.' },
+  { min: 4, emoji: '🎒', title: 'Curieux du monde', text: 'Joli parcours ! Relis les fiches et rejoue pour progresser.' },
+  { min: 0, emoji: '🗺️', title: 'Apprenti voyageur', text: "Les merveilles du monde n'ont pas fini de te surprendre. Rejoue !" },
+];
+const RANKS_ANIMALS = [
+  { min: 10, emoji: '🏆', title: 'Grand naturaliste', text: 'Un sans-faute ! Tous les animaux sont rentrés chez eux.' },
+  { min: 8, emoji: '🌟', title: 'Expert de la nature', text: 'Bravo ! Presque tous les animaux ont retrouvé leur maison.' },
+  { min: 6, emoji: '🧭', title: 'Explorateur de la nature', text: 'Très beau safari ! Encore un petit effort pour le sans-faute.' },
+  { min: 4, emoji: '🎒', title: 'Apprenti soigneur', text: 'Joli parcours ! Relis les fiches et rejoue pour progresser.' },
+  { min: 0, emoji: '🔍', title: 'Petit curieux', text: "Les animaux du monde n'ont pas fini de te surprendre. Rejoue !" },
+];
+
 // kind 'cities' : on plante une épingle, score = km (le plus petit gagne).
 // kind 'places' : on choisit parmi 10 points dorés, 1 point par bonne réponse.
-const MODES = {
-  explorateur: { kind: 'cities', label: 'Explorateur', short: 'Explorateur', icon: '🧭', gameId: 'pin-the-globe-explorateur' },
-  voyageur: { kind: 'cities', label: 'Grand voyageur', short: 'Voyageur', icon: '✈️', gameId: 'pin-the-globe-voyageur' },
-  monuments: { kind: 'places', label: 'Monuments & merveilles', short: 'Monuments', icon: '🗽', gameId: 'pin-the-globe-monuments' },
+//   items : les lieux ou animaux possibles ; kinds : leurs catégories ;
+//   balance : catégories à équilibrer dans une partie ; words : les mots affichés.
+// Deux jeux partagent ce moteur : Pin the Globe et Safari Planète
+// (choisi par <body data-game="…">).
+const GAMES = {
+  pin: {
+    explorateur: { kind: 'cities', label: 'Explorateur', short: 'Explorateur', icon: '🧭', gameId: 'pin-the-globe-explorateur' },
+    voyageur: { kind: 'cities', label: 'Grand voyageur', short: 'Voyageur', icon: '✈️', gameId: 'pin-the-globe-voyageur' },
+    monuments: {
+      kind: 'places', label: 'Monuments & merveilles', short: 'Monuments', icon: '🗽', gameId: 'pin-the-globe-monuments',
+      items: PLACES, kinds: KINDS, balance: ['monument', 'nature'], recentKey: 'pin-the-globe-recent-places', ranks: RANKS_MONUMENTS,
+      words: {
+        round: 'Lieu', next: 'Lieu suivant →', tip: 'Touche le point doré ❓ où se trouve ce lieu.', other: 'un autre lieu',
+        recapHint: 'Touche un lieu pour le revoir sur le globe.', typeLabel: '🏷️ Type',
+      },
+    },
+  },
+  safari: {
+    animaux: {
+      kind: 'places', label: 'Safari Planète', short: 'Animaux', icon: '🐾', gameId: 'safari-planete',
+      items: ANIMALS, kinds: ANIMAL_KINDS, balance: null, recentKey: 'safari-planete-recent', ranks: RANKS_ANIMALS,
+      words: {
+        round: 'Animal', next: 'Animal suivant →', tip: 'Touche le point doré ❓ où vit cet animal.', other: 'un autre animal',
+        recapHint: 'Touche un animal pour revoir sa maison sur le globe.', typeLabel: '🧬 Classe', hemiSubject: 'Ce lieu de vie',
+      },
+    },
+  },
 };
+const GAME = document.body.dataset.game in GAMES ? document.body.dataset.game : 'pin';
+const MODES = GAMES[GAME];
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -36,13 +79,13 @@ const els = {
   endTotal: $('endTotal'), endTotalLabel: $('endTotalLabel'), endTotalUnit: $('endTotalUnit'),
   endBest: $('endBest'), recap: $('recap'), recapHint: $('recapHint'),
   scoreForm: $('scoreForm'), pseudo: $('pseudo'), saveScore: $('saveScore'), scoreMsg: $('scoreMsg'),
-  introBoard: $('introBoard'), endBoard: $('endBoard'),
+  introBoard: $('introBoard'), endBoard: $('endBoard'), cityHabitat: $('cityHabitat'),
   lightbox: $('lightbox'), lightboxImg: $('lightboxImg'), lightboxCaption: $('lightboxCaption'),
 };
 
 const state = {
   phase: 'loading', // loading | intro | aim | reveal | end
-  mode: 'explorateur',
+  mode: Object.keys(MODES)[0],
   rounds: [],
   index: 0,
   submitted: false,
@@ -58,6 +101,7 @@ const state = {
 };
 
 const isPlaces = (mode = state.mode) => MODES[mode].kind === 'places';
+const words = () => MODES[state.mode].words;
 
 // ============================================================ utilitaires
 
@@ -139,13 +183,7 @@ function rankForKm(total) {
   return { emoji: '🙃', title: 'Touriste égaré', text: "La Terre est grande ! Utilise les indices et rejoue : tu vas vite progresser." };
 }
 
-function rankForPoints(points) {
-  if (points >= 10) return { emoji: '🏆', title: 'Maître des merveilles', text: 'Un sans-faute ! Tu connais les trésors de la planète par cœur.' };
-  if (points >= 8) return { emoji: '🌟', title: 'Grand explorateur', text: 'Bravo ! Presque toutes les merveilles sont à leur place.' };
-  if (points >= 6) return { emoji: '🧭', title: 'Aventurier', text: 'Très beau voyage ! Encore un petit effort pour le sans-faute.' };
-  if (points >= 4) return { emoji: '🎒', title: 'Curieux du monde', text: 'Joli parcours ! Relis les fiches et rejoue pour progresser.' };
-  return { emoji: '🗺️', title: 'Apprenti voyageur', text: "Les merveilles du monde n'ont pas fini de te surprendre. Rejoue !" };
-}
+const rankForPoints = (points) => MODES[state.mode].ranks.find((r) => points >= r.min);
 
 // Pour donner une idée de la distance : « c'est à peu près Paris → Rome ».
 const byId = (id) => CITIES.find((c) => c.id === id);
@@ -168,15 +206,15 @@ function compareText(km) {
   return `📏 C'est à peu près ${best.text} (${fmtKm(best.km)} km).`;
 }
 
-function hemisphereText(c) {
-  const verb = /^Les /.test(c.name) ? 'se trouvent' : 'se trouve';
+function hemisphereText(c, subject = c.name) {
+  const verb = /^Les /.test(subject) ? 'se trouvent' : 'se trouve';
   const ns = Math.abs(c.lat) < 3
     ? `juste au ${c.lat >= 0 ? 'nord' : 'sud'} de l'équateur`
     : `dans l'hémisphère ${c.lat >= 0 ? 'Nord' : 'Sud'}, au ${c.lat >= 0 ? 'nord' : 'sud'} de l'équateur`;
   const ew = Math.abs(c.lon) < 1
     ? 'presque pile sur le méridien de Greenwich, la ligne de longitude 0°'
     : `à l'${c.lon >= 0 ? 'est' : 'ouest'} du méridien de Greenwich`;
-  return `${c.name} ${verb} ${ns}, et ${ew}.`;
+  return `${subject} ${verb} ${ns}, et ${ew}.`;
 }
 
 // Score du mode Monuments pour le classement partagé, où « plus petit = mieux » :
@@ -217,13 +255,15 @@ function pickCities(mode) {
   return shuffle(chosen).map((city) => ({ city, guess: null, km: 0, hint: false, score: 0 }));
 }
 
-// 10 lieux bien espacés (pour que les points dorés ne se touchent pas),
-// au moins un par continent, moitié monuments et moitié merveilles naturelles.
+// 10 lieux (ou animaux) bien espacés, pour que les points dorés ne se touchent
+// pas, au moins un par continent, et moitié-moitié entre les catégories de
+// `balance` (monuments et merveilles naturelles).
 function pickPlaces() {
-  const recent = store('pin-the-globe-recent-places') || [];
+  const { items, balance, recentKey } = MODES[state.mode];
+  const recent = store(recentKey) || [];
   const ordered = [
-    ...shuffle(PLACES.filter((p) => !recent.includes(p.id))),
-    ...shuffle(PLACES.filter((p) => recent.includes(p.id))),
+    ...shuffle(items.filter((p) => !recent.includes(p.id))),
+    ...shuffle(items.filter((p) => recent.includes(p.id))),
   ];
   let chosen = [];
   for (const minKm of [1500, 1000, 600, 0]) {
@@ -234,15 +274,18 @@ function pickPlaces() {
       if (p) chosen.push(p);
     }
     while (chosen.length < ROUNDS) {
-      const monuments = chosen.filter((p) => p.kind === 'monument').length;
-      const want = monuments * 2 <= chosen.length ? 'monument' : 'nature';
+      let want = null;
+      if (balance) {
+        const firsts = chosen.filter((p) => p.kind === balance[0]).length;
+        want = firsts * 2 <= chosen.length ? balance[0] : balance[1];
+      }
       const p = ordered.find((q) => q.kind === want && ok(q)) || ordered.find(ok);
       if (!p) break;
       chosen.push(p);
     }
     if (chosen.length === ROUNDS) break;
   }
-  store('pin-the-globe-recent-places', chosen.map((p) => p.id));
+  store(recentKey, chosen.map((p) => p.id));
   return shuffle(chosen).map((place) => ({ place, chosen: null, correct: false, score: 0 }));
 }
 
@@ -360,6 +403,7 @@ function setPhoto(frame, place) {
   img.onerror = () => { fig.hidden = true; els.play.classList.remove('has-photo'); };
   img.alt = `Photo : ${place.name}`;
   img.src = place.photo;
+  fig.querySelector('.photo-btn').style.setProperty('--photo', `url("${place.photo}")`);
   $(`${frame}PhotoCredit`).innerHTML = creditHtml(place);
 }
 
@@ -439,7 +483,7 @@ function selectSpot(spot) {
 function updateHud() {
   const places = isPlaces();
   els.roundNum.textContent = Math.min(state.index + 1, ROUNDS);
-  els.hudRoundLabel.textContent = places ? 'Lieu' : 'Ville';
+  els.hudRoundLabel.textContent = places ? words().round : 'Ville';
   els.hudTotalLabel.textContent = places ? 'Score' : 'Total';
   els.hudTotalUnit.textContent = places ? 'pts' : 'km';
   const total = state.rounds.reduce((s, r) => s + r.score, 0);
@@ -510,10 +554,10 @@ function startPlaceRound() {
   globe.clearArcs();
   for (const s of state.spots) s.el.classList.remove('selected');
 
-  const kind = KINDS[place.kind];
+  const kind = MODES[state.mode].kinds[place.kind];
   els.askCity.textContent = `${place.icon} ${place.name}`;
   els.askCountry.innerHTML = `<span class="kind-badge kind-${place.kind}">${kind.icon} ${kind.label}</span>`;
-  els.tip.innerHTML = `<em class="clue">${escapeHtml(place.clue)}</em><span class="tip-action">Touche le point doré ❓ où se trouve ce lieu.</span>`;
+  els.tip.innerHTML = `<em class="clue">${escapeHtml(place.clue)}</em><span class="tip-action">${words().tip}</span>`;
   els.hintBtn.hidden = true;
   setPhoto('ask', place);
 
@@ -659,24 +703,26 @@ function fillPlaceResult(round) {
   els.verdictPenalty.hidden = true;
   els.compare.textContent = round.correct
     ? '🎯 Tu as trouvé le bon point du premier coup !'
-    : `📍 Le point que tu as choisi était à ${fmtKm(distanceKm(round.chosen, place))} km de là. Il reste libre pour un autre lieu !`;
+    : `📍 Le point que tu as choisi était à ${fmtKm(distanceKm(round.chosen, place))} km de là. Il reste libre pour ${words().other} !`;
 
-  const kind = KINDS[place.kind];
+  const kind = MODES[state.mode].kinds[place.kind];
   els.cityIcon.textContent = place.icon;
   els.cityName.textContent = place.name;
   els.cityRole.innerHTML = `${flags(place.flags)} ${escapeHtml(place.country)}`;
   els.cityContinent.textContent = place.continent;
   els.cityPopLabel.textContent = `📊 ${place.stat.label}`;
   els.cityPop.textContent = place.stat.value;
-  els.cityLangLabel.textContent = '🏷️ Type';
+  els.cityLangLabel.textContent = words().typeLabel;
   els.cityLang.textContent = `${kind.icon} ${kind.label}`;
   setPhoto('card', place);
-  fillCommon(place, 'Lieu suivant →');
+  fillCommon(place, words().next, words().hemiSubject);
 }
 
-function fillCommon(item, nextLabel) {
+function fillCommon(item, nextLabel, hemiSubject) {
   els.cityCoords.textContent = fmtCoords(item);
-  els.cityHemi.textContent = hemisphereText(item);
+  els.cityHemi.textContent = hemisphereText(item, hemiSubject);
+  els.cityHabitat.hidden = !item.habitat;
+  if (item.habitat) els.cityHabitat.innerHTML = `🌳 Milieu naturel : <b>${escapeHtml(item.habitat)}</b>`;
   els.cityFacts.innerHTML = item.facts.map((f) => `<li>${escapeHtml(f)}</li>`).join('');
   els.nextBtn.textContent = state.index === ROUNDS - 1 ? 'Voir mon score 🏆' : nextLabel;
 }
@@ -723,7 +769,7 @@ function endGame() {
     els.endBest.innerHTML = isRecord
       ? `${time} · ${prevBest ? `🏅 <b>Nouveau record !</b> (avant : ${prevBest.points}/${ROUNDS})` : '🏅 Ton premier record est enregistré !'}`
       : `${time} · Ton record : ${prevBest.points}/${ROUNDS} en ${fmtDuration(prevBest.secs)}`;
-    els.recapHint.textContent = 'Touche un lieu pour le revoir sur le globe.';
+    els.recapHint.textContent = words().recapHint;
   } else {
     rank = rankForKm(total);
     const isRecord = prevBest == null || total < prevBest;
@@ -854,10 +900,14 @@ async function renderBoard(container, mode) {
   const lb = await leaderboard;
   if (!lb || !lb.isLeaderboardConfigured()) { container.hidden = true; return; }
   container.hidden = false;
-  container.innerHTML = `
-    <div class="board-tabs">
+  // Un seul mode (Safari Planète) : un simple titre au lieu des onglets.
+  const tabs = Object.keys(MODES).length > 1
+    ? `<div class="board-tabs">
       ${Object.entries(MODES).map(([k, m]) => `<button data-mode="${k}" class="${k === mode ? 'active' : ''}">${m.icon} ${m.short}</button>`).join('')}
-    </div>
+    </div>`
+    : '<p class="board-title">🏆 Classement mondial</p>';
+  container.innerHTML = `
+    ${tabs}
     <ol class="board-list"><li class="board-empty">Chargement…</li></ol>`;
   container.querySelectorAll('.board-tabs button').forEach((b) => {
     b.addEventListener('click', () => renderBoard(container, b.dataset.mode));

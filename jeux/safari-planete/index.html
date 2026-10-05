@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#050816">
-<title>Pin the Globe — La Cabane à Jeux</title>
-<meta name="description" content="Fais tourner la Terre et retrouve les villes, les monuments et les merveilles naturelles du monde !">
+<title>Safari Planète — La Cabane à Jeux</title>
+<meta name="description" content="Fais tourner la Terre et ramène 10 animaux sauvages dans leur milieu naturel !">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../pin-the-globe/style.css">
 <script type="importmap">
 {
   "imports": {
@@ -19,10 +19,10 @@
 }
 </script>
 </head>
-<body class="is-intro">
+<body class="is-intro" data-game="safari">
 
   <div class="space" aria-hidden="true"></div>
-  <div class="stage" id="stage" aria-label="Globe terrestre : fais-le tourner et touche-le pour planter ton épingle"></div>
+  <div class="stage" id="stage" aria-label="Globe terrestre : fais-le tourner et touche le point doré où vit chaque animal"></div>
 
   <!-- ===== Barre du haut ===== -->
   <header class="topbar" id="topbar">
@@ -52,44 +52,25 @@
 
   <!-- ===== Accueil ===== -->
   <section class="panel intro" id="intro">
-    <p class="kicker">🌍 Géographie</p>
-    <h1 class="title"><span class="title-pin">📍</span>Pin the Globe</h1>
-    <p class="lead">Fais tourner la Terre et retrouve les <strong>villes</strong>, les <strong>monuments</strong> et les <strong>merveilles naturelles</strong> du monde !</p>
+    <p class="kicker">🌿 Nature et animaux</p>
+    <h1 class="title"><span class="title-pin">🐾</span>Safari Planète</h1>
+    <p class="lead">Les animaux se sont perdus ! Fais tourner la Terre et ramène <strong>10 animaux sauvages</strong> dans leur <strong>milieu naturel</strong>.</p>
 
     <div class="modes">
-      <p class="modes-group">🏙️ Les villes du monde <small>score en km</small></p>
-      <button class="mode" data-mode="explorateur">
-        <span class="mode-icon">🧭</span>
+      <button class="mode mode-wonder" data-mode="animaux">
+        <span class="mode-icon">🦁</span>
         <span class="mode-text">
-          <strong>Explorateur</strong>
-          <small>Les villes les plus célèbres du monde</small>
+          <strong>Partir en safari</strong>
+          <small>10 animaux tirés au sort parmi 100 : lion, panda, manchot, koala…</small>
         </span>
-        <span class="mode-best" data-best="explorateur"></span>
-      </button>
-      <button class="mode mode-hard" data-mode="voyageur">
-        <span class="mode-icon">✈️</span>
-        <span class="mode-text">
-          <strong>Grand voyageur</strong>
-          <small>Des villes plus surprenantes, aux quatre coins de la Terre</small>
-        </span>
-        <span class="mode-best" data-best="voyageur"></span>
-      </button>
-
-      <p class="modes-group">🗿 Monuments &amp; merveilles <small>1 point par bonne réponse</small></p>
-      <button class="mode mode-wonder" data-mode="monuments">
-        <span class="mode-icon">🗽</span>
-        <span class="mode-text">
-          <strong>Monuments &amp; merveilles</strong>
-          <small>Pyramides, Everest, Grande Muraille… place-les sur les points dorés du globe</small>
-        </span>
-        <span class="mode-best" data-best="monuments"></span>
+        <span class="mode-best" data-best="animaux"></span>
       </button>
     </div>
 
     <ul class="howto" aria-label="Comment jouer">
       <li><span>🖐️</span><p><strong>Fais tourner le globe</strong> avec la souris ou ton doigt. Zoome avec la molette ou en pinçant l'écran.</p></li>
-      <li><span>📍</span><p><strong>Villes :</strong> touche le globe pour planter ton épingle. Ton score = la <strong>distance en km</strong> jusqu'à la vraie ville : le plus petit total gagne !</p></li>
-      <li><span>🗿</span><p><strong>Monuments :</strong> 10 points dorés t'attendent sur le globe. Choisis le bon point pour chaque lieu : <strong>1 point par bonne réponse</strong> !</p></li>
+      <li><span>❓</span><p><strong>10 points dorés</strong> sont les maisons des animaux. Regarde la photo et la devinette, puis touche le point où vit l'animal.</p></li>
+      <li><span>🏆</span><p><strong>1 point par bonne réponse</strong> ! Après chaque animal, découvre son milieu naturel et plein d'anecdotes.</p></li>
     </ul>
 
     <div class="board" id="introBoard"></div>
@@ -170,7 +151,7 @@
 
     <div class="actions">
       <button class="btn primary" id="againBtn">Rejouer 🔄</button>
-      <button class="btn ghost" id="menuBtn">Changer de mode</button>
+      <button class="btn ghost" id="menuBtn">Retour à l'accueil</button>
     </div>
 
     <ol class="recap" id="recap"></ol>
@@ -200,6 +181,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="confetti" id="confetti" aria-hidden="true"></div>
 
-  <script type="module" src="script.js"></script>
+  <!-- Même moteur que Pin the Globe : le jeu est choisi par data-game sur <body>. -->
+  <script type="module" src="../pin-the-globe/script.js"></script>
 </body>
 </html>
