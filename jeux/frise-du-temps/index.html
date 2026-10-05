@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#241858">
+<title>La Frise du Temps — La Cabane à Jeux</title>
+<meta name="description" content="Des dinosaures aux premiers pas sur la Lune : place 10 grands événements de l'histoire au bon endroit sur la frise du temps !">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="is-intro">
+
+  <!-- ===== Décor : une grande horloge qui tourne doucement ===== -->
+  <div class="deco" aria-hidden="true">
+    <svg class="deco-clock" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="94" fill="none" stroke="currentColor" stroke-width="3"/>
+      <circle cx="100" cy="100" r="84" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1 7.8"/>
+      <g font-family="Georgia, serif" font-size="15" fill="currentColor" text-anchor="middle">
+        <text x="100" y="32">XII</text><text x="172" y="105">III</text><text x="100" y="180">VI</text><text x="28" y="105">IX</text>
+      </g>
+      <line class="deco-hand-h" x1="100" y1="100" x2="100" y2="58" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+      <line class="deco-hand-m" x1="100" y1="100" x2="100" y2="34" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="6" fill="currentColor"/>
+    </svg>
+    <span class="float f1">⏳</span>
+    <span class="float f2">🏺</span>
+    <span class="float f3">🦕</span>
+    <span class="float f4">👑</span>
+    <span class="float f5">🚀</span>
+    <span class="float f6">📜</span>
+  </div>
+
+  <!-- ===== Barre du haut ===== -->
+  <header class="topbar">
+    <a class="back" href="../../index.html">← <span>La Cabane</span></a>
+    <div class="hud" id="hud" hidden>
+      <div class="hud-round">Carte <b id="roundNum">1</b><span>/10</span></div>
+      <ol class="dots" id="dots" aria-hidden="true"></ol>
+      <div class="hud-score" id="hudScore">⭐ <b id="score">0</b></div>
+    </div>
+    <button class="icon-btn" id="soundBtn" aria-label="Couper le son">🔊</button>
+  </header>
+
+  <!-- ===== Le jeu ===== -->
+  <main class="game" id="game">
+    <section class="event-zone" id="eventZone">
+      <article class="event-card" id="eventCard">
+        <div class="ev-art" id="evArt" title="Glisse-moi sur la frise !">
+          <div class="ev-art-pic" id="evArtPic"></div>
+          <span class="drag-hint">✋ Glisse-moi sur la frise</span>
+        </div>
+        <div class="ev-body">
+          <p class="ev-kicker" id="evKicker">Événement mystère</p>
+          <h2 class="ev-title" id="evTitle"></h2>
+          <p class="ev-date" id="evDate" hidden></p>
+          <p class="ev-text" id="evText"></p>
+
+          <div class="verdict" id="verdict" hidden>
+            <p class="verdict-head" id="verdictHead"></p>
+            <div class="verdict-when">
+              <p class="verdict-date">📅 <b id="verdictDate"></b></p>
+              <p class="verdict-ago" id="verdictAgo"></p>
+            </div>
+            <p class="verdict-era" id="verdictEra"></p>
+            <p class="verdict-fact"><strong>💡 Le savais-tu ?</strong> <span id="verdictFact"></span></p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="frieze-zone" aria-label="La frise du temps">
+      <div class="frieze-bar">
+        <p class="frieze-help" id="help"></p>
+        <button class="primary action-btn" id="actionBtn" disabled>✅ Valider</button>
+      </div>
+      <div class="frieze" id="frieze">
+        <div class="track" id="track">
+          <div class="rail" aria-hidden="true"></div>
+          <div class="bands" id="bands" aria-hidden="true"></div>
+          <div class="items" id="items"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Accueil ===== -->
+  <section class="overlay intro" id="intro">
+    <div class="intro-card">
+      <p class="kicker">🌍 Histoire-Géo</p>
+      <h1 class="title"><span class="title-icon">⏳</span> La Frise du Temps</h1>
+
+      <div class="host">
+        <div class="host-owl" id="introOwl"></div>
+        <p class="host-bubble">Hou hou ! Je suis le <strong>Professeur Hibou</strong>. Ma frise du temps est toute mélangée… Aide-moi à remettre <strong>10 grands événements</strong> à leur place, des dinosaures jusqu'à la Lune !</p>
+      </div>
+
+      <div class="modes">
+        <button class="mode" data-mode="apprenti">
+          <span class="mode-icon">🧒</span>
+          <span class="mode-text">
+            <strong>Apprenti historien</strong>
+            <small>La date est écrite sur la carte : à toi de la ranger au bon endroit.</small>
+          </span>
+          <span class="mode-best" data-best="apprenti"></span>
+        </button>
+        <button class="mode mode-hard" data-mode="historien">
+          <span class="mode-icon">🦉</span>
+          <span class="mode-text">
+            <strong>Grand historien</strong>
+            <small>Pas de date ! Lis bien la carte et fais appel à ta mémoire.</small>
+          </span>
+          <span class="mode-best" data-best="historien"></span>
+        </button>
+      </div>
+
+      <ul class="howto" aria-label="Comment jouer">
+        <li><span>🖼️</span><p><strong>Découvre l'événement</strong> : regarde l'image et lis son histoire.</p></li>
+        <li><span>👆</span><p><strong>Touche un ＋</strong> sur la frise (ou glisse l'image) pour choisir sa place, puis valide.</p></li>
+        <li><span>⭐</span><p><strong>1 point</strong> par carte bien placée. Si tu te trompes, la carte glisse à sa vraie place !</p></li>
+      </ul>
+
+      <div class="eras-legend">
+        <p class="eras-title">Les grandes périodes de l'histoire</p>
+        <ol class="eras" id="erasLegend"></ol>
+      </div>
+
+      <div class="board" id="introBoard" hidden></div>
+    </div>
+  </section>
+
+  <!-- ===== Fin de partie ===== -->
+  <section class="overlay end" id="endModal" hidden>
+    <div class="end-card">
+      <div class="end-owl" id="endOwl"></div>
+      <p class="end-kicker">Partie terminée !</p>
+      <h2 class="end-title" id="endTitle"></h2>
+      <div class="end-stars" id="endStars" aria-hidden="true"></div>
+      <p class="end-score"><b id="endScore">0</b> / 10 cartes bien placées · ⏱️ <span id="endTime"></span></p>
+      <p class="end-msg" id="endMsg"></p>
+      <p class="end-best" id="endBest"></p>
+
+      <form class="score-form" id="scoreForm" hidden>
+        <label for="pseudo">Entre ton pseudo pour le classement mondial :</label>
+        <div class="score-row">
+          <input type="text" id="pseudo" maxlength="18" placeholder="Ton pseudo" autocomplete="nickname">
+          <button type="submit" class="primary" id="saveBtn">Enregistrer</button>
+        </div>
+      </form>
+      <p class="score-saved" id="scoreSaved" hidden></p>
+
+      <div class="board" id="endBoard" hidden></div>
+
+      <div class="end-actions">
+        <button class="primary" id="againBtn">🔁 Rejouer</button>
+        <button class="ghost" id="viewBtn">👀 Voir ma frise</button>
+        <button class="ghost" id="menuBtn">🏠 Changer de niveau</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="confetti-layer" id="confetti" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
