@@ -200,7 +200,7 @@ body {
 }
 .cabin {
   position: relative;
-  width: min(100%, 380px);
+  width: min(100%, 440px);
   height: auto;
   image-rendering: pixelated;
   filter: drop-shadow(0 16px 18px rgba(20, 40, 120, .35));
@@ -238,7 +238,7 @@ body {
   .hero { padding-top: 2.5rem; }
   .hero-inner { grid-template-columns: 1fr; text-align: center; gap: .5rem; }
   .hero-art { order: -1; }
-  .cabin { width: min(64%, 240px); }
+  .cabin { width: min(80%, 300px); }
   .hero-art::before { width: min(52%, 200px); }
   .hero-sub { margin-left: auto; margin-right: auto; }
   .hero-stats { justify-content: center; }
