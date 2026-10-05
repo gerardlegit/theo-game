@@ -7,33 +7,137 @@
 <meta name="description" content="Des jeux ludiques et éducatifs pour apprendre en s'amusant : lecture, maths, nature, géographie, sciences et anglais.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <div class="floaters" aria-hidden="true">
-    <div class="floater sun">☀️</div>
-    <div class="floater cloud">☁️</div>
-    <div class="floater star star1">✦</div>
-    <div class="floater star star2">✦</div>
-    <div class="floater kite">🪁</div>
-    <div class="floater book">📚</div>
-    <div class="floater pencil">✏️</div>
-  </div>
-
   <header class="hero">
-    <p class="hero-badge">🎈 Jeux ludiques <span>&amp;</span> éducatifs 🎓</p>
-    <h1 class="hero-title">
-      <span class="line line1">La Cabane</span>
-      <span class="line line2">à Jeux</span>
-    </h1>
-    <p class="hero-sub">Ici, on apprend <strong>en s'amusant</strong> ! Lis, compte, explore le monde et découvre les étoiles… chaque partie te rend un peu plus fort.</p>
+    <div class="hero-sky" aria-hidden="true">
+      <div class="sky-glow glow-a"></div>
+      <div class="sky-glow glow-b"></div>
+      <div class="sun"></div>
+      <div class="cloud cloud-1"></div>
+      <div class="cloud cloud-2"></div>
+      <div class="cloud cloud-3"></div>
+      <span class="sparkle sp-1">✦</span>
+      <span class="sparkle sp-2">✦</span>
+      <span class="sparkle sp-3">✦</span>
+      <span class="sparkle sp-4">✦</span>
+    </div>
 
-    <ul class="hero-stats">
-      <li><strong>14</strong> jeux</li>
-      <li><strong>6</strong> matières</li>
-      <li><strong>1</strong> quête épique</li>
-    </ul>
+    <div class="hero-inner">
+      <div class="hero-text">
+        <p class="hero-badge">🎈 Jeux ludiques <span>&amp;</span> éducatifs 🎓</p>
+        <h1 class="hero-title">
+          <span class="line line1">La Cabane</span>
+          <span class="line line2">à Jeux</span>
+        </h1>
+        <p class="hero-sub">Ici, on apprend <strong>en s'amusant</strong> ! Lis, compte, explore le monde et découvre les étoiles… chaque partie te rend un peu plus fort.</p>
+
+        <ul class="hero-stats">
+          <li><strong>14</strong> jeux</li>
+          <li><strong>6</strong> matières</li>
+          <li><strong>1</strong> quête épique</li>
+        </ul>
+      </div>
+
+      <div class="hero-art">
+        <svg class="cabin" viewBox="0 0 260 250" role="img" aria-label="Logo : une petite cabane en bois, un enfant fait coucou à la fenêtre">
+          <defs>
+            <linearGradient id="cb-wood" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#DDA062"/>
+              <stop offset="1" stop-color="#B9783C"/>
+            </linearGradient>
+            <linearGradient id="cb-roof" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#FF7A5C"/>
+              <stop offset="1" stop-color="#E5473B"/>
+            </linearGradient>
+            <radialGradient id="cb-light" cx=".5" cy=".45" r=".7">
+              <stop offset="0" stop-color="#FFF4B8"/>
+              <stop offset="1" stop-color="#FFC857"/>
+            </radialGradient>
+            <clipPath id="cb-win"><rect x="62" y="142" width="64" height="54" rx="7"/></clipPath>
+          </defs>
+
+          <!-- île d'herbe -->
+          <ellipse cx="130" cy="236" rx="112" ry="12" fill="#3FA864"/>
+          <ellipse cx="130" cy="230" rx="116" ry="12" fill="#58C97B"/>
+
+          <!-- cheminée + fumée -->
+          <g fill="#fff">
+            <circle class="puff p1" cx="184" cy="26" r="7"/>
+            <circle class="puff p2" cx="184" cy="26" r="7"/>
+            <circle class="puff p3" cx="184" cy="26" r="7"/>
+          </g>
+          <rect x="171" y="40" width="26" height="54" rx="3" fill="#C0584A"/>
+          <rect x="167" y="34" width="34" height="10" rx="3" fill="#9E4337"/>
+
+          <!-- murs en rondins -->
+          <rect x="40" y="108" width="180" height="120" rx="6" fill="url(#cb-wood)"/>
+          <path d="M40 130h180M40 152h180M40 174h180M40 196h180M40 218h180" stroke="#A8672F" stroke-width="2.2" opacity=".55"/>
+          <g fill="#EBB97E" stroke="#A8672F" stroke-width="2">
+            <circle cx="40" cy="141" r="7"/><circle cx="40" cy="163" r="7"/><circle cx="40" cy="185" r="7"/><circle cx="40" cy="207" r="7"/>
+            <circle cx="220" cy="141" r="7"/><circle cx="220" cy="163" r="7"/><circle cx="220" cy="185" r="7"/><circle cx="220" cy="207" r="7"/>
+          </g>
+
+          <!-- toit -->
+          <path d="M20 114 L130 28 L240 114 Z" fill="url(#cb-roof)" stroke="#E5473B" stroke-width="12" stroke-linejoin="round"/>
+          <path d="M62 82h136M95 56h70" stroke="#C93D33" stroke-width="3" stroke-dasharray="14 7" stroke-linecap="round"/>
+          <circle cx="130" cy="80" r="13" fill="url(#cb-light)" stroke="#FFF3D6" stroke-width="5"/>
+          <path d="M130 73.5l2 4.2 4.6.6-3.4 3.2.9 4.5-4.1-2.3-4.1 2.3.9-4.5-3.4-3.2 4.6-.6z" fill="#FF8A4C"/>
+
+          <!-- fenêtre + enfant -->
+          <rect x="54" y="134" width="80" height="70" rx="12" fill="#FFF3D6"/>
+          <rect x="62" y="142" width="64" height="54" rx="7" fill="url(#cb-light)"/>
+          <g clip-path="url(#cb-win)">
+            <ellipse cx="94" cy="206" rx="24" ry="17" fill="#4FB8E8"/>
+            <path d="M80 199 q14 7 28 0" stroke="#fff" stroke-width="3" fill="none" opacity=".7"/>
+            <circle cx="94" cy="174" r="15" fill="#FFCFA0"/>
+            <path d="M79 172 Q79 154 94 155 Q110 154 109 172 Q105 162 95 164 Q86 163 79 172 Z" fill="#6B3E1F"/>
+            <path d="M92 156 q4 -8 10 -6" stroke="#6B3E1F" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <g class="eyes" fill="#2E2A4D">
+              <circle cx="89" cy="175" r="2.2"/><circle cx="99" cy="175" r="2.2"/>
+            </g>
+            <circle cx="84.5" cy="180.5" r="3" fill="#FF8FA3" opacity=".7"/>
+            <circle cx="103.5" cy="180.5" r="3" fill="#FF8FA3" opacity=".7"/>
+            <path d="M89.5 181.5 Q94 186.5 98.5 181.5" stroke="#2E2A4D" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <g class="wave-hand">
+              <path d="M110 200 L117 176" stroke="#4FB8E8" stroke-width="8" stroke-linecap="round"/>
+              <circle cx="118" cy="171" r="6" fill="#FFCFA0"/>
+            </g>
+            <path d="M62 142h64v6q-8 8-16 0q-8 8-16 0q-8 8-16 0q-8 8-16 0z" fill="#FF6F91"/>
+          </g>
+          <rect x="49" y="200" width="90" height="9" rx="4.5" fill="#FFF3D6"/>
+          <rect x="60" y="189" width="13" height="12" rx="2" fill="#E07A3F"/>
+          <circle cx="66.5" cy="185" r="5" fill="#FFC93C"/>
+          <circle cx="66.5" cy="185" r="2" fill="#FF8A4C"/>
+
+          <!-- fanions -->
+          <path d="M34 116 Q130 140 226 116" stroke="#fff" stroke-width="1.6" fill="none"/>
+          <path d="M47.2 120.3h12l-6 13z" fill="#FFC93C"/>
+          <path d="M66.4 123.7h12l-6 13z" fill="#58C97B"/>
+          <path d="M85.6 126.1h12l-6 13z" fill="#4FB8E8"/>
+          <path d="M104.8 127.5h12l-6 13z" fill="#9B6BF2"/>
+          <path d="M143.2 127.5h12l-6 13z" fill="#FFC93C"/>
+          <path d="M162.4 126.1h12l-6 13z" fill="#58C97B"/>
+          <path d="M181.6 123.7h12l-6 13z" fill="#4FB8E8"/>
+          <path d="M200.8 120.3h12l-6 13z" fill="#FF6F91"/>
+
+          <!-- porte -->
+          <path d="M152 228 V172 a22 22 0 0 1 44 0 V228 Z" fill="#8B4F24"/>
+          <path d="M167 152v76M181 152v76" stroke="#6E3B18" stroke-width="2"/>
+          <circle cx="188" cy="196" r="3.6" fill="#FFC93C"/>
+          <rect x="146" y="226" width="56" height="7" rx="3.5" fill="#E9DCC6"/>
+
+          <!-- herbe + fleur -->
+          <path d="M34 228 l4 -10 3 10 M226 228 l-3 -11 -4 11 M118 229 l3 -8 3 8" stroke="#3FA864" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M212 228v-14" stroke="#3FA864" stroke-width="2.5"/>
+          <circle cx="212" cy="211" r="5" fill="#FF6F91"/>
+          <circle cx="212" cy="211" r="2" fill="#FFF3D6"/>
+        </svg>
+      </div>
+    </div>
 
     <nav class="theme-nav" aria-label="Thèmes">
       <a href="#lecture" class="chip chip-lecture">📚 Lecture</a>
@@ -44,6 +148,12 @@
       <a href="#anglais" class="chip chip-anglais">💬 Anglais</a>
       <a href="#epique" class="chip chip-epic">⚡ Jeu épique</a>
     </nav>
+
+    <svg class="hero-hills" viewBox="0 0 1440 160" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 90 C 240 30 420 120 720 80 S 1200 20 1440 70 V160 H0 Z" fill="#7FD89A"/>
+      <path d="M0 120 C 300 70 520 140 820 110 S 1260 70 1440 105 V160 H0 Z" fill="#58C97B"/>
+      <path d="M0 140 C 360 115 700 160 1040 135 S 1340 125 1440 138 V160 H0 Z" fill="#FFF6E9"/>
+    </svg>
   </header>
 
   <section class="promise" aria-label="Pourquoi jouer ici">
