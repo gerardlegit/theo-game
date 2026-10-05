@@ -37,6 +37,7 @@ const els = {
   endBest: $('endBest'), recap: $('recap'), recapHint: $('recapHint'),
   scoreForm: $('scoreForm'), pseudo: $('pseudo'), saveScore: $('saveScore'), scoreMsg: $('scoreMsg'),
   introBoard: $('introBoard'), endBoard: $('endBoard'),
+  lightbox: $('lightbox'), lightboxImg: $('lightboxImg'), lightboxCaption: $('lightboxCaption'),
 };
 
 const state = {
@@ -337,6 +338,53 @@ function fillSpot(spot, how) {
   spot.el.querySelector('.tag').textContent = spot.place.name;
 }
 
+// ============================================================ photos des lieux
+
+const photoPlaces = {}; // quel lieu est affiché dans chaque cadre photo ('ask', 'card')
+
+function creditHtml(place) {
+  const { author, license, page } = place.credit;
+  return `📷 <a href="${escapeHtml(page)}" target="_blank" rel="noopener">${escapeHtml(author)}</a> · ${escapeHtml(license)}`;
+}
+
+/** Affiche la photo d'un lieu dans un cadre ('ask' ou 'card'), ou cache le cadre. */
+function setPhoto(frame, place) {
+  const fig = $(`${frame}Photo`);
+  const img = $(`${frame}PhotoImg`);
+  photoPlaces[frame] = place;
+  fig.hidden = !place?.photo;
+  els.play.classList.toggle('has-photo', frame === 'ask' && !fig.hidden);
+  if (fig.hidden) return;
+  fig.classList.add('loading');
+  img.onload = () => fig.classList.remove('loading');
+  img.onerror = () => { fig.hidden = true; els.play.classList.remove('has-photo'); };
+  img.alt = `Photo : ${place.name}`;
+  img.src = place.photo;
+  $(`${frame}PhotoCredit`).innerHTML = creditHtml(place);
+}
+
+function openLightbox(place) {
+  if (!place) return;
+  sfx.click();
+  els.lightboxImg.src = place.photo;
+  els.lightboxImg.alt = `Photo : ${place.name}`;
+  els.lightboxCaption.innerHTML = `<strong>${place.icon} ${escapeHtml(place.name)}</strong>`
+    + (place.photoNote ? `<span>${escapeHtml(place.photoNote)}</span>` : '')
+    + `<small>${creditHtml(place)} — photo de Wikimedia Commons</small>`;
+  els.lightbox.hidden = false;
+  $('lightboxClose').focus();
+}
+
+function closeLightbox() {
+  els.lightbox.hidden = true;
+}
+
+document.querySelectorAll('.photo-btn').forEach((btn) => {
+  btn.addEventListener('click', () => openLightbox(photoPlaces[btn.dataset.photo]));
+});
+$('lightboxClose').addEventListener('click', closeLightbox);
+els.lightbox.addEventListener('click', (e) => { if (e.target === els.lightbox) closeLightbox(); });
+
 // ============================================================ mode Villes : l'épingle
 
 function placePin(hit) {
@@ -416,6 +464,8 @@ function startGame(mode) {
 
   if (isPlaces()) {
     state.rounds = pickPlaces();
+    // On précharge les 10 photos pour qu'elles s'affichent tout de suite.
+    state.rounds.forEach(({ place }) => { new Image().src = place.photo; });
     state.spots = state.rounds.map(({ place }) => {
       const el = spotElement();
       return { place, el, marker: globe.addMarker(el, place.lat, place.lon), filled: false };
@@ -450,6 +500,7 @@ function startCityRound() {
   els.tip.textContent = 'Fais tourner le globe, puis touche-le pour planter ton épingle.';
   els.hintBtn.hidden = false;
   els.hintBtn.disabled = false;
+  setPhoto('ask', null);
   els.hintBtn.innerHTML = `💡 Indice <small>+${HINT_PENALTY} km</small>`;
 }
 
@@ -464,6 +515,7 @@ function startPlaceRound() {
   els.askCountry.innerHTML = `<span class="kind-badge kind-${place.kind}">${kind.icon} ${kind.label}</span>`;
   els.tip.innerHTML = `<em class="clue">${escapeHtml(place.clue)}</em><span class="tip-action">Touche le point doré ❓ où se trouve ce lieu.</span>`;
   els.hintBtn.hidden = true;
+  setPhoto('ask', place);
 
   // Dernier lieu : il ne reste qu'un point, on le choisit d'office.
   const open = state.spots.filter((s) => !s.filled);
@@ -591,6 +643,7 @@ function fillCityResult(round) {
   els.cityPop.textContent = city.pop;
   els.cityLangLabel.textContent = '🗣️ Langue';
   els.cityLang.textContent = city.lang;
+  setPhoto('card', null);
   fillCommon(city, 'Ville suivante →');
 }
 
@@ -617,6 +670,7 @@ function fillPlaceResult(round) {
   els.cityPop.textContent = place.stat.value;
   els.cityLangLabel.textContent = '🏷️ Type';
   els.cityLang.textContent = `${kind.icon} ${kind.label}`;
+  setPhoto('card', place);
   fillCommon(place, 'Lieu suivant →');
 }
 
@@ -866,7 +920,12 @@ renderSoundBtn();
 
 // Raccourcis clavier : Entrée pour valider / continuer.
 document.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement) return;
+  if (!els.lightbox.hidden) {
+    if (e.key === 'Escape') closeLightbox();
+    return;
+  }
+  // Un bouton qui a le focus réagit déjà tout seul à Entrée.
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
   if (e.key === 'Enter') {
     if (state.phase === 'aim') validate();
     else if (state.phase === 'reveal') next();

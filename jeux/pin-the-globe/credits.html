@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crédits photos — Pin the Globe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --night: #050816; --ink: #F4F1FF; --muted: #A9B2D6; --gold: #FFD54A; --line: rgba(255, 255, 255, 0.13); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+    color: var(--ink);
+    font-family: 'Quicksand', system-ui, sans-serif;
+    font-weight: 600;
+    background:
+      radial-gradient(ellipse 60% 40% at 15% 0%, rgba(76, 92, 220, 0.3), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 90% 100%, rgba(170, 60, 190, 0.22), transparent 70%),
+      var(--night);
+    background-attachment: fixed;
+  }
+  .back {
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 19, 46, 0.72);
+    color: var(--ink);
+    font-family: 'Baloo 2', sans-serif;
+    text-decoration: none;
+  }
+  header { max-width: 1100px; margin: 18px auto 24px; }
+  h1 { margin: 0 0 6px; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.6rem); }
+  header p { margin: 0; color: var(--muted); line-height: 1.5; }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 14px;
+  }
+  .credit {
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: rgba(13, 19, 46, 0.72);
+  }
+  .credit img { display: block; width: 100%; height: 150px; object-fit: cover; background: rgba(255, 255, 255, 0.05); }
+  .credit div { display: grid; gap: 3px; padding: 10px 14px 14px; font-size: 13px; color: var(--muted); }
+  .credit strong { font-family: 'Baloo 2', sans-serif; font-size: 17px; color: var(--ink); }
+  .credit a { color: var(--gold); }
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← Retour au jeu</a>
+
+  <header>
+    <h1>📷 Crédits photos</h1>
+    <p>Les photos des monuments et des merveilles de la nature viennent de Wikimedia Commons. Merci à leurs auteurs !</p>
+  </header>
+
+  <main id="credits"></main>
+
+  <script type="module">
+    import { PLACES } from './places.js';
+
+    const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+    document.getElementById('credits').innerHTML = PLACES.filter((p) => p.photo).map((p) => `
+      <article class="credit">
+        <img src="${p.photo}" alt="${esc(p.name)}" loading="lazy">
+        <div>
+          <strong>${p.icon} ${esc(p.name)}</strong>
+          <span>Photo : ${esc(p.credit.author)}</span>
+          <span>Licence : ${esc(p.credit.license)} — <a href="${p.credit.page}" target="_blank" rel="noopener">voir sur Wikimedia Commons</a></span>
+        </div>
+      </article>`).join('');
+  </script>
+</body>
+</html>

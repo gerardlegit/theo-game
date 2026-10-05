@@ -93,10 +93,15 @@
     </ul>
 
     <div class="board" id="introBoard"></div>
+    <p class="intro-foot"><a href="credits.html">📷 Crédits des photos</a></p>
   </section>
 
   <!-- ===== Une manche : viser ===== -->
   <section class="panel play" id="play" hidden>
+    <figure class="photo ask-photo" id="askPhoto" hidden>
+      <button class="photo-btn" data-photo="ask" aria-label="Agrandir la photo"><img id="askPhotoImg" alt="" decoding="async"><span class="photo-zoom" aria-hidden="true">⤢</span></button>
+      <figcaption id="askPhotoCredit"></figcaption>
+    </figure>
     <p class="ask">Où se trouve…</p>
     <h2 class="ask-city" id="askCity"></h2>
     <p class="ask-country" id="askCountry"></p>
@@ -120,6 +125,10 @@
     <p class="compare" id="compare"></p>
 
     <article class="city-card">
+      <figure class="photo card-photo" id="cardPhoto" hidden>
+        <button class="photo-btn" data-photo="card" aria-label="Agrandir la photo"><img id="cardPhotoImg" alt="" decoding="async"><span class="photo-zoom" aria-hidden="true">⤢</span></button>
+        <figcaption id="cardPhotoCredit"></figcaption>
+      </figure>
       <header class="city-head">
         <span class="city-icon" id="cityIcon"></span>
         <div>
@@ -177,6 +186,15 @@
 
     <div class="board" id="endBoard"></div>
   </section>
+
+  <!-- ===== Photo en grand ===== -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo du lieu" hidden>
+    <button class="lightbox-close" id="lightboxClose" aria-label="Fermer la photo">✕</button>
+    <figure>
+      <img id="lightboxImg" alt="">
+      <figcaption id="lightboxCaption"></figcaption>
+    </figure>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="confetti" id="confetti" aria-hidden="true"></div>
