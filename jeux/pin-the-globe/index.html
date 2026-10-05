@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#050816">
+<title>Pin the Globe — La Cabane à Jeux</title>
+<meta name="description" content="Fais tourner la Terre, retrouve 10 villes du monde et plante ton épingle le plus près possible !">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body class="is-intro">
+
+  <div class="space" aria-hidden="true"></div>
+  <div class="stage" id="stage" aria-label="Globe terrestre : fais-le tourner et touche-le pour planter ton épingle"></div>
+
+  <!-- ===== Barre du haut ===== -->
+  <header class="topbar" id="topbar">
+    <a class="back" href="../../index.html">← <span>La Cabane</span></a>
+
+    <div class="hud" id="hud" hidden>
+      <div class="hud-round">Ville <b id="roundNum">1</b><span>/10</span></div>
+      <ol class="dots" id="dots" aria-hidden="true"></ol>
+      <div class="hud-total"><span>Total</span> <b id="totalKm">0</b> km</div>
+    </div>
+
+    <button class="icon-btn" id="soundBtn" aria-label="Couper le son">🔊</button>
+  </header>
+
+  <div class="zoom" id="zoomCtrl" aria-label="Zoom">
+    <button id="zoomIn" aria-label="Zoomer">+</button>
+    <button id="zoomOut" aria-label="Dézoomer">−</button>
+    <button id="zoomHome" aria-label="Revoir toute la Terre">🌍</button>
+  </div>
+
+  <p class="coords" id="coords" aria-hidden="true"></p>
+
+  <div class="loader" id="loader">
+    <div class="loader-orbit"><span>🌍</span><i>🚀</i></div>
+    <p>Préparation du globe…</p>
+  </div>
+
+  <!-- ===== Accueil ===== -->
+  <section class="panel intro" id="intro">
+    <p class="kicker">🌍 Géographie</p>
+    <h1 class="title"><span class="title-pin">📍</span>Pin the Globe</h1>
+    <p class="lead">Fais tourner la Terre, retrouve <strong>10 villes du monde</strong> et plante ton épingle le plus près possible !</p>
+
+    <ul class="howto">
+      <li><span>🖐️</span><p><strong>Fais tourner le globe</strong> avec la souris ou ton doigt. Zoome avec la molette ou en pinçant l'écran.</p></li>
+      <li><span>📍</span><p><strong>Touche le globe</strong> pour planter ton épingle, puis valide.</p></li>
+      <li><span>📏</span><p>Ton score = la <strong>distance en km</strong> jusqu'à la vraie ville. Le plus petit total gagne !</p></li>
+    </ul>
+
+    <div class="modes">
+      <button class="mode" data-mode="explorateur">
+        <span class="mode-icon">🧭</span>
+        <span class="mode-text">
+          <strong>Explorateur</strong>
+          <small>Les villes les plus célèbres du monde</small>
+        </span>
+        <span class="mode-best" data-best="explorateur"></span>
+      </button>
+      <button class="mode mode-hard" data-mode="voyageur">
+        <span class="mode-icon">✈️</span>
+        <span class="mode-text">
+          <strong>Grand voyageur</strong>
+          <small>Des villes plus surprenantes, aux quatre coins de la Terre</small>
+        </span>
+        <span class="mode-best" data-best="voyageur"></span>
+      </button>
+    </div>
+
+    <div class="board" id="introBoard"></div>
+  </section>
+
+  <!-- ===== Une manche : viser ===== -->
+  <section class="panel play" id="play" hidden>
+    <p class="ask">Où se trouve…</p>
+    <h2 class="ask-city" id="askCity"></h2>
+    <p class="ask-country" id="askCountry"></p>
+    <p class="tip" id="tip"></p>
+    <div class="actions">
+      <button class="btn ghost" id="hintBtn">💡 Indice <small>+500 km</small></button>
+      <button class="btn primary" id="validateBtn" disabled>Valider 📍</button>
+    </div>
+  </section>
+
+  <!-- ===== Une manche : la réponse ===== -->
+  <section class="panel result" id="result" hidden>
+    <div class="verdict" id="verdict">
+      <span class="verdict-emoji" id="verdictEmoji"></span>
+      <div>
+        <p class="verdict-label" id="verdictLabel"></p>
+        <p class="verdict-km"><b id="verdictKm">0</b> km</p>
+        <p class="verdict-penalty" id="verdictPenalty" hidden>+ 500 km pour l'indice</p>
+      </div>
+    </div>
+    <p class="compare" id="compare"></p>
+
+    <article class="city-card">
+      <header class="city-head">
+        <span class="city-icon" id="cityIcon"></span>
+        <div>
+          <h3 id="cityName"></h3>
+          <p id="cityRole"></p>
+        </div>
+      </header>
+      <dl class="city-facts">
+        <div><dt>🌍 Continent</dt><dd id="cityContinent"></dd></div>
+        <div><dt>👥 Habitants</dt><dd id="cityPop"></dd></div>
+        <div><dt>🗣️ Langue</dt><dd id="cityLang"></dd></div>
+        <div><dt>🧭 Coordonnées</dt><dd id="cityCoords"></dd></div>
+      </dl>
+      <p class="city-hemi" id="cityHemi"></p>
+      <h4 class="dyk-title">💡 Le savais-tu ?</h4>
+      <ul class="dyk" id="cityFacts"></ul>
+    </article>
+
+    <div class="sticky-actions">
+      <button class="btn primary wide" id="nextBtn">Ville suivante →</button>
+    </div>
+  </section>
+
+  <!-- ===== Fin de partie ===== -->
+  <section class="panel end" id="end" hidden>
+    <p class="kicker" id="endMode"></p>
+    <div class="rank">
+      <span class="rank-emoji" id="rankEmoji"></span>
+      <h2 class="rank-title" id="rankTitle"></h2>
+      <p class="rank-text" id="rankText"></p>
+    </div>
+    <div class="end-total">
+      <span>Ton total</span>
+      <b id="endTotal">0</b>
+      <span>km</span>
+    </div>
+    <p class="end-best" id="endBest"></p>
+
+    <div class="actions">
+      <button class="btn primary" id="againBtn">Rejouer 🔄</button>
+      <button class="btn ghost" id="menuBtn">Changer de mode</button>
+    </div>
+
+    <ol class="recap" id="recap"></ol>
+    <p class="recap-hint">Touche une ville pour la revoir sur le globe.</p>
+
+    <div class="score-form" id="scoreForm" hidden>
+      <label for="pseudo">Entre ton pseudo pour le classement mondial :</label>
+      <div class="score-row">
+        <input type="text" id="pseudo" maxlength="18" placeholder="Ton pseudo" autocomplete="nickname">
+        <button class="btn primary" id="saveScore">Envoyer</button>
+      </div>
+    </div>
+    <p class="score-msg" id="scoreMsg" hidden></p>
+
+    <div class="board" id="endBoard"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
