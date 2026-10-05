@@ -589,7 +589,7 @@ export const CITIES = [
   },
   {
     id: 'bogota', name: 'Bogota', country: 'Colombie', cc: 'co', iso: '170', continent: 'Amérique du Sud',
-    lat: 4.711, lon: -74.072, level: 2, capital: true, icon: '🪙',
+    lat: 4.711, lon: -74.072, level: 2, capital: true, icon: '💰',
     pop: 'environ 7,9 millions', lang: 'Espagnol',
     facts: [
       "Bogota est perchée à environ 2 600 mètres d'altitude, dans la cordillère des Andes.",

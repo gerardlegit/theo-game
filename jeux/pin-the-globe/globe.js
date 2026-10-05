@@ -344,8 +344,10 @@ export class Globe {
       const quick = performance.now() - tap.t < 650;
       tap = null;
       if (!quick || !this.tapEnabled || !this.onTap) return;
-      const hit = this.pick(e.clientX, e.clientY);
-      if (hit) this.onTap(hit);
+      // `hit` vaut null si on touche à côté de la Terre : le mode Monuments
+      // en a besoin pour les points posés tout au bord du globe.
+      const rect = el.getBoundingClientRect();
+      this.onTap(this.pick(e.clientX, e.clientY), { x: e.clientX - rect.left, y: e.clientY - rect.top });
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); tap = null; });
@@ -625,6 +627,14 @@ export class Globe {
     ray.setFromCamera(ndc, this.camera);
     const hit = ray.intersectObject(this.earth, false)[0];
     return hit ? vec3ToLatLon(hit.point) : null;
+  }
+
+  /** Position à l'écran d'un point du globe, et s'il est sur la face visible. */
+  project(lat, lon) {
+    const p = latLonToVec3(lat, lon);
+    const visible = p.dot(this.camera.position) - 1 > 0.02;
+    p.project(this.camera);
+    return { x: (p.x + 1) / 2 * this.width, y: (1 - p.y) / 2 * this.height, visible };
   }
 
   // ---------------------------------------------------------- épingles & co

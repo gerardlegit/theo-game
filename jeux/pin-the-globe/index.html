@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#050816">
 <title>Pin the Globe — La Cabane à Jeux</title>
-<meta name="description" content="Fais tourner la Terre, retrouve 10 villes du monde et plante ton épingle le plus près possible !">
+<meta name="description" content="Fais tourner la Terre et retrouve les villes, les monuments et les merveilles naturelles du monde !">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
@@ -29,9 +29,9 @@
     <a class="back" href="../../index.html">← <span>La Cabane</span></a>
 
     <div class="hud" id="hud" hidden>
-      <div class="hud-round">Ville <b id="roundNum">1</b><span>/10</span></div>
+      <div class="hud-round"><span id="hudRoundLabel">Ville</span> <b id="roundNum">1</b><span>/10</span></div>
       <ol class="dots" id="dots" aria-hidden="true"></ol>
-      <div class="hud-total"><span>Total</span> <b id="totalKm">0</b> km</div>
+      <div class="hud-total"><span id="hudTotalLabel">Total</span> <b id="totalKm">0</b> <i id="hudTotalUnit">km</i></div>
     </div>
 
     <button class="icon-btn" id="soundBtn" aria-label="Couper le son">🔊</button>
@@ -54,15 +54,10 @@
   <section class="panel intro" id="intro">
     <p class="kicker">🌍 Géographie</p>
     <h1 class="title"><span class="title-pin">📍</span>Pin the Globe</h1>
-    <p class="lead">Fais tourner la Terre, retrouve <strong>10 villes du monde</strong> et plante ton épingle le plus près possible !</p>
-
-    <ul class="howto">
-      <li><span>🖐️</span><p><strong>Fais tourner le globe</strong> avec la souris ou ton doigt. Zoome avec la molette ou en pinçant l'écran.</p></li>
-      <li><span>📍</span><p><strong>Touche le globe</strong> pour planter ton épingle, puis valide.</p></li>
-      <li><span>📏</span><p>Ton score = la <strong>distance en km</strong> jusqu'à la vraie ville. Le plus petit total gagne !</p></li>
-    </ul>
+    <p class="lead">Fais tourner la Terre et retrouve les <strong>villes</strong>, les <strong>monuments</strong> et les <strong>merveilles naturelles</strong> du monde !</p>
 
     <div class="modes">
+      <p class="modes-group">🏙️ Les villes du monde <small>score en km</small></p>
       <button class="mode" data-mode="explorateur">
         <span class="mode-icon">🧭</span>
         <span class="mode-text">
@@ -79,7 +74,23 @@
         </span>
         <span class="mode-best" data-best="voyageur"></span>
       </button>
+
+      <p class="modes-group">🗿 Monuments &amp; merveilles <small>1 point par bonne réponse</small></p>
+      <button class="mode mode-wonder" data-mode="monuments">
+        <span class="mode-icon">🗽</span>
+        <span class="mode-text">
+          <strong>Monuments &amp; merveilles</strong>
+          <small>Pyramides, Everest, Grande Muraille… place-les sur les points dorés du globe</small>
+        </span>
+        <span class="mode-best" data-best="monuments"></span>
+      </button>
     </div>
+
+    <ul class="howto" aria-label="Comment jouer">
+      <li><span>🖐️</span><p><strong>Fais tourner le globe</strong> avec la souris ou ton doigt. Zoome avec la molette ou en pinçant l'écran.</p></li>
+      <li><span>📍</span><p><strong>Villes :</strong> touche le globe pour planter ton épingle. Ton score = la <strong>distance en km</strong> jusqu'à la vraie ville : le plus petit total gagne !</p></li>
+      <li><span>🗿</span><p><strong>Monuments :</strong> 10 points dorés t'attendent sur le globe. Choisis le bon point pour chaque lieu : <strong>1 point par bonne réponse</strong> !</p></li>
+    </ul>
 
     <div class="board" id="introBoard"></div>
   </section>
@@ -102,7 +113,7 @@
       <span class="verdict-emoji" id="verdictEmoji"></span>
       <div>
         <p class="verdict-label" id="verdictLabel"></p>
-        <p class="verdict-km"><b id="verdictKm">0</b> km</p>
+        <p class="verdict-km"><b id="verdictKm">0</b> <span id="verdictUnit">km</span></p>
         <p class="verdict-penalty" id="verdictPenalty" hidden>+ 500 km pour l'indice</p>
       </div>
     </div>
@@ -118,8 +129,8 @@
       </header>
       <dl class="city-facts">
         <div><dt>🌍 Continent</dt><dd id="cityContinent"></dd></div>
-        <div><dt>👥 Habitants</dt><dd id="cityPop"></dd></div>
-        <div><dt>🗣️ Langue</dt><dd id="cityLang"></dd></div>
+        <div><dt id="cityPopLabel">👥 Habitants</dt><dd id="cityPop"></dd></div>
+        <div><dt id="cityLangLabel">🗣️ Langue</dt><dd id="cityLang"></dd></div>
         <div><dt>🧭 Coordonnées</dt><dd id="cityCoords"></dd></div>
       </dl>
       <p class="city-hemi" id="cityHemi"></p>
@@ -141,9 +152,9 @@
       <p class="rank-text" id="rankText"></p>
     </div>
     <div class="end-total">
-      <span>Ton total</span>
+      <span id="endTotalLabel">Ton total</span>
       <b id="endTotal">0</b>
-      <span>km</span>
+      <span id="endTotalUnit">km</span>
     </div>
     <p class="end-best" id="endBest"></p>
 
@@ -153,7 +164,7 @@
     </div>
 
     <ol class="recap" id="recap"></ol>
-    <p class="recap-hint">Touche une ville pour la revoir sur le globe.</p>
+    <p class="recap-hint" id="recapHint">Touche une ville pour la revoir sur le globe.</p>
 
     <div class="score-form" id="scoreForm" hidden>
       <label for="pseudo">Entre ton pseudo pour le classement mondial :</label>
