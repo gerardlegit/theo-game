@@ -1,7 +1,7 @@
 import { MODES, makeQuestion, shuffle } from './questions.js';
 import {
-  buildScenery, carSprite, CAR_COLORS, CAR_SPRITE_W, CAR_SPRITE_H, TAIL_LIGHTS,
-  drawGrandpa, drawBoy, drawNotes, drawWindmillBlades, starPath,
+  buildScenery, carSprite, CAR_COLORS, CAR_SPRITE_W, CAR_SPRITE_H, TAIL_LIGHTS, EXHAUST,
+  drawGrandpa, drawSheep, drawGrandpaDance, drawSheepDance, DANCER_HEIGHT, drawNotes, drawWindmillBlades, starPath,
 } from './art.js';
 import { sfx, unlockAudio, isSoundOn, toggleSound, engineStart, engineSpeed, engineStop } from './sound.js';
 
@@ -21,11 +21,21 @@ const MAX_POINTS = TOTAL_QUESTIONS * 2;   // avec un bonus ×2 à chaque calcul
 // Entre deux calculs, parfois un bonus ×2 : on le croise 6 s après les panneaux
 const EVENT_DELAY = 6;
 const GRANDPA_WALK = 1;        // m/s : le papi ne court pas !
-// De plus en plus de papis au fil de la course : 1, 1, 2, 2, 3, 3, 4, 4 entre deux réponses
-const grandpaCountForGap = (k) => Math.min(4, 1 + Math.floor(k / 2));
-// Moments où un papi peut être croisé (en s après les panneaux) : jamais en même temps que
-// le bonus (6 s), le tremplin (13 s) ou un autre papi, pour qu'on puisse toujours l'éviter
-const GRANDPA_SLOTS = [2.5, 4, 7.5, 9, 10.5, 15, 16.5];
+// Obstacles (papis, moutons, taches d'huile), de plus en plus nombreux au fil de la course :
+// 2, 2, 3, 3, 4, 4, 5, 5 entre deux réponses
+const obstacleCountForGap = (k) => Math.min(5, 2 + Math.floor(k / 2));
+const OBSTACLE_TYPES = ['papi', 'sheep', 'oil'];
+// Moments où un obstacle peut être croisé (en s après les panneaux) : jamais en même temps que
+// le turbo (0,8 s), le bonus (6 s), le tremplin (13 s) ou un autre obstacle, pour qu'on puisse toujours l'éviter
+const OBSTACLE_SLOTS = [2.5, 4, 7.5, 9, 10.5, 15, 16.5];
+const OIL_RX = 1.25, OIL_RZ = 1.7;
+// Turbo : une plaque à flèches juste après les panneaux, 5 s à vitesse record.
+// Freinage compris, il s'arrête avant le calcul suivant (20 s après le précédent), qui n'est donc jamais accéléré.
+const BOOST_DELAY = 0.8;
+const BOOST_BRAKE = 30;        // m/s² pour revenir à la vitesse normale (moins d'1 s)
+const BOOST_TIME = 5;
+const BOOST_COUNT = 3;
+const PAD_LEN = 4, PAD_HALF_W = 1.35;
 // Tremplins : on les croise 13 s après les panneaux
 const RAMP_DELAY = 13;
 const RAMP_LEN = 5, RAMP_H = 0.9, RAMP_HALF_W = 1.3;
@@ -35,6 +45,7 @@ const COUNTDOWN = 3;
 
 /* ---------- Monde (en mètres) ---------- */
 const SPEED = 25;                          // 90 km/h
+const BOOST_SPEED = 52;                    // 187 km/h : vitesse record !
 const MENU_SPEED = 13;
 const ROUTE_LEN = SPEED * GAME_DURATION;   // 4,5 km de la ville à la plage
 const SPAWN_AHEAD = SPEED * ANSWER_DELAY;  // distance à laquelle les panneaux apparaissent
@@ -51,7 +62,7 @@ const START_S = 3;                         // la ligne de départ, juste devant 
 const ROAD_AFTER_FINISH = 40;  // la route s'arrête 40 m après l'arche…
 const BEACH_LEN = 30;          // … puis 30 m de plage avant la mer
 const STOP_ON_SAND = 6;        // la voiture s'arrête un peu sur le sable
-const BOY_AHEAD = 5, BOY_X = 2.6;
+const DANCER_AHEAD = 5, DANCER_X = 2.6;   // le danseur de l'arrivée, sur le sable
 const NEAR_ZC = 0.8;           // rien n'est dessiné plus près de la caméra
 
 /* ---------- Éléments de la page ---------- */
@@ -65,6 +76,8 @@ const timerPill = timerEl.parentElement;
 const pointsEl = $('points');
 const pointsPill = $('pointsPill');
 const bonusBadge = $('bonusBadge');
+const turboPill = $('turboPill');
+const turboBar = $('turboBar');
 const tripFill = $('tripFill');
 const tripCar = $('tripCar');
 const tripTicks = $('tripTicks');
@@ -213,10 +226,11 @@ let dist = 0, speed = 0;
 let lane = 1, carX = 0, carY = 0, camX = 0, tilt = 0, squash = 0;
 let curve = 0, curveTarget = 0, nextCurveChangeAt = 0, nextMenuLane = 0;
 let bgOffset = 0, clock = 0;
-let points = 0, correctCount = 0, bonusCaught = 0, papisHit = 0;
+let points = 0, correctCount = 0, bonusCaught = 0, obstaclesHit = 0;
 let bonusActive = false;
 let events = [], nextEventIdx = 0, bonuses = [];
-let grandpas = [], grandpaPlan = [], nextGrandpaIdx = 0;
+let obstacles = [], obstaclePlan = [], nextObstacleIdx = 0;
+let boostPlan = [], nextBoostIdx = 0, pads = [], boostLeft = 0, skid = 0;
 let rampPlan = [], nextRampIdx = 0, ramps = [], onRamp = null, jumpV = 0, airborne = false;
 let toastHideAt = null;
 let roadEnd = Infinity, seaStart = Infinity, decel = 12;
@@ -227,6 +241,7 @@ let results = [];            // pour chaque calcul : true / false
 let particles = [], confetti = [], floaters = [];
 let flash = null, shake = 0;
 let doneAt = null, braking = false;
+let dancer = 'papi';        // qui danse à l'arrivée : 'papi' ou 'sheep'
 
 /* ---------- Calculs ---------- */
 function spawnQuestion() {
@@ -289,7 +304,7 @@ function resolveQuestion() {
   hideCardAt = gameTime + 3.2;
 }
 
-/* ---------- Bonus ×2, papis et tremplins ---------- */
+/* ---------- Bonus ×2, obstacles, turbos et tremplins ---------- */
 function planEvents() {
   // 2 ou 3 bonus, répartis au hasard entre les 9 calculs
   const list = Array(randInt(2, 3)).fill('bonus');
@@ -297,36 +312,69 @@ function planEvents() {
   return shuffle(list);
 }
 
-function planGrandpas() {
-  const times = [];
+function planObstacles() {
+  const list = [];
   for (let k = 0; k < TOTAL_QUESTIONS - 1; k++) {
-    shuffle(GRANDPA_SLOTS).slice(0, grandpaCountForGap(k)).forEach((slot) => {
-      times.push(FIRST_QUESTION_AT + k * QUESTION_EVERY + slot);
+    shuffle(OBSTACLE_SLOTS).slice(0, obstacleCountForGap(k)).forEach((slot) => {
+      list.push({ t: FIRST_QUESTION_AT + k * QUESTION_EVERY + slot });
     });
   }
-  return times.sort((a, b) => a - b);
+  list.sort((a, b) => a.t - b.t);
+  // jamais deux fois le même obstacle d'affilée
+  let prev = null;
+  list.forEach((o) => {
+    const choices = OBSTACLE_TYPES.filter((type) => type !== prev);
+    o.type = choices[randInt(0, choices.length - 1)];
+    prev = o.type;
+  });
+  return list;
 }
 
 const eventSpawnTime = (k) => FIRST_QUESTION_AT + k * QUESTION_EVERY + EVENT_DELAY;
+const boostSpawnTime = (k) => FIRST_QUESTION_AT + k * QUESTION_EVERY + BOOST_DELAY;
 
-function spawnGrandpa() {
-  // Le papi marche à vitesse constante et sera pile au milieu d'une voie quand la voiture arrive
+function spawnObstacle(type) {
   const l = randInt(0, 2);
-  const dir = Math.random() < 0.5 ? 1 : -1;
-  const targetX = (l - 1) * LANE_W;
-  grandpas.push({
+  obstacles.push({
+    type,
     s: dist + SPAWN_AHEAD,
-    startX: targetX - dir * GRANDPA_WALK * ANSWER_DELAY,
-    dir,
-    spawnT: gameTime,
+    lane: l,
+    targetX: (l - 1) * LANE_W,
+    dir: Math.random() < 0.5 ? 1 : -1,
+    seed: Math.random() * 100,
     resolved: false,
-    hit: false,
+    hit: false,       // touché : −1 point
+    dodged: false,    // percuté en turbo : il s'écarte, sans perdre de point
     hitAt: 0,
+    hitX: 0,
     fleeDir: 1,
   });
 }
 
-const grandpaX = (g) => g.startX + g.dir * GRANDPA_WALK * (Math.min(gameTime, g.hit ? g.hitGameT : gameTime) - g.spawnT);
+// Position de l'obstacle sur la largeur de la route. Le papi marche vers sa voie au rythme
+// où la voiture approche : il y est pile quand on arrive, même en turbo.
+function obstacleX(o) {
+  if (o.hit || o.dodged) return o.hitX;
+  if (o.type === 'papi') return o.targetX - o.dir * GRANDPA_WALK * ((o.s - dist) / SPEED);
+  if (o.type === 'sheep') return o.targetX + Math.sin(clock * 0.6 + o.seed) * 0.25;
+  return o.targetX;
+}
+
+function activateBoost() {
+  boostLeft = BOOST_TIME;
+  showToast('TURBO ! Vitesse record !', 'turbo');
+  screenBurst('spark', 24);
+  flash = { color: '56, 225, 255', life: 1 };
+  shake = Math.max(shake, 0.45);
+  squash = -0.1;
+  sfx.boost();
+}
+
+const OBSTACLE_HIT = {
+  papi: { text: 'Attention à Papi ! −1 point', sound: () => sfx.honk() },
+  sheep: { text: 'Bêêê ! Attention au mouton ! −1 point', sound: () => { sfx.honk(); sfx.baa(); } },
+  oil: { text: 'Ça glisse ! Tache d’huile : −1 point', sound: () => sfx.skid() },
+};
 
 function showToast(text, kind) {
   toastEl.textContent = text;
@@ -352,27 +400,44 @@ function resolveEvents() {
       sfx.bonus();
     }
   });
-  grandpas.forEach((g) => {
-    if (g.resolved || g.s - dist > HIT_Z) return;
-    g.resolved = true;
-    const gx = grandpaX(g);
-    if (Math.abs(gx - carX) < 1.5 && carY < 1.1) {
-      g.hit = true;
-      g.hitAt = clock;
-      g.hitGameT = gameTime;
-      g.fleeDir = gx >= carX ? 1 : -1;
-      papisHit += 1;
-      const lost = points > 0;
-      points = Math.max(0, points - 1);
-      showToast('Attention à Papi ! −1 point', 'bad');
-      if (lost) floatText('−1', '#FF7A88');
-      flash = { color: '255, 77, 94', life: 1 };
-      shake = 0.7;
-      pointsPill.classList.remove('bump', 'drop');
-      void pointsPill.offsetWidth;
-      pointsPill.classList.add('drop');
-      sfx.honk();
+  obstacles.forEach((o) => {
+    if (o.resolved || o.s - dist > HIT_Z) return;
+    o.resolved = true;
+    const ox = obstacleX(o);
+    // la tache d'huile est plus large, mais on la survole en sautant
+    const reach = o.type === 'oil' ? 1.7 : 1.5;
+    const high = o.type === 'oil' ? 0.25 : o.type === 'sheep' ? 1.0 : 1.1;
+    if (Math.abs(ox - carX) >= reach || carY >= high) return;
+    o.hitX = ox;
+    o.hitAt = clock;
+    o.fleeDir = ox >= carX ? 1 : -1;
+
+    if (boostLeft > 0) {
+      // En turbo, rien ne nous arrête : l'obstacle s'écarte d'un bond
+      o.dodged = true;
+      screenBurst('spark', 10);
+      if (o.type === 'oil') oilSplash(ox, o.s, 14);
+      if (o.type === 'sheep') sfx.baa();
+      sfx.zap();
+      return;
     }
+
+    o.hit = true;
+    obstaclesHit += 1;
+    const lost = points > 0;
+    points = Math.max(0, points - 1);
+    showToast(OBSTACLE_HIT[o.type].text, 'bad');
+    if (lost) floatText('−1', '#FF7A88');
+    flash = { color: '255, 77, 94', life: 1 };
+    shake = 0.7;
+    if (o.type === 'oil') {
+      skid = 1;
+      oilSplash(ox, o.s, 26);
+    }
+    pointsPill.classList.remove('bump', 'drop');
+    void pointsPill.offsetWidth;
+    pointsPill.classList.add('drop');
+    OBSTACLE_HIT[o.type].sound();
   });
 }
 
@@ -393,7 +458,7 @@ function resetRace() {
   points = 0;
   correctCount = 0;
   bonusCaught = 0;
-  papisHit = 0;
+  obstaclesHit = 0;
   bonusActive = false;
   events = planEvents();
   nextEventIdx = 0;
@@ -405,9 +470,14 @@ function resetRace() {
   jumpV = 0;
   airborne = false;
   bonuses = [];
-  grandpas = [];
-  grandpaPlan = planGrandpas();
-  nextGrandpaIdx = 0;
+  obstacles = [];
+  obstaclePlan = planObstacles();
+  nextObstacleIdx = 0;
+  boostPlan = shuffle([...Array(BOOST_COUNT).fill(true), ...Array(TOTAL_QUESTIONS - 1 - BOOST_COUNT).fill(false)]);
+  nextBoostIdx = 0;
+  pads = [];
+  boostLeft = 0;
+  skid = 0;
   toastHideAt = null;
   toastEl.hidden = true;
   roadEnd = Infinity;
@@ -428,6 +498,10 @@ function resetRace() {
   shake = 0;
   doneAt = null;
   braking = false;
+  dancer = Math.random() < 0.5 ? 'papi' : 'sheep';
+  danceCanvas.setAttribute('aria-label', dancer === 'papi'
+    ? 'Papi fait une danse rigolote avec sa canne'
+    : 'Un mouton danse debout sur ses pattes arrière');
   qcard.hidden = true;
   [...tripTicks.children].forEach((t) => t.classList.remove('ok', 'ko'));
 }
@@ -516,7 +590,7 @@ function endGame() {
   $('endPointsLabel').textContent = `point${plural(points)}`;
   $('statGood').textContent = `${correctCount}/${TOTAL_QUESTIONS}`;
   $('statBonus').textContent = String(bonusCaught);
-  $('statPapi').textContent = String(papisHit);
+  $('statObstacles').textContent = String(obstaclesHit);
   const word = mode === 'add' ? 'des additions' : 'des multiplications';
   let cheer = 'Continue de t’entraîner, tu vas y arriver !';
   if (correctCount === TOTAL_QUESTIONS) cheer = `Un sans-faute, champion ${word} !`;
@@ -563,7 +637,11 @@ function update(dt) {
     updateCountdown(dt);
   } else if (state === 'playing') {
     gameTime += dt;
-    speed = Math.min(SPEED, speed + 24 * dt);
+    // Le turbo pousse fort, puis la voiture revient doucement à sa vitesse de croisière
+    const target = boostLeft > 0 ? BOOST_SPEED : SPEED;
+    if (speed < target) speed = Math.min(target, speed + (boostLeft > 0 ? 70 : 24) * dt);
+    else speed = Math.max(target, speed - BOOST_BRAKE * dt);
+    boostLeft = Math.max(0, boostLeft - dt);
   } else if (state === 'finishing' || state === 'done') {
     speed = Math.max(0, speed - decel * dt);
     braking = speed > 0;
@@ -612,10 +690,23 @@ function updateRace() {
     r.used = true;
     if (currentLane() === r.lane && !airborne) onRamp = r;
   });
-  while (nextGrandpaIdx < grandpaPlan.length && gameTime >= grandpaPlan[nextGrandpaIdx]) {
-    spawnGrandpa();
-    nextGrandpaIdx += 1;
+  while (nextObstacleIdx < obstaclePlan.length && gameTime >= obstaclePlan[nextObstacleIdx].t) {
+    spawnObstacle(obstaclePlan[nextObstacleIdx].type);
+    nextObstacleIdx += 1;
   }
+  if (nextBoostIdx < boostPlan.length && gameTime >= boostSpawnTime(nextBoostIdx)) {
+    if (boostPlan[nextBoostIdx]) pads.push({ s: dist + SPAWN_AHEAD, lane: randInt(0, 2), used: false, hit: false });
+    nextBoostIdx += 1;
+  }
+  // On déclenche le turbo en roulant sur la plaque (pas en la survolant)
+  pads.forEach((p) => {
+    if (p.used || p.s - dist > 0) return;
+    p.used = true;
+    if (currentLane() === p.lane && carY < 0.4) {
+      p.hit = true;
+      activateBoost();
+    }
+  });
   if (nextEventIdx < events.length && gameTime >= eventSpawnTime(nextEventIdx)) {
     if (events[nextEventIdx] === 'bonus') bonuses.push({ s: dist + SPAWN_AHEAD, lane: randInt(0, 2), resolved: false, hit: false });
     nextEventIdx += 1;
@@ -638,6 +729,7 @@ function updateRace() {
     state = 'finishing';
     qcard.hidden = true;
     lane = 1;
+    boostLeft = 0;
     // freinage calculé pour s'arrêter juste après la fin de la route, sur le sable
     decel = (speed * speed) / (2 * Math.max(1, roadEnd + STOP_ON_SAND - dist));
     paperBurst(0, finishLine.s, ['#FF4D8B', '#3D9BFF', '#FFC21A', '#22C97A', '#FFFFFF'], 120);
@@ -686,8 +778,9 @@ function updateCarPhysics(dt) {
     }
   }
   squash *= Math.pow(0.0005, dt);
+  skid = Math.max(0, skid - dt * 0.9);
 
-  // La caméra suit la voiture avec un peu de retard (et regarde le petit garçon à l'arrivée)
+  // La caméra suit la voiture avec un peu de retard (et regarde le danseur à l'arrivée)
   const camTarget = carX * 0.7 + (state === 'finishing' || state === 'done' ? 1.1 : 0);
   camX += (camTarget - camX) * Math.min(1, dt * 3);
 
@@ -755,6 +848,27 @@ function paperBurst(x, s, colors, count) {
       h: 0.08 + Math.random() * 0.1,
       color: colors[i % colors.length],
       life: 1.4 + Math.random() * 0.8,
+    });
+  }
+}
+
+// Des gouttes d'huile qui giclent sous les roues
+function oilSplash(x, s, count) {
+  const colors = ['#2B2742', '#3E3866', '#1B1846', '#5B4FA0'];
+  for (let i = 0; i < count; i++) {
+    confetti.push({
+      x: x + (Math.random() - 0.5) * 2,
+      y: 0.05,
+      s: s + (Math.random() - 0.5) * 2,
+      vx: (Math.random() - 0.5) * 7,
+      vy: 2 + Math.random() * 4,
+      vs: speed * (0.75 + Math.random() * 0.3),
+      rot: Math.random() * 6,
+      vr: (Math.random() - 0.5) * 10,
+      w: 0.1 + Math.random() * 0.12,
+      h: 0.1 + Math.random() * 0.12,
+      color: colors[i % colors.length],
+      life: 0.8 + Math.random() * 0.5,
     });
   }
 }
@@ -1087,8 +1201,8 @@ function collectObjects() {
       if (z < zMin || z > DRAW_DIST) return;
       items.push({ kind: 'sprite', z, x: d.x, h: d.h, spr: SPR[d.spr], y: d.boat ? -0.4 + Math.sin(clock * 1.6 + d.ds) * 0.25 : 0 });
     });
-    const zb = roadEnd + STOP_ON_SAND + BOY_AHEAD - dist;
-    if (zb >= zMin && zb <= DRAW_DIST) items.push({ kind: 'boy', z: zb });
+    const zb = roadEnd + STOP_ON_SAND + DANCER_AHEAD - dist;
+    if (zb >= zMin && zb <= DRAW_DIST) items.push({ kind: 'dancer', z: zb });
   }
 
   gates.forEach((g) => {
@@ -1106,10 +1220,10 @@ function collectObjects() {
     if (b.hit || z < zMin || z > DRAW_DIST) return;
     items.push({ kind: 'bonus', z, bonus: b });
   });
-  grandpas.forEach((g) => {
-    const z = g.s - dist;
-    if (z < zMin || z > DRAW_DIST) return;
-    items.push({ kind: 'grandpa', z, grandpa: g });
+  obstacles.forEach((o) => {
+    const z = o.s - dist;
+    if (o.type === 'oil' || z < zMin || z > DRAW_DIST) return;   // l'huile est dessinée avec le sol
+    items.push({ kind: 'obstacle', z, obstacle: o });
   });
   if (finishLine) {
     const z = finishLine.s - dist;
@@ -1352,49 +1466,313 @@ function drawRamp(r) {
   ctx.globalAlpha = 1;
 }
 
-function drawGrandpaItem(g, z) {
-  let x = grandpaX(g);
+const SHEEP_SIZE = 1.2;   // un mouton bien dodu, pour qu'on le voie de loin
+
+function drawObstacle(o, z) {
+  let x = obstacleX(o);
   let y = 0;
   let scared = 0;
-  if (g.hit) {
-    // Papi fait un bond de côté pour éviter la voiture
-    const t = clamp((clock - g.hitAt) / 0.6, 0, 1);
-    x += g.fleeDir * smooth(t) * 2.6;
-    y = Math.sin(t * Math.PI) * 0.9;
+  if (o.hit || o.dodged) {
+    // Il fait un bond de côté pour éviter la voiture (encore plus loin si on arrive en turbo)
+    const far = o.dodged ? 2.2 : 1;
+    const t = clamp((clock - o.hitAt) / (0.6 * Math.sqrt(far)), 0, 1);
+    x += o.fleeDir * smooth(t) * 2.6 * far;
+    y = Math.sin(t * Math.PI) * 0.9 * far;
     scared = 1;
   }
   const gnd = proj(x, 0, z);
   const p = proj(x, y, z);
   if (p.sc * 1.8 < 4) return;
   ctx.globalAlpha = fogAlpha(z);
-  shadow(gnd.x, gnd.y, 0.45 * gnd.sc, 0.1 * gnd.sc, 0.2);
-  drawGrandpa(ctx, p.x, p.y, p.sc, clock, g.dir, scared);
+  if (o.type === 'sheep') {
+    const s = p.sc * SHEEP_SIZE;
+    shadow(gnd.x, gnd.y, 0.7 * gnd.sc * SHEEP_SIZE, 0.12 * gnd.sc, 0.2);
+    drawSheep(ctx, p.x, p.y, s, clock, scared ? o.fleeDir : o.dir, scared, o.seed);
+    // il bêle de temps en temps (et très fort quand on fonce sur lui !)
+    if (scared ? clock - o.hitAt < 1 : z > 8 && z < 120 && Math.sin(clock * 1.1 + o.seed) > 0.55) {
+      drawBubble(p.x - o.dir * 0.35 * s, p.y - 1.25 * s, s, scared ? 'BÊÊÊ !' : 'Bêê !');
+    }
+  } else {
+    shadow(gnd.x, gnd.y, 0.45 * gnd.sc, 0.1 * gnd.sc, 0.2);
+    drawGrandpa(ctx, p.x, p.y, p.sc, clock, o.dir, scared);
+  }
   ctx.globalAlpha = 1;
 }
 
-function drawBoyItem(z) {
-  const p = proj(BOY_X, 0, z);
-  ctx.globalAlpha = fogAlpha(z);
-  drawBoy(ctx, p.x, p.y, p.sc * 1.5, clock);
+// Une petite bulle de bande dessinée
+function drawBubble(x, y, sc, text) {
+  const fs = 0.34 * sc;
+  if (fs < 8) return;
+  ctx.font = `${Math.round(fs)}px 'Lilita One', 'Baloo 2', sans-serif`;
+  const w = ctx.measureText(text).width + fs * 0.9;
+  const h = fs * 1.45;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = 'rgba(27, 24, 70, 0.25)';
+  ctx.lineWidth = Math.max(1, fs * 0.08);
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, y - h, w, h, h / 2);
+  ctx.moveTo(x - fs * 0.25, y - 1);
+  ctx.lineTo(x + fs * 0.1, y + fs * 0.45);
+  ctx.lineTo(x + fs * 0.25, y - 1);
+  ctx.fill();
+  ctx.fillStyle = '#2E2A4D';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y - h / 2 + fs * 0.06);
+}
+
+/* ---------- Au ras du sol : plaques turbo et taches d'huile ---------- */
+// Polygone posé sur la route, points en [x, z] (mètres)
+function groundPath(pts) {
+  const zMin = -CAM_BACK + NEAR_ZC;
+  ctx.beginPath();
+  pts.forEach(([x, z], i) => {
+    const p = proj(x, 0, Math.max(z, zMin));
+    if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+  });
+  ctx.closePath();
+}
+
+function drawGroundItems() {
+  const zMin = -CAM_BACK + NEAR_ZC;
+  pads.forEach((p) => {
+    const z = p.s - dist;
+    if (z + PAD_LEN > zMin && z < DRAW_DIST) drawPad(p, z);
+  });
+  obstacles.forEach((o) => {
+    const z = o.s - dist;
+    if (o.type === 'oil' && z + OIL_RZ > zMin && z - OIL_RZ < DRAW_DIST) drawOil(o, z);
+  });
+}
+
+// La plaque turbo : des flèches jaunes qui défilent vers l'avant, et un éclair qui flotte
+function drawPad(pad, z0) {
+  const x = (pad.lane - 1) * LANE_W;
+  const z1 = z0 + PAD_LEN;
+  const mid = proj(x, 0, Math.max(z0 + PAD_LEN / 2, -CAM_BACK + NEAR_ZC));
+  const sc = mid.sc;
+  if (PAD_HALF_W * 2 * sc < 3) return;
+  ctx.globalAlpha = fogAlpha(z0);
+
+  ctx.globalCompositeOperation = 'lighter';
+  const halo = ctx.createRadialGradient(mid.x, mid.y, 0, mid.x, mid.y, 2.6 * sc);
+  halo.addColorStop(0, `rgba(56, 225, 255, ${0.5 + 0.15 * Math.sin(clock * 8)})`);
+  halo.addColorStop(1, 'rgba(56, 225, 255, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(mid.x - 2.7 * sc, mid.y - 2.7 * sc, 5.4 * sc, 5.4 * sc);
+  ctx.globalCompositeOperation = 'source-over';
+
+  const hw = PAD_HALF_W;
+  groundPath([[x - hw, z0], [x + hw, z0], [x + hw, z1], [x - hw, z1]]);
+  ctx.fillStyle = '#1C2A78';
+  ctx.fill();
+  ctx.strokeStyle = '#5FF0FF';
+  ctx.lineWidth = Math.max(1, 0.12 * sc);
+  ctx.stroke();
+
+  ctx.save();
+  groundPath([[x - hw + 0.15, z0 + 0.1], [x + hw - 0.15, z0 + 0.1], [x + hw - 0.15, z1 - 0.1], [x - hw + 0.15, z1 - 0.1]]);
+  ctx.clip();
+  const phase = (clock * 2.4) % 1;
+  const aw = hw - 0.32;
+  for (let k = -1; k < 4; k++) {
+    const zc = z0 + (k + phase) * 1.2;
+    groundPath([[x - aw, zc], [x, zc + 0.7], [x + aw, zc], [x + aw, zc + 0.4], [x, zc + 1.1], [x - aw, zc + 0.4]]);
+    ctx.fillStyle = k === 1 ? '#FFFFFF' : '#FFE14D';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // l'éclair qui flotte au-dessus (il disparaît quand on l'a pris)
+  if (!pad.hit) {
+    const c = proj(x, 1.25 + Math.sin(clock * 4 + pad.s) * 0.12, z0 + PAD_LEN / 2);
+    const r = 0.72 * c.sc;
+    if (r > 2) {
+      const bolt = [[0.15, -1], [-0.55, 0.12], [-0.05, 0.12], [-0.22, 1], [0.55, -0.16], [0.06, -0.16]];
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.scale(Math.max(0.3, Math.abs(Math.cos(clock * 2.5))), 1);
+      ctx.shadowColor = 'rgba(95, 240, 255, 0.95)';
+      ctx.shadowBlur = Math.min(30, r * 0.8);
+      ctx.beginPath();
+      bolt.forEach(([bx, by], i) => (i ? ctx.lineTo(bx * r, by * r) : ctx.moveTo(bx * r, by * r)));
+      ctx.closePath();
+      ctx.fillStyle = '#FFE14D';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = Math.max(1, r * 0.14);
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
   ctx.globalAlpha = 1;
-  if (p.sc > 12) drawNotes(ctx, p.x, p.y, p.sc * 1.5, clock);
+}
+
+// Une flaque d'huile toute noire, avec ses reflets arc-en-ciel
+function drawOil(o, z) {
+  const x = o.targetX;
+  const near = proj(x, 0, Math.max(z, -CAM_BACK + NEAR_ZC));
+  if (OIL_RX * 2 * near.sc < 3) return;
+  ctx.globalAlpha = fogAlpha(z);
+  const shape = (k, dx, dz) => {
+    const pts = [];
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const r = k * (1 + 0.16 * Math.sin(3 * a + o.seed) + 0.09 * Math.sin(5 * a + o.seed * 1.7));
+      pts.push([x + dx + Math.cos(a) * OIL_RX * r, z + dz + Math.sin(a) * OIL_RZ * r]);
+    }
+    return pts;
+  };
+  groundPath(shape(1.06, 0, 0));
+  ctx.fillStyle = 'rgba(27, 24, 70, 0.35)';
+  ctx.fill();
+  groundPath(shape(1, 0, 0));
+  ctx.fillStyle = '#211D38';
+  ctx.fill();
+
+  const l = proj(x - OIL_RX, 0, Math.max(z, -CAM_BACK + NEAR_ZC));
+  const r = proj(x + OIL_RX, 0, Math.max(z, -CAM_BACK + NEAR_ZC));
+  const sheen = ctx.createLinearGradient(l.x, 0, r.x, 0);
+  const shift = Math.sin(clock * 1.5 + o.seed) * 0.12;
+  sheen.addColorStop(clamp(0.1 + shift, 0, 1), 'rgba(123, 92, 255, 0.55)');
+  sheen.addColorStop(clamp(0.38 + shift, 0, 1), 'rgba(56, 225, 255, 0.5)');
+  sheen.addColorStop(clamp(0.62 + shift, 0, 1), 'rgba(255, 225, 77, 0.45)');
+  sheen.addColorStop(clamp(0.9 + shift, 0, 1), 'rgba(255, 93, 162, 0.5)');
+  groundPath(shape(0.6, 0.15, 0.25));
+  ctx.fillStyle = sheen;
+  ctx.fill();
+  groundPath(shape(0.42, 0.2, 0.3));
+  ctx.fillStyle = '#2A2547';
+  ctx.fill();
+  // reflet du ciel et gouttes autour
+  groundPath(shape(0.16, -0.45, 0.7));
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.fill();
+  [[1.5, -0.6, 0.16], [-1.45, 0.9, 0.12], [0.9, 1.9, 0.1]].forEach(([dx, dz, k]) => {
+    groundPath(shape(k, dx, dz));
+    ctx.fillStyle = '#211D38';
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- Le turbo à l'écran ---------- */
+const turboLevel = () => (state === 'playing' ? clamp((speed - SPEED) / (BOOST_SPEED - SPEED), 0, 1) : 0);
+
+// Une flamme en goutte d'eau, du pot d'échappement vers nous
+function flame(x, y, r, len, stops) {
+  const g = ctx.createLinearGradient(0, y - r, 0, y + len);
+  stops.forEach(([o, c]) => g.addColorStop(o, c));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(x - r, y);
+  ctx.quadraticCurveTo(x - r * 0.9, y + len * 0.55, x, y + len);
+  ctx.quadraticCurveTo(x + r * 0.9, y + len * 0.55, x + r, y);
+  ctx.arc(x, y, r, 0, Math.PI, true);
+  ctx.fill();
+}
+
+// Des traits de vitesse qui jaillissent de l'horizon, et des bords bleutés
+function drawTurboFx() {
+  const fx = turboLevel();
+  if (fx <= 0.01) return;
+  const cx = W / 2, cy = horizonY;
+  const maxR = Math.hypot(W, H);
+  ctx.save();
+  ctx.lineCap = 'round';
+  const lw = Math.max(1, Math.min(W, H) / 400);
+  for (let i = 0; i < 56; i++) {
+    const a = hash(i * 3.17) * Math.PI * 2;
+    const fromDown = Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2)));
+    if (fromDown < 0.55) continue;   // pas de traits sur la voiture
+    const ph = (clock * 2.6 + hash(i * 7.31)) % 1;
+    const r0 = maxR * (0.14 + ph * 0.5);
+    const len = maxR * (0.06 + ph * 0.16);
+    const x0 = cx + Math.cos(a) * r0, y0 = cy + Math.sin(a) * r0;
+    const x1 = cx + Math.cos(a) * (r0 + len), y1 = cy + Math.sin(a) * (r0 + len);
+    // un liseré bleu sous le trait blanc : on le voit aussi bien sur le ciel que sur l'herbe
+    ctx.strokeStyle = `rgba(47, 107, 255, ${0.35 * fx * ph})`;
+    ctx.lineWidth = lw * (3 + ph * 6);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * fx * ph})`;
+    ctx.lineWidth = lw * (1.2 + ph * 3);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  const g = ctx.createRadialGradient(cx, H * 0.55, Math.min(W, H) * 0.35, cx, H * 0.55, maxR * 0.62);
+  g.addColorStop(0, 'rgba(56, 225, 255, 0)');
+  g.addColorStop(1, `rgba(40, 140, 255, ${0.42 * fx})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+// Papi ou le mouton fête notre arrivée en dansant sur la plage
+function drawDance(c, x, gy, s, t) {
+  if (dancer === 'papi') drawGrandpaDance(c, x, gy, s, t);
+  else drawSheepDance(c, x, gy, s, t);
+}
+
+function drawDancerItem(z) {
+  const p = proj(DANCER_X, 0, z);
+  const s = p.sc * (dancer === 'papi' ? 1.3 : 1.6);
+  ctx.globalAlpha = fogAlpha(z);
+  drawDance(ctx, p.x, p.y, s, clock);
+  ctx.globalAlpha = 1;
+  if (p.sc > 12) drawNotes(ctx, p.x, p.y, s, clock);
 }
 
 function drawCar() {
-  const gnd = proj(carX, 0, 0);
-  const p = proj(carX, carY, 0);
+  // Sur une tache d'huile, la voiture zigzague en dérapant
+  const wobble = skid > 0 ? Math.sin(clock * 13) * 0.5 * skid : 0;
+  const gnd = proj(carX + wobble, 0, 0);
+  const p = proj(carX + wobble, carY, 0);
   const sc = p.sc;
   const h = CAR_H * sc;
   const w = CAR_W * sc;
   const lift = 1 / (1 + carY * 0.6);
+  const fx = turboLevel();
   shadow(gnd.x, gnd.y - 0.04 * sc, w * 0.56 * lift, 0.3 * sc * lift, 0.32 * lift);
 
-  const rattle = speed > 1 && carY === 0 ? Math.sin(clock * 40) * 0.012 * sc : 0;
+  // En turbo, les roues laissent deux traînées de lumière sur la route
+  if (fx > 0.01) {
+    ctx.globalCompositeOperation = 'lighter';
+    [-0.78, 0.78].forEach((wx) => {
+      const a = proj(carX + wobble + wx, 0, -0.2);
+      const b = proj(carX + wobble + wx * 1.1, 0, -CAM_BACK * 0.7);
+      const tg = ctx.createLinearGradient(0, a.y, 0, b.y);
+      tg.addColorStop(0, `rgba(95, 240, 255, ${0.75 * fx})`);
+      tg.addColorStop(1, 'rgba(56, 160, 255, 0)');
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.moveTo(a.x - 0.17 * a.sc, a.y);
+      ctx.lineTo(a.x + 0.17 * a.sc, a.y);
+      ctx.lineTo(b.x + 0.17 * b.sc, b.y);
+      ctx.lineTo(b.x - 0.17 * b.sc, b.y);
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  const rattle = speed > 1 && carY === 0 ? Math.sin(clock * (fx > 0 ? 70 : 40)) * (0.012 + 0.012 * fx) * sc : 0;
   ctx.save();
   ctx.translate(p.x, p.y + rattle);
-  ctx.rotate(tilt);
+  ctx.rotate(tilt + (skid > 0 ? Math.sin(clock * 17) * 0.22 * skid : 0));
   ctx.scale(1 + squash * 0.6, 1 - squash);
   carSpr.draw(ctx, 0, 0, h, dpr);
+  // Les flammes du turbo
+  if (fx > 0.01) {
+    const ex = (EXHAUST[0] / CAR_SPRITE_W - 0.5) * w;
+    const ey = -(1 - EXHAUST[1] / CAR_SPRITE_H) * h;
+    const flick = 0.8 + 0.2 * Math.sin(clock * 47) + 0.12 * Math.sin(clock * 31);
+    const len = 1.15 * sc * fx * flick;
+    ctx.globalCompositeOperation = 'lighter';
+    flame(ex, ey, 0.32 * sc, len * 1.35, [[0, 'rgba(95, 200, 255, 0.95)'], [1, 'rgba(60, 120, 255, 0)']]);
+    flame(ex, ey, 0.19 * sc, len, [[0, '#FFFFFF'], [0.3, 'rgba(255, 225, 77, 0.95)'], [1, 'rgba(255, 110, 40, 0)']]);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   // Les feux s'allument quand on freine
   if (braking || state === 'countdown') {
     ctx.globalCompositeOperation = 'lighter';
@@ -1475,8 +1853,15 @@ function drawFlash() {
   ctx.fillRect(0, 0, W, H);
 }
 
+// Avancement de la course (selon le chrono : avec le turbo, on parcourt un peu plus de route)
+function raceProgress() {
+  if (state === 'menu') return 0;
+  if (state === 'countdown' || state === 'playing') return clamp(gameTime / GAME_DURATION, 0, 1);
+  return 1;
+}
+
 function render() {
-  tripP = state === 'menu' ? 0 : clamp(dist / ROUTE_LEN, 0, 1);
+  tripP = raceProgress();
   // En l'air, la voiture se cabre : l'horizon bouge un peu, et la caméra suit le saut
   horizonY = HORIZON + jumpV * K * 0.06;
   camY = CAM_H + carY * 0.35;
@@ -1491,6 +1876,7 @@ function render() {
   drawRoad(sunX);
   if (state !== 'menu') drawCheckerLine(START_S, 1.2);
   if (finishLine) drawCheckerLine(finishLine.s - 0.6, 1.2);
+  drawGroundItems();
   drawHaze(skyCols[2]);
 
   collectObjects().forEach((item) => {
@@ -1498,15 +1884,16 @@ function render() {
       case 'sprite': drawSpriteItem(item); break;
       case 'gate': drawGate(item.gate, item.z); break;
       case 'bonus': drawBonus(item.bonus, item.z); break;
-      case 'grandpa': drawGrandpaItem(item.grandpa, item.z); break;
+      case 'obstacle': drawObstacle(item.obstacle, item.z); break;
       case 'ramp': drawRamp(item.ramp); break;
-      case 'boy': drawBoyItem(item.z); break;
+      case 'dancer': drawDancerItem(item.z); break;
       case 'finish': drawFinish(item.z); break;
       case 'car': drawCar(); break;
       default: break;
     }
   });
   drawConfetti();
+  drawTurboFx();
   drawParticles();
   drawFlash();
 }
@@ -1535,10 +1922,12 @@ function updateHud() {
   setText(timerEl, 'timer', formatTime(timeLeft));
   timerPill.classList.toggle('hurry', state === 'playing' && timeLeft <= 15);
   setText(pointsEl, 'points', String(points));
-  const pct = `${clamp(dist / ROUTE_LEN, 0, 1) * 100}%`;
+  const pct = `${raceProgress() * 100}%`;
   tripFill.style.width = pct;
   tripCar.style.left = pct;
   bonusBadge.hidden = !bonusActive;
+  turboPill.hidden = boostLeft <= 0;
+  if (boostLeft > 0) turboBar.style.width = `${(boostLeft / BOOST_TIME) * 100}%`;
   qBonus.hidden = !bonusActive;
   if (currentQuestion && !currentQuestion.resolved) {
     qBar.style.width = `${clamp((currentQuestion.s - dist) / SPAWN_AHEAD, 0, 1) * 100}%`;
@@ -1563,8 +1952,8 @@ function drawDanceCard() {
   const w = danceCanvas.width / dpr, h = danceCanvas.height / dpr;
   danceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   danceCtx.clearRect(0, 0, w, h);
-  const s = h * 0.56;   // le garçon (cheveux compris) tient dans le cadre
-  drawBoy(danceCtx, w / 2, h - 8, s, clock);
+  const s = (h - 12) / DANCER_HEIGHT[dancer];   // le danseur, bras levés compris, tient dans le cadre
+  drawDance(danceCtx, w / 2, h - 8, s, clock);
   drawNotes(danceCtx, w / 2, h - 8, s, clock);
 }
 

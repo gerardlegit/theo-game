@@ -1,7 +1,7 @@
 // ============================================================================
 // Les dessins du jeu, tout en vectoriel (pas d'emoji ni d'image) :
 // décors pré-rendus en "sprites" (avec des versions réduites pour rester nets
-// et rapides à petite taille), la voiture, le papi et le petit garçon qui danse.
+// et rapides à petite taille), la voiture, le papi, le mouton, et leurs danses d'arrivée.
 // ============================================================================
 
 const TAU = Math.PI * 2;
@@ -533,6 +533,8 @@ export const CAR_COLORS = [
 export const CAR_SPRITE_W = 260, CAR_SPRITE_H = 200;
 // position des feux arrière dans le dessin (pour les allumer au freinage)
 export const TAIL_LIGHTS = [[45, 118], [215, 118]];
+// le pot d'échappement (d'où sortent les flammes du turbo)
+export const EXHAUST = [200, 172];
 
 /** La voiture vue de derrière, avec le petit pilote blond et le signe du calcul. */
 export function carSprite(col, symbol) {
@@ -695,145 +697,270 @@ export function drawGrandpa(c, x, gy, s, t, dir, scared = 0) {
   c.restore();
 }
 
-/* ======================= Le petit garçon qui danse ======================= */
+/* ======================= Le mouton ======================= */
 
-// Dessine le garçon debout en (x, gy), s = pixels par mètre, t = temps de la danse.
-// Trois danses ridicules qui s'enchaînent : la poule, le « floss » et le disco.
-export function drawBoy(c, x, gy, s, t) {
-  const beat = t * 8;
-  const move = Math.floor(t / 2.4) % 3;
+/**
+ * Un gros mouton tout frisé, vu de profil, posé en (x, gy) ; s = pixels par mètre.
+ * dir = sens où il regarde ; il broute tranquillement, et s'il a peur (scared = 1)
+ * il écarte les pattes et ouvre de grands yeux.
+ */
+export function drawSheep(c, x, gy, s, t, dir, scared = 0, seed = 0) {
+  const WOOL = '#FFFFFF', WOOL_S = '#DCD8EA', FACE = '#3D3754', LEG = '#2E2A40';
+  // la tête descend brouter l'herbe de temps en temps
+  const graze = scared ? 0 : Math.pow(Math.max(0, Math.sin(t * 0.9 + seed)), 2);
+  c.save();
+  c.translate(x, gy);
+  c.scale(s * dir, s);
+  c.lineCap = 'round';
+
+  // pattes et sabots
+  const step = scared ? 0.12 : Math.sin(t * 3 + seed) * 0.03;
+  [[-0.36, -1], [-0.2, 1], [0.22, -1], [0.38, 1]].forEach(([lx, ph]) => {
+    const fx = lx + (scared ? Math.sign(lx) * step : step * ph);
+    c.strokeStyle = LEG;
+    c.lineWidth = 0.09;
+    c.beginPath(); c.moveTo(lx, -0.6); c.lineTo(fx, -0.05); c.stroke();
+    ellipse(c, fx + 0.02, -0.035, 0.065, 0.04, '#1E1B2E');
+  });
+
+  // la laine : une grosse boule de nuages
+  const body = [[-0.42, -0.8, 0.24], [-0.18, -0.92, 0.27], [0.1, -0.94, 0.27], [0.36, -0.84, 0.24],
+    [-0.3, -0.62, 0.22], [0, -0.64, 0.25], [0.28, -0.62, 0.22], [-0.55, -0.7, 0.16], [0.5, -0.7, 0.16]];
+  blob(c, body.map(([bx, by, r]) => [bx, by + 0.035, r]), WOOL_S);
+  blob(c, body, WOOL);
+  blob(c, [[-0.66, -0.86, 0.1]], WOOL);   // petite queue
+  blob(c, [[-0.2, -1.04, 0.1], [0.06, -1.08, 0.09], [-0.42, -0.92, 0.07]], 'rgba(255,255,255,0.9)');
+  blob(c, [[0.1, -0.56, 0.12], [-0.25, -0.54, 0.1]], 'rgba(150, 140, 190, 0.18)');
+
+  // tête noire : elle descend vers l'herbe quand il broute
+  c.save();
+  c.translate(0.5, -0.88);
+  c.rotate(-0.25 + graze * 1.15);
+  const hx = 0.2, hy = -0.04;
+  ellipse(c, hx - 0.07, hy - 0.04, 0.09, 0.05, FACE);                 // oreille
+  c.save();
+  c.translate(hx, hy);
+  c.rotate(0.35);
+  ellipse(c, 0, 0, 0.17, 0.12, FACE);
+  c.restore();
+  ellipse(c, hx - 0.04, hy - 0.1, 0.1, 0.045, '#2A2540');            // autre oreille
+  blob(c, [[hx - 0.08, hy - 0.12, 0.07], [hx - 0.01, hy - 0.14, 0.06]], WOOL);   // mèche frisée
+  ellipse(c, hx + 0.04, hy - 0.02, 0.045, scared ? 0.05 : 0.04, '#FFFFFF');
+  ellipse(c, hx + 0.055, hy - 0.015, scared ? 0.018 : 0.022, scared ? 0.018 : 0.026, '#1B1846');
+  ellipse(c, hx + 0.13, hy + 0.06, 0.02, 0.014, '#FF8FB0');          // museau rose
+  if (scared) ellipse(c, hx + 0.1, hy + 0.1, 0.03, 0.035, '#8E2B45');
+  c.restore();
+
+  c.restore();
+}
+
+/* ======================= Les danseurs de l'arrivée ======================= */
+
+// Hauteur de chaque danseur (en mètres, bras levés compris) pour le cadrer
+export const DANCER_HEIGHT = { papi: 2.05, sheep: 1.6 };
+
+// Un bras (ou une patte) épaule → coude → main, le coude un peu vers l'extérieur
+function limb(c, sh, hand, side, color, width, bend = 0.1) {
+  const elbow = [(sh[0] + hand[0]) / 2 + side * bend, (sh[1] + hand[1]) / 2 + bend * 0.4];
+  c.strokeStyle = color;
+  c.lineWidth = width;
+  c.beginPath();
+  c.moveTo(sh[0], sh[1]);
+  c.lineTo(elbow[0], elbow[1]);
+  c.lineTo(hand[0], hand[1]);
+  c.stroke();
+}
+
+/**
+ * Papi qui danse, de face, posé en (x, gy) ; s = pixels par mètre, t = temps de la danse.
+ * Trois danses qui s'enchaînent : la canne au-dessus de la tête, le disco, et le french cancan.
+ */
+export function drawGrandpaDance(c, x, gy, s, t) {
+  const PANTS = '#5E6A86', SHOE = '#3A2E2A', CARDI = '#E07B53', CARDI_D = '#BF5E39';
+  const SKIN = '#FFD3B0', HAIR = '#F4F4F4', CAP = '#7B6A58', CANE = '#8B5A2B';
+  const beat = t * 7;
+  const move = Math.floor(t / 2.6) % 3;
   const b = Math.sin(beat);
-  const bounce = Math.abs(b) * 0.07;
-  const hipX = move === 1 ? -b * 0.1 : Math.sin(beat / 2) * 0.05;
-  const hipY = -(0.55 + bounce - (move === 0 ? 0.1 : 0));
-  const tilt = move === 1 ? b * 0.12 : Math.sin(beat / 2) * 0.15;
-  const SKIN = '#FFD2A8', SHIRT = '#FF8A3D', HAIR = '#F9D548', GLASSES = '#2F6FE0';
+  const bounce = Math.abs(b) * 0.05;
+  const hipX = move === 2 ? 0 : Math.sin(beat / 2) * 0.08;
+  const hipY = -(0.82 + bounce);
+  const tilt = move === 1 ? Math.sin(beat / 2) * 0.12 : b * 0.06;
 
   c.save();
   c.translate(x, gy);
   c.scale(s, s);
   c.lineCap = 'round';
   c.lineJoin = 'round';
+  ellipse(c, 0, 0, 0.42, 0.07, 'rgba(46, 42, 77, 0.2)');
 
-  ellipse(c, 0, 0, 0.32, 0.06, 'rgba(46, 42, 77, 0.2)');
-
-  // jambes et baskets
+  // jambes et chaussures (au cancan, une jambe puis l'autre monte haut)
   [-1, 1].forEach((side) => {
-    let foot = [side * 0.13, 0];
-    let knee;
-    if (move === 0) {                 // accroupi, genoux écartés
-      foot = [side * 0.22, 0];
-      knee = [hipX + side * 0.3, hipY * 0.5];
-    } else if (move === 2) {          // un pied en l'air, puis l'autre
+    let foot = [side * 0.15, 0];
+    let knee = [(hipX + foot[0]) / 2 + side * 0.06, hipY * 0.5];
+    if (move === 2) {
       const up = Math.max(0, Math.sin(beat / 2) * side);
-      foot = [side * (0.13 + up * 0.28), -up * 0.35];
-      knee = [hipX + side * (0.12 + up * 0.15), hipY * 0.5 - up * 0.2];
-    } else {
-      knee = [(hipX + foot[0]) / 2 + side * 0.03, hipY / 2];
+      foot = [side * (0.16 + up * 0.32), -up * 0.5];
+      knee = [hipX + side * (0.14 + up * 0.22), hipY * 0.5 - up * 0.3];
     }
-    c.strokeStyle = SKIN;
-    c.lineWidth = 0.09;
+    c.strokeStyle = PANTS;
+    c.lineWidth = 0.15;
     c.beginPath();
-    c.moveTo(hipX + side * 0.08, hipY);
+    c.moveTo(hipX + side * 0.1, hipY);
     c.lineTo(knee[0], knee[1]);
     c.lineTo(foot[0], foot[1]);
     c.stroke();
-    ellipse(c, foot[0] + side * 0.04, foot[1] - 0.02, 0.09, 0.05, '#E8453C');
+    ellipse(c, foot[0] + side * 0.04, foot[1] - 0.03, 0.11, 0.06, SHOE);
   });
 
-  // short
-  c.fillStyle = '#3D5A98';
-  c.beginPath();
-  c.roundRect(hipX - 0.18, hipY - 0.08, 0.36, 0.18, 0.05);
-  c.fill();
-
-  // Le haut du corps se dandine autour des hanches
   c.translate(hipX, hipY);
   c.rotate(tilt);
 
-  // bras : épaule → coude → main
-  [-1, 1].forEach((side) => {
-    const sh = [side * 0.16, -0.34];
-    let elbow, hand;
-    if (move === 0) {                 // la poule : les coudes battent comme des ailes
-      const flap = Math.sin(beat * 2) * 0.1;
-      elbow = [side * 0.36, -0.28 - flap];
-      hand = [side * 0.12, -0.26];
-    } else if (move === 1) {          // le floss : les bras balancent d'un côté à l'autre
-      elbow = [sh[0] + b * 0.16, -0.18];
-      hand = [side * 0.08 + b * 0.38, -0.02];
-    } else {                          // disco : un bras au ciel, l'autre en bas
-      const high = Math.sin(beat / 2) * side > 0;
-      elbow = high ? [side * 0.3, -0.58] : [side * 0.28, -0.14];
-      hand = high ? [side * 0.36, -0.86] : [side * 0.3, 0.06];
-    }
-    c.strokeStyle = SHIRT;
-    c.lineWidth = 0.1;
-    c.beginPath();
-    c.moveTo(sh[0], sh[1]);
-    c.lineTo(elbow[0], elbow[1]);
-    c.stroke();
-    c.strokeStyle = SKIN;
-    c.lineWidth = 0.075;
-    c.beginPath();
-    c.moveTo(elbow[0], elbow[1]);
-    c.lineTo(hand[0], hand[1]);
-    c.stroke();
-  });
+  // gilet
+  c.fillStyle = CARDI;
+  c.beginPath(); c.roundRect(-0.27, -0.64, 0.54, 0.7, 0.17); c.fill();
+  c.fillStyle = CARDI_D;
+  c.beginPath(); c.roundRect(0.1, -0.64, 0.17, 0.7, [0, 0.17, 0.17, 0]); c.fill();
+  poly(c, [[-0.1, -0.64], [0.1, -0.64], [0, -0.42]], '#FFFFFF');
+  [-0.36, -0.22, -0.08].forEach((y) => ellipse(c, 0, y, 0.025, 0.025, '#F7D9A8'));
 
-  // tee-shirt avec une grosse étoile
-  c.fillStyle = SHIRT;
-  c.beginPath();
-  c.roundRect(-0.18, -0.42, 0.36, 0.44, 0.09);
-  c.fill();
-  c.fillStyle = '#FFE27A';
-  starPath(c, 0, -0.2, 0.09, 0.45);
-  c.fill();
+  // bras et canne
+  const sh = (side) => [side * 0.23, -0.52];
+  let hands, cane;
+  if (move === 0) {
+    // la canne tenue à deux mains au-dessus de la tête, qui se balance
+    const sw = Math.sin(beat / 2) * 0.22;
+    hands = [[-0.32 + sw, -1.18 - b * 0.04], [0.32 + sw, -1.18 + b * 0.04]];
+    cane = [[-0.6 + sw, -1.18 - b * 0.08], [0.6 + sw, -1.18 + b * 0.08]];
+  } else if (move === 1) {
+    // disco : un doigt vers le ciel, puis vers le sol
+    const high = Math.sin(beat / 2) > 0 ? 1 : -1;
+    hands = [-1, 1].map((side) => (side === high ? [side * 0.44, -1.28] : [side * 0.38, -0.05]));
+    const low = hands[high === 1 ? 0 : 1];
+    cane = [[low[0], low[1] - 0.06], [low[0] * 1.25, low[1] + 0.76]];
+  } else {
+    // cancan : appuyé sur la canne d'un côté, coucou de l'autre main
+    hands = [[-0.44, -0.24], [0.42 + Math.sin(beat * 2) * 0.1, -1.2]];
+    cane = [[-0.44, -0.3], [-0.52, -hipY - 0.02]];
+  }
+  [-1, 1].forEach((side, i) => limb(c, sh(side), hands[i], side, CARDI, 0.12, 0.12));
+  c.strokeStyle = CANE;
+  c.lineWidth = 0.055;
+  c.beginPath(); c.moveTo(cane[0][0], cane[0][1]); c.lineTo(cane[1][0], cane[1][1]); c.stroke();
+  // la crosse de la canne
+  const hook = cane[0][0] < 0 ? -1 : 1;
+  c.beginPath(); c.arc(cane[0][0] + 0.07 * hook, cane[0][1], 0.07, Math.PI, Math.PI * 2); c.stroke();
+  hands.forEach(([hx, hy]) => ellipse(c, hx, hy, 0.065, 0.065, SKIN));
 
   // tête qui dodeline
-  c.translate(0, -0.42);
-  c.rotate(Math.sin(beat * 2) * 0.15);
-  const hy = -0.17;
-  ellipse(c, 0, hy, 0.17, 0.17, SKIN);
-
-  // cheveux blonds en épis
-  c.fillStyle = HAIR;
-  c.beginPath();
-  c.arc(0, hy - 0.02, 0.18, Math.PI * 1.05, Math.PI * 1.95);
-  c.closePath();
-  c.fill();
-  c.beginPath();
-  c.moveTo(-0.15, hy - 0.1);
-  [[-0.12, hy - 0.28], [-0.06, hy - 0.17], [0, hy - 0.32], [0.06, hy - 0.17], [0.13, hy - 0.27], [0.16, hy - 0.08]]
-    .forEach(([px, py]) => c.lineTo(px, py));
-  c.closePath();
-  c.fill();
-
-  // lunettes bleues
-  c.strokeStyle = GLASSES;
-  c.lineWidth = 0.028;
+  c.translate(0, -0.64);
+  c.rotate(Math.sin(beat * 2) * 0.1);
+  const hy = -0.24;
+  ellipse(c, -0.2, hy + 0.02, 0.05, 0.065, SKIN);
+  ellipse(c, 0.2, hy + 0.02, 0.05, 0.065, SKIN);
+  ellipse(c, 0, hy, 0.2, 0.22, SKIN);
+  ellipse(c, -0.18, hy - 0.02, 0.07, 0.09, HAIR);
+  ellipse(c, 0.18, hy - 0.02, 0.07, 0.09, HAIR);
+  // casquette
+  c.fillStyle = CAP;
+  c.beginPath(); c.ellipse(0, hy - 0.08, 0.215, 0.16, 0, Math.PI, Math.PI * 2); c.fill();
+  ellipse(c, 0, hy - 0.08, 0.2, 0.045, '#5E5040');
+  // lunettes et yeux qui roulent
+  c.strokeStyle = '#3A2E2A';
+  c.lineWidth = 0.022;
+  const look = Math.sin(beat) * 0.015;
   [-1, 1].forEach((side) => {
-    c.beginPath();
-    c.arc(side * 0.075, hy, 0.058, 0, TAU);
-    c.stroke();
+    c.beginPath(); c.arc(side * 0.08, hy + 0.01, 0.06, 0, Math.PI * 2); c.stroke();
+    ellipse(c, side * 0.08 + look, hy + 0.015, 0.018, 0.018, '#2E2A4D');
   });
-  c.beginPath();
-  c.moveTo(-0.017, hy);
-  c.lineTo(0.017, hy);
-  c.stroke();
-  // yeux qui roulent
-  const look = Math.sin(beat) * 0.018;
-  [-1, 1].forEach((side) => ellipse(c, side * 0.075 + look, hy + 0.005, 0.017, 0.017, '#2E2A4D'));
-
-  // joues, grand sourire et langue tirée
-  [-1, 1].forEach((side) => ellipse(c, side * 0.12, hy + 0.07, 0.03, 0.03, 'rgba(255, 111, 145, 0.45)'));
+  c.beginPath(); c.moveTo(-0.02, hy + 0.01); c.lineTo(0.02, hy + 0.01); c.stroke();
+  // joues, grand sourire et moustache
+  ellipse(c, -0.14, hy + 0.09, 0.035, 0.025, 'rgba(255, 111, 145, 0.45)');
+  ellipse(c, 0.14, hy + 0.09, 0.035, 0.025, 'rgba(255, 111, 145, 0.45)');
   c.fillStyle = '#9A2F3F';
-  c.beginPath();
-  c.arc(0, hy + 0.06, 0.065, 0.1 * Math.PI, 0.9 * Math.PI);
-  c.closePath();
-  c.fill();
-  ellipse(c, 0.015, hy + 0.12, 0.028, 0.035, '#FF6F91');
+  c.beginPath(); c.arc(0, hy + 0.12, 0.07, 0.1 * Math.PI, 0.9 * Math.PI); c.closePath(); c.fill();
+  ellipse(c, -0.05, hy + 0.11, 0.06, 0.03, HAIR);
+  ellipse(c, 0.05, hy + 0.11, 0.06, 0.03, HAIR);
+  c.restore();
+}
 
+/**
+ * Le mouton qui danse debout sur ses pattes arrière, de face.
+ * Trois danses : les pattes en l'air, le disco et les petits sauts.
+ */
+export function drawSheepDance(c, x, gy, s, t) {
+  const WOOL = '#FFFFFF', WOOL_S = '#DCD8EA', FACE = '#3D3754', LEG = '#2E2A40', HOOF = '#1E1B2E';
+  const beat = t * 8;
+  const move = Math.floor(t / 2.4) % 3;
+  const b = Math.sin(beat);
+  const hop = move === 2 ? Math.abs(Math.sin(beat / 2)) * 0.2 : Math.abs(b) * 0.05;
+  const sway = move === 1 ? b * 0.14 : Math.sin(beat / 2) * 0.07;
+
+  c.save();
+  c.translate(x, gy);
+  c.scale(s, s);
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  ellipse(c, 0, 0, 0.36 * (1 - hop), 0.06 * (1 - hop), 'rgba(46, 42, 77, 0.2)');
+  c.translate(0, -hop);
+
+  // pattes arrière, qui tapent la mesure
+  [-1, 1].forEach((side) => {
+    const tap = move === 0 ? Math.max(0, Math.sin(beat) * side) * 0.12 : 0;
+    const spread = move === 2 ? 0.06 : 0;
+    c.strokeStyle = LEG;
+    c.lineWidth = 0.1;
+    c.beginPath();
+    c.moveTo(side * 0.13, -0.42);
+    c.lineTo(side * (0.16 + spread), -tap);
+    c.stroke();
+    ellipse(c, side * (0.17 + spread), -tap - 0.02, 0.08, 0.045, HOOF);
+  });
+
+  c.translate(0, -0.45);
+  c.rotate(sway);
+
+  // pattes avant, qui dansent comme des bras
+  const sh = (side) => [side * 0.26, -0.48];
+  const high = Math.sin(beat / 2) > 0 ? 1 : -1;
+  const hands = [-1, 1].map((side) => {
+    if (move === 0) return [side * 0.46, -1.0 + Math.sin(beat + side) * 0.1];
+    if (move === 1) return side === high ? [side * 0.46, -1.02] : [side * 0.44, -0.06];
+    return [side * 0.58, -0.45 - Math.sin(beat * 2) * 0.22];
+  });
+  [-1, 1].forEach((side, i) => {
+    limb(c, sh(side), hands[i], side, LEG, 0.09, 0.08);
+    ellipse(c, hands[i][0], hands[i][1], 0.06, 0.06, HOOF);
+  });
+
+  // la grosse boule de laine
+  const body = [[0, -0.3, 0.3], [-0.22, -0.42, 0.18], [0.22, -0.42, 0.18], [-0.26, -0.18, 0.17], [0.26, -0.18, 0.17],
+    [-0.12, -0.04, 0.16], [0.12, -0.04, 0.16], [0, -0.56, 0.17]];
+  blob(c, body.map(([bx, by, r]) => [bx, by + 0.035, r]), WOOL_S);
+  blob(c, body, WOOL);
+  blob(c, [[-0.12, -0.5, 0.08], [-0.24, -0.36, 0.05]], 'rgba(255,255,255,0.9)');
+  blob(c, [[0.08, -0.12, 0.1]], 'rgba(150, 140, 190, 0.15)');
+
+  // tête qui dodeline
+  c.translate(0, -0.72);
+  c.rotate(Math.sin(beat * 2) * 0.15);
+  [-1, 1].forEach((side) => {
+    c.save();
+    c.translate(side * 0.19, -0.02);
+    c.rotate(side * (0.35 + Math.sin(beat * 2) * 0.15));
+    ellipse(c, 0, 0, 0.1, 0.045, FACE);
+    ellipse(c, side * 0.01, 0, 0.06, 0.022, '#FF8FB0');
+    c.restore();
+  });
+  ellipse(c, 0, 0, 0.15, 0.19, FACE);
+  blob(c, [[-0.08, -0.17, 0.07], [0.02, -0.2, 0.08], [0.1, -0.16, 0.065]], WOOL);
+  const look = Math.sin(beat) * 0.015;
+  [-1, 1].forEach((side) => {
+    ellipse(c, side * 0.06, -0.02, 0.045, 0.05, '#FFFFFF');
+    ellipse(c, side * 0.06 + look, -0.015, 0.022, 0.026, '#1B1846');
+  });
+  ellipse(c, 0, 0.08, 0.035, 0.022, '#FF8FB0');
+  c.fillStyle = '#FF8FB0';
+  c.beginPath(); c.arc(0, 0.11, 0.05, 0.15 * Math.PI, 0.85 * Math.PI); c.closePath(); c.fill();
   c.restore();
 }
 
@@ -852,7 +979,7 @@ function drawNote(c, x, y, size, color) {
   c.stroke();
 }
 
-// Des notes de musique qui s'envolent autour de lui
+// Des notes de musique qui s'envolent autour du danseur
 export function drawNotes(c, x, gy, s, t) {
   const colors = ['#FF4D8B', '#3D8BFF', '#FFB020'];
   for (let i = 0; i < 3; i++) {

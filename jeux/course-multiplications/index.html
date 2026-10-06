@@ -28,6 +28,8 @@
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-next" viewBox="0 0 24 24"><path d="M9.5 5.5L16 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11m0-11l-11 11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.6 2.5L5 13.4h5.6L9.4 21.5l9.6-11.6h-5.8z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.2c3.2 4.2 6.2 7.6 6.2 11a6.2 6.2 0 0 1-12.4 0c0-3.4 3-6.8 6.2-11z" fill="#211D38"/><path d="M9.3 13.6a3 3 0 0 0 2.2 3.4" fill="none" stroke="#8C7BFF" stroke-width="1.8" stroke-linecap="round"/><path d="M14.4 12.8a2.6 2.6 0 0 1 .8 2.4" fill="none" stroke="#5FF0FF" stroke-width="1.6" stroke-linecap="round"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V3.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6 4h13v9H6z" fill="#fff"/><path d="M6 4h3.25v3H6zM12.5 4h3.25v3H12.5zM9.25 7h3.25v3H9.25zM15.75 7H19v3h-3.25zM6 10h3.25v3H6zM12.5 10h3.25v3H12.5z" fill="#2E2A4D"/></symbol>
   </defs>
 </svg>
@@ -54,6 +56,7 @@
         </div>
 
         <div class="hud-group hud-right">
+          <div class="pill pill-turbo" id="turboPill" hidden aria-label="Turbo"><svg><use href="#i-bolt"/></svg><span class="turbo-gauge"><b id="turboBar"></b></span></div>
           <div class="pill pill-bonus" id="bonusBadge" hidden>×2</div>
           <div class="pill pill-points" id="pointsPill"><svg class="pill-icon star"><use href="#i-star"/></svg><span id="points">0</span></div>
         </div>
@@ -145,7 +148,8 @@
           <li><span class="rule-ico c-pink">?</span><span>Toutes les 20 secondes, un <b>calcul</b> apparaît en haut de l’écran.</span></li>
           <li><span class="rule-ico c-green"><svg><use href="#i-star"/></svg></span><span>Fonce à travers le <b>panneau de la bonne réponse</b> : +1 point !</span></li>
           <li><span class="rule-ico c-gold">×2</span><span>Attrape une <b>pièce ×2</b> : ta prochaine bonne réponse vaut 2 points.</span></li>
-          <li><span class="rule-ico c-orange">👴</span><span>Attention aux <b>papis</b> qui traversent : −1 point si tu ne les évites pas.</span></li>
+          <li><span class="rule-ico c-turbo"><svg><use href="#i-bolt"/></svg></span><span>Roule sur une <b>plaque turbo</b> : 5 secondes à vitesse record, et plus rien ne t’arrête !</span></li>
+          <li><span class="rule-ico c-orange obstacles-ico">👴🐑<svg><use href="#i-drop"/></svg></span><span>Évite les <b>papis</b>, les <b>moutons</b> et les <b>taches d’huile</b> : −1 point si tu les touches.</span></li>
           <li><span class="rule-ico c-sky">🛹</span><span>Monte sur un <b>tremplin</b> pour faire un grand saut !</span></li>
           <li><span class="rule-ico c-ink"><svg><use href="#i-flag"/></svg></span><span>En 3 minutes, la route mène à <b>la plage</b>. Combien de points vas-tu gagner ?</span></li>
         </ul>
@@ -163,7 +167,7 @@
           <button class="tab" role="tab" data-tab="add">+ Additions</button>
         </div>
         <ol class="board" id="boardList"></ol>
-        <p class="sheet-note">1 point par bonne réponse (2 avec un bonus ×2), −1 par papi touché. 9 calculs par course.</p>
+        <p class="sheet-note">1 point par bonne réponse (2 avec un bonus ×2), −1 par obstacle touché (papi, mouton, tache d’huile). 9 calculs par course.</p>
       </div>
     </section>
 
@@ -182,7 +186,7 @@
     <section class="screen end-screen" id="endScreen" hidden>
       <div class="sheet end-card">
         <div class="end-main">
-        <canvas id="danceCanvas" class="dance" aria-label="Un petit garçon blond à lunettes bleues fait une danse rigolote"></canvas>
+        <canvas id="danceCanvas" class="dance" aria-label="Papi fait une danse rigolote avec sa canne"></canvas>
         <p class="end-kicker" id="endKicker">Bienvenue à la plage !</p>
         <div class="end-stars" id="endStars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
         <p class="end-score"><span id="endPoints">0</span> <small id="endPointsLabel">points</small></p>
@@ -191,7 +195,7 @@
         <ul class="end-stats">
           <li><b id="statGood">0</b><span>bonnes réponses</span></li>
           <li><b id="statBonus">0</b><span>bonus ×2</span></li>
-          <li><b id="statPapi">0</b><span>papis touchés</span></li>
+          <li><b id="statObstacles">0</b><span>obstacles touchés</span></li>
         </ul>
         </div>
 

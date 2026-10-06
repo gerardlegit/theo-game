@@ -1,6 +1,7 @@
 // ============================================================================
 // Bruitages synthétisés (aucun fichier audio) : moteur, feux de départ,
-// bonnes et mauvaises réponses, bonus, klaxon, saut et fanfare d'arrivée.
+// bonnes et mauvaises réponses, bonus, turbo, klaxon, mouton, dérapage,
+// saut et fanfare d'arrivée.
 // ============================================================================
 
 const STORAGE_KEY = 'course-calculs-sound';
@@ -92,6 +93,34 @@ function noise(start, dur, { vol = 0.1, freq = 1200, slideTo = 0, q = 1, type = 
 
 const arp = (notes, step, opts) => notes.forEach((n, i) => tone(NOTE(n), i * step, opts.dur || 0.3, opts));
 
+/* « Bêêê » : une voix nasillarde qui chevrote */
+function bleat(start, freq, dur) {
+  const a = audio();
+  if (!a || !enabled) return;
+  const t0 = a.currentTime + start;
+  const gain = a.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.09, t0 + 0.04);
+  gain.gain.setValueAtTime(0.09, t0 + dur * 0.6);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  const f = a.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1300;
+  f.Q.value = 1.4;
+  f.connect(gain).connect(master);
+  const osc = a.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(freq, t0);
+  osc.frequency.linearRampToValueAtTime(freq * 0.88, t0 + dur);
+  const lfo = a.createOscillator();
+  const depth = a.createGain();
+  lfo.frequency.value = 11;
+  depth.gain.value = freq * 0.09;
+  lfo.connect(depth).connect(osc.frequency);
+  osc.connect(f);
+  [osc, lfo].forEach((o) => { o.start(t0); o.stop(t0 + dur + 0.05); });
+}
+
 export const sfx = {
   tap:    () => tone(NOTE(84), 0, 0.07, { type: 'triangle', vol: 0.06 }),
   lane:   () => noise(0, 0.16, { vol: 0.05, freq: 700, slideTo: 1800, q: 0.8 }),
@@ -102,6 +131,10 @@ export const sfx = {
   bonus:  () => arp([76, 79, 83, 88, 91, 95], 0.05, { type: 'sine', vol: 0.11, dur: 0.4 }),
   honk:   () => [0, 0.22].forEach((t) => { tone(392, t, 0.17, { type: 'square', vol: 0.05, filter: 1400 }); tone(494, t, 0.17, { type: 'square', vol: 0.05, filter: 1400 }); }),
   jump:   () => { tone(260, 0, 0.35, { type: 'triangle', vol: 0.12, slideTo: 880 }); noise(0, 0.4, { vol: 0.06, freq: 600, slideTo: 2500 }); },
+  baa:    () => { bleat(0, 330, 0.55); },
+  skid:   () => { noise(0, 0.7, { vol: 0.09, freq: 2600, slideTo: 900, q: 6 }); tone(1500, 0, 0.5, { type: 'triangle', vol: 0.04, slideTo: 900 }); tone(110, 0, 0.25, { type: 'sine', vol: 0.12, slideTo: 60 }); },
+  boost:  () => { noise(0, 0.9, { vol: 0.14, freq: 300, slideTo: 5000, q: 0.7 }); tone(180, 0, 0.7, { type: 'sawtooth', vol: 0.05, slideTo: 900, filter: 2400 }); arp([79, 86, 91], 0.06, { type: 'triangle', vol: 0.08, dur: 0.3 }); },
+  zap:    () => { tone(NOTE(88), 0, 0.12, { type: 'square', vol: 0.04, filter: 3200, slideTo: NOTE(96) }); noise(0, 0.15, { vol: 0.05, freq: 2500, q: 0.8 }); },
   land:   () => { noise(0, 0.18, { vol: 0.12, freq: 300, type: 'lowpass' }); tone(140, 0, 0.18, { type: 'sine', vol: 0.15, slideTo: 60 }); },
   finish: () => arp([67, 72, 76, 79, 84], 0.09, { type: 'square', vol: 0.05, filter: 2600, dur: 0.4 }),
   /* petite fanfare d'arrivée */
@@ -140,9 +173,10 @@ export function engineStart() {
   engineSpeed(0);
 }
 
-/** ratio = 0 (à l'arrêt) … 1 (pleine vitesse) */
+/** ratio = 0 (à l'arrêt) … 1 (pleine vitesse), jusqu'à 2 avec le turbo */
 export function engineSpeed(ratio) {
   if (!engine || !ac) return;
+  ratio = Math.min(2.1, ratio);
   const t = ac.currentTime;
   const f = 42 + ratio * 48;
   engine.o1.frequency.setTargetAtTime(f, t, 0.08);
