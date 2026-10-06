@@ -80,6 +80,18 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
+
+    // Compteur de visites : un document par jour ("AAAA-MM-JJ"),
+    // qu'on ne peut qu'augmenter de 1 à la fois.
+    match /visits_daily/{day} {
+      allow read: if true;
+      allow create: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    && request.resource.data.keys().hasOnly(['count'])
+                    && request.resource.data.count == 1;
+      allow update: if request.resource.data.keys().hasOnly(['count'])
+                    && request.resource.data.count == resource.data.count + 1;
+      allow delete: if false;
+    }
   }
 }
 ```
@@ -140,3 +152,19 @@ const top20 = await fetchTopScores("nom-du-jeu", 20);
 
 Chaque jeu choisit un identifiant unique (`"drapeaux"`, `"memory"`, etc.) : un
 même identifiant = un même classement partagé.
+
+## Page admin (compteur de visites)
+
+La page d'accueil compte les visites (une par session de navigateur) dans la
+collection `visits_daily` : un document par jour, ce qui garde l'historique.
+Pour les consulter, ouvre **`/admin/`** sur le site (ex:
+`https://ton-site/admin/`) et connecte-toi avec l'identifiant `admin` et le
+mot de passe `admin`.
+
+Pense à publier les règles de l'étape 4 (bloc `visits_daily`), sinon le
+compteur ne pourra rien enregistrer.
+
+> ⚠️ Le site étant 100 % statique, ce mot de passe est vérifié dans le
+> navigateur : il évite les curieux, mais ce n'est pas une vraie sécurité
+> (les chiffres de visites restent lisibles par quelqu'un de motivé). Comme
+> il ne s'agit que de nombres de visites, c'est suffisant ici.

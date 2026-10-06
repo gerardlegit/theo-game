@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin · La Cabane à Jeux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.png" type="image/png">
+<style>
+  :root {
+    --bg: #FFF6E9;
+    --surface: #FFFFFF;
+    --ink: #2E2A4D;
+    --muted: #6a6486;
+    --line: #ece4d6;
+    --bar: #3F6FE0;
+    --bar-hover: #2448B8;
+    --accent: #FF6F91;
+    --error: #C62F4B;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17152A;
+      --surface: #221F3A;
+      --ink: #F2EFFF;
+      --muted: #A9A3C6;
+      --line: #36325A;
+      --bar: #6F9BFF;
+      --bar-hover: #A8C2FF;
+      --error: #FF7F96;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 600;
+  }
+  h1, h2 { font-family: 'Baloo 2', sans-serif; margin: 0; line-height: 1.1; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+  }
+  [hidden] { display: none !important; }
+
+  /* ----- Connexion ----- */
+  .login { max-width: 360px; margin: 12vh auto 0; }
+  .login h1 { font-size: 1.8rem; margin-bottom: 4px; }
+  .login p { color: var(--muted); margin: 0 0 20px; }
+  label { display: block; font-size: .9rem; margin: 12px 0 6px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .login button { width: 100%; margin-top: 20px; }
+  .error { color: var(--error); min-height: 1.4em; margin: 12px 0 0; font-size: .9rem; }
+
+  /* ----- Tableau de bord ----- */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .top h1 { font-size: 1.8rem; }
+  .top a { color: var(--muted); font-size: .9rem; }
+  .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat .label { color: var(--muted); font-size: .85rem; }
+  .stat .value { font-family: 'Baloo 2', sans-serif; font-size: 2rem; font-variant-numeric: tabular-nums; }
+
+  .chart-card { margin-bottom: 16px; }
+  .chart-card h2, .table-card h2 { font-size: 1.15rem; margin-bottom: 12px; }
+  .chart { position: relative; height: 220px; }
+  .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .chart .axis-label { fill: var(--muted); font-size: 11px; font-family: 'Quicksand', sans-serif; }
+  .chart .bar { fill: var(--bar); }
+  .chart .hit:hover + .bar, .chart .bar.active { fill: var(--bar-hover); }
+  .chart .hit { fill: transparent; cursor: default; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: .85rem;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+  }
+
+  .table-scroll { max-height: 420px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--muted); font-size: .85rem; position: sticky; top: 0; background: var(--surface); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: .85rem; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+  <main class="wrap">
+
+    <!-- Connexion -->
+    <form id="login" class="card login" autocomplete="off">
+      <h1>Espace admin</h1>
+      <p>La Cabane à Jeux</p>
+      <label for="user">Identifiant</label>
+      <input id="user" name="user" required>
+      <label for="pass">Mot de passe</label>
+      <input id="pass" name="pass" type="password" required>
+      <button type="submit">Se connecter</button>
+      <p class="error" id="login-error" role="alert"></p>
+    </form>
+
+    <!-- Tableau de bord -->
+    <section id="dashboard" hidden>
+      <div class="top">
+        <div>
+          <h1>Visites</h1>
+          <a href="../index.html">← Retour au site</a>
+        </div>
+        <button id="logout" class="ghost" type="button">Se déconnecter</button>
+      </div>
+
+      <p class="error" id="load-error" role="alert"></p>
+
+      <div class="stats">
+        <div class="card stat"><div class="label">Aujourd'hui</div><div class="value" id="s-today">–</div></div>
+        <div class="card stat"><div class="label">7 derniers jours</div><div class="value" id="s-week">–</div></div>
+        <div class="card stat"><div class="label">30 derniers jours</div><div class="value" id="s-month">–</div></div>
+        <div class="card stat"><div class="label">Total</div><div class="value" id="s-total">–</div></div>
+      </div>
+
+      <div class="card chart-card">
+        <h2>Visites par jour — 30 derniers jours</h2>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="card table-card">
+        <h2>Historique complet</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Jour</th><th class="num">Visites</th></tr></thead>
+            <tbody id="history"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="note">Une visite = une ouverture de la page d'accueil par un navigateur (recharger la page ne compte pas deux fois). Ce navigateur n'est plus compté depuis que tu t'es connecté ici.</p>
+    </section>
+
+  </main>
+
+<script type="module">
+  import { fetchVisitHistory, todayKey, ADMIN_DEVICE_KEY } from "../shared/visits.js";
+
+  // SHA-256 de "identifiant:mot de passe"
+  const CREDENTIALS_HASH = "8da193366e1554c08b2870c50f737b9587c3372b656151c4a96028af26f51334";
+  const SESSION_KEY = "cabane_admin_session";
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = new Intl.NumberFormat("fr-FR");
+
+  function store(s, key, value) {
+    try { value === null ? s.removeItem(key) : s.setItem(key, value); } catch { /* ignoré */ }
+  }
+  function read(s, key) {
+    try { return s.getItem(key); } catch { return null; }
+  }
+
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  $("login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const hash = await sha256(`${$("user").value.trim()}:${$("pass").value}`);
+    if (hash !== CREDENTIALS_HASH) {
+      $("login-error").textContent = "Identifiant ou mot de passe incorrect.";
+      $("pass").value = "";
+      return;
+    }
+    store(sessionStorage, SESSION_KEY, "1");
+    store(localStorage, ADMIN_DEVICE_KEY, "1");
+    showDashboard();
+  });
+
+  $("logout").addEventListener("click", () => {
+    store(sessionStorage, SESSION_KEY, null);
+    location.reload();
+  });
+
+  // ---------- Dates ----------
+  function shiftDay(key, delta) {
+    const d = new Date(`${key}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.toISOString().slice(0, 10);
+  }
+  function longDate(key) {
+    return new Date(`${key}T12:00:00Z`).toLocaleDateString("fr-FR", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+    });
+  }
+  function shortDate(key) {
+    return new Date(`${key}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+  }
+
+  // ---------- Tableau de bord ----------
+  async function showDashboard() {
+    $("login").hidden = true;
+    $("dashboard").hidden = false;
+
+    let history;
+    try {
+      history = await fetchVisitHistory();
+    } catch (err) {
+      console.error(err);
+      $("load-error").textContent = "Impossible de charger les visites (vérifie les règles Firestore, voir FIREBASE-SETUP.md).";
+      return;
+    }
+
+    const byDay = new Map(history.map((h) => [h.day, h.count]));
+    const today = todayKey();
+    const lastDays = (n) => Array.from({ length: n }, (_, i) => shiftDay(today, i - n + 1));
+    const sum = (days) => days.reduce((t, d) => t + (byDay.get(d) || 0), 0);
+
+    $("s-today").textContent = fmt.format(byDay.get(today) || 0);
+    $("s-week").textContent = fmt.format(sum(lastDays(7)));
+    $("s-month").textContent = fmt.format(sum(lastDays(30)));
+    $("s-total").textContent = fmt.format(history.reduce((t, h) => t + h.count, 0));
+
+    renderChart(lastDays(30).map((day) => ({ day, count: byDay.get(day) || 0 })));
+
+    const tbody = $("history");
+    if (!history.length) {
+      tbody.innerHTML = `<tr><td colspan="2">Aucune visite enregistrée pour l'instant.</td></tr>`;
+    }
+    for (const h of [...history].reverse()) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${longDate(h.day)}</td><td class="num">${fmt.format(h.count)}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function niceMax(v) {
+    // 4 graduations entières et rondes (1, 2, 5, 10, 15, 20, 25…)
+    const raw = Math.max(1, v / 4);
+    const pow = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]
+      .map((m) => m * pow)
+      .find((s) => s >= raw && Number.isInteger(s));
+    return step * 4;
+  }
+
+  function renderChart(data) {
+    const el = $("chart");
+    const W = el.clientWidth, H = el.clientHeight;
+    const pad = { top: 8, right: 4, bottom: 22, left: 32 };
+    const iw = W - pad.left - pad.right, ih = H - pad.top - pad.bottom;
+    const max = niceMax(Math.max(...data.map((d) => d.count)));
+    const slot = iw / data.length;
+    const barW = Math.max(2, slot - 2);
+    const y = (v) => pad.top + ih - (v / max) * ih;
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visites par jour sur les 30 derniers jours">`;
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i, yy = y(v);
+      svg += `<line class="grid" x1="${pad.left}" x2="${W - pad.right}" y1="${yy}" y2="${yy}"/>`;
+      svg += `<text class="axis-label" x="${pad.left - 6}" y="${yy + 4}" text-anchor="end">${fmt.format(v)}</text>`;
+    }
+    data.forEach((d, i) => {
+      const x = pad.left + i * slot + 1;
+      const h = Math.max(0, pad.top + ih - y(d.count));
+      const r = Math.min(4, barW / 2, h);
+      // Barre arrondie en haut, ancrée à la ligne de base
+      const top = pad.top + ih - h, bottom = pad.top + ih;
+      const path = h > 0
+        ? `M${x},${bottom} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${bottom} Z`
+        : "";
+      svg += `<rect class="hit" data-i="${i}" x="${pad.left + i * slot}" y="${pad.top}" width="${slot}" height="${ih}"/>`;
+      svg += `<path class="bar" d="${path}"/>`;
+      if (i % 7 === 2 || i === data.length - 1) {
+        svg += `<text class="axis-label" x="${x + barW / 2}" y="${H - 6}" text-anchor="middle">${shortDate(d.day)}</text>`;
+      }
+    });
+    svg += `</svg><div class="tooltip" hidden></div>`;
+    el.innerHTML = svg;
+
+    const tip = el.querySelector(".tooltip");
+    el.querySelectorAll(".hit").forEach((hit) => {
+      hit.addEventListener("mouseenter", () => {
+        const d = data[hit.dataset.i];
+        tip.textContent = `${longDate(d.day)} : ${fmt.format(d.count)} visite${d.count > 1 ? "s" : ""}`;
+        const i = Number(hit.dataset.i);
+        const cx = pad.left + i * slot + slot / 2;
+        tip.style.left = `${Math.min(Math.max(cx, 110), W - 110)}px`;
+        tip.style.top = `${y(d.count) - 8}px`;
+        tip.hidden = false;
+      });
+      hit.addEventListener("mouseleave", () => { tip.hidden = true; });
+    });
+  }
+
+  if (read(sessionStorage, SESSION_KEY)) showDashboard();
+</script>
+</body>
+</html>
