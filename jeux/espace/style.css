@@ -980,3 +980,223 @@ kbd {
   .how-to { font-size: .75rem; }
   .mode-btn { font-size: .95rem; }
 }
+
+/* ---------- Téléphone : le jeu occupe tout l'écran ---------- */
+.phone-only { display: none; }
+#restart .phone-only { font-size: 1rem; }
+
+body.phone {
+  --top: max(6px, env(safe-area-inset-top));
+  --hud-h: 34px;
+  --under-hud: calc(var(--top) + var(--hud-h) + 6px);
+  --pad: 50px;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body.phone .phone-only { display: inline-block; }
+body.phone .btn-label,
+body.phone .back-link,
+body.phone .game-header { display: none; }
+
+/* HUD flottant en haut */
+body.phone .hud {
+  position: fixed;
+  top: var(--top);
+  left: 0;
+  right: 0;
+  z-index: 12;
+  margin: 0;
+  padding: 0 max(6px, env(safe-area-inset-left)) 0 max(6px, env(safe-area-inset-right));
+  gap: .3rem;
+  flex-wrap: nowrap;
+  max-width: none;
+  pointer-events: none;
+}
+body.phone .hud > * { pointer-events: auto; }
+body.phone .hud-item,
+body.phone .hud-btn,
+body.phone #restart {
+  height: var(--hud-h);
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  font-size: .85rem;
+  padding: 0 .6rem;
+  background: rgba(11, 15, 51, 0.72);
+  box-shadow: none;
+}
+body.phone #restart { background: var(--pink); }
+
+/* Zone de jeu = tout l'écran */
+body.phone .game-layout { display: block; padding: 0; max-width: none; }
+body.phone .stage-col { max-width: none; }
+body.phone .stage {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Ordre de mission : petite bande d'images sous le HUD */
+body.phone .mission-panel,
+body.phone .mission-panel.riddles {
+  top: var(--under-hud);
+  left: max(6px, env(safe-area-inset-left));
+  width: min(260px, 72vw);
+  max-height: calc(100% - var(--under-hud) - 3 * var(--pad) - 40px);
+  padding: .2rem .3rem .3rem;
+  border-radius: 12px;
+}
+body.phone .mission-head { font-size: .8rem; padding: 0 .15rem .15rem; }
+body.phone .m-item { font-size: .75rem; padding: .1rem .35rem .1rem .1rem; gap: .35rem; }
+body.phone .m-thumb { width: 26px; height: 26px; }
+body.phone .m-text strong { font-size: .8rem; }
+body.phone .m-riddle { font-size: .66rem; }
+body.phone .m-check { width: 18px; height: 18px; font-size: .7rem; }
+body.phone .m-q { font-size: .85rem; }
+body.phone .mission-panel.collapsed {
+  display: flex;
+  align-items: center;
+  gap: .15rem;
+  width: auto;
+  max-width: calc(100% - 110px);
+  padding: .15rem .25rem;
+}
+body.phone .mission-panel.collapsed .mission-head { width: auto; padding: 0 .1rem; }
+body.phone .mission-panel.collapsed .mission-list { flex-direction: row; flex-wrap: wrap; gap: .2rem; }
+body.phone .mission-panel.collapsed .m-item { padding: .05rem; border-radius: 50%; }
+body.phone .mission-panel.collapsed .m-check { width: 13px; height: 13px; font-size: .5rem; right: -2px; bottom: -2px; }
+
+/* Mini-carte en haut à droite (le bas est pour les commandes) */
+body.phone .minimap {
+  top: var(--under-hud);
+  bottom: auto;
+  right: max(6px, env(safe-area-inset-right));
+  width: 84px;
+  height: 84px;
+}
+
+/* Photo : petite carte postale, sans le paragraphe « Incroyable mais vrai » (il reste dans le carnet) */
+body.phone .photo-card {
+  z-index: 2;
+  top: var(--under-hud);
+  bottom: auto;
+  right: 6px;
+  width: min(250px, 64vw);
+  padding: .3rem;
+  gap: .4rem;
+  border-radius: 8px;
+}
+body.phone .pc-pic { width: 44px; height: 44px; border-radius: 4px; }
+body.phone .pc-body p { margin-bottom: .1rem; }
+body.phone .tag { font-size: .6rem; padding: 0 .35rem; }
+body.phone .pc-name { font-size: .9rem; }
+body.phone .pc-name small { font-size: .65rem; }
+body.phone .pc-fact {
+  font-size: .68rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+body.phone .pc-wow { display: none; }
+
+/* Commandes tactiles posées sur le jeu */
+body.phone .touch-pad {
+  display: flex;
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 11;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+body.phone .touch-pad > * { pointer-events: auto; }
+body.phone .dpad {
+  grid-template-columns: repeat(3, var(--pad));
+  grid-template-rows: repeat(3, var(--pad));
+  pointer-events: none;
+}
+body.phone .dpad button { pointer-events: auto; background: rgba(255, 255, 255, 0.16); }
+body.phone .turbo-btn { padding: .9rem 1.2rem; font-size: 1.05rem; opacity: .92; }
+
+/* Bip au-dessus de la croix directionnelle */
+body.phone .copilot {
+  left: max(6px, env(safe-area-inset-left));
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 3 * var(--pad) + 18px);
+  max-width: calc(100% - 12px);
+}
+body.phone .bip { width: 40px; height: 44px; }
+body.phone .bubble { font-size: .76rem; padding: .3rem .55rem; margin-bottom: 18px; max-width: 260px; }
+
+/* Téléphone à l'horizontale : peu de hauteur, Bip se met entre les commandes */
+@media (orientation: landscape) {
+  body.phone { --pad: 44px; }
+  body.phone .copilot {
+    left: calc(max(10px, env(safe-area-inset-left)) + 3 * var(--pad) + 24px);
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-width: calc(100% - 3 * var(--pad) - 190px);
+  }
+  body.phone .mission-panel,
+  body.phone .mission-panel.riddles { max-height: calc(100% - var(--under-hud) - 3 * var(--pad) - 24px); }
+}
+
+/* Classement : caché pendant le jeu, s'ouvre avec le bouton 🏆 */
+body.phone .leaderboard { display: none; }
+body.phone .leaderboard.open {
+  display: block;
+  position: fixed;
+  z-index: 26;
+  top: var(--under-hud);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, calc(100% - 20px));
+  max-height: calc(100% - var(--under-hud) - 10px);
+  overflow-y: auto;
+  margin: 0;
+  background: #141A4A;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+body.phone .leaderboard .carnet-close { top: .5rem; right: .5rem; width: 32px; height: 32px; font-size: .95rem; }
+
+/* Ordre de mission (écran de départ) plus compact */
+body.phone .start-overlay { padding: .5rem; }
+body.phone .order-card { padding: .7rem .8rem .6rem; border-radius: 14px; }
+body.phone .order-agency,
+body.phone .order-sign,
+body.phone .how-to li:first-child { display: none; }
+body.phone .order-head { padding-bottom: .3rem; margin-bottom: .4rem; }
+body.phone .order-title { font-size: 1.1rem; }
+body.phone .stamp { font-size: .75rem; border-width: 2px; }
+body.phone .order-story { font-size: .85rem; line-height: 1.3; margin-bottom: .5rem; }
+body.phone .mode-switch { margin-bottom: .5rem; }
+body.phone .mode-btn { font-size: .9rem; padding: .2rem .3rem; }
+body.phone .mode-btn small { font-size: .65rem; }
+body.phone .order-sub { font-size: .9rem; margin-bottom: .25rem; }
+body.phone .order-list { grid-template-columns: 1fr 1fr; gap: .25rem; margin-bottom: .5rem; }
+body.phone .order-list .m-thumb { width: 30px; height: 30px; }
+@media (orientation: portrait) {
+  body.phone .order-list.riddles { grid-template-columns: 1fr; }
+}
+body.phone .order-list .m-riddle { font-size: .66rem; }
+body.phone .how-to { font-size: .72rem; padding: .35rem .5rem; margin-bottom: .5rem; gap: .2rem; }
+body.phone #startBtn { font-size: 1.1rem; padding: .45rem 1.4rem; }
+@media (orientation: landscape) {
+  body.phone .order-card { max-width: 680px; }
+  body.phone .order-list { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Photos de la victoire plus petites */
+body.phone .win-card { padding: 1rem 1rem; border-radius: 20px; }
+body.phone .win-title { font-size: 1.2rem; }
+body.phone .win-photos { gap: .25rem; margin-bottom: .5rem; }
+body.phone .win-photos figure { width: 48px; padding: .15rem .15rem .05rem; }
+body.phone .win-photos figure img { width: 42px; height: 42px; }
+body.phone .win-photos figcaption { font-size: .5rem; }

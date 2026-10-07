@@ -112,6 +112,8 @@ const pseudoInput = $('pseudoInput');
 const scoreSaved = $('scoreSaved');
 const leaderboardList = $('leaderboardList');
 const carnetOverlay = $('carnet');
+const leaderboardEl = $('leaderboard');
+const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 const carnetGrid = $('carnetGrid');
 const carnetDetail = $('carnetDetail');
 
@@ -503,6 +505,7 @@ function renderMissionLists() {
   missionList.innerHTML = mission.map((m, i) => item(m, i, false)).join('');
   orderList.innerHTML = mission.map((m, i) => item(m, i, true)).join('');
   missionPanel.classList.toggle('riddles', mode === 'commandant');
+  orderList.classList.toggle('riddles', mode === 'commandant');
 
   $('orderStory').textContent = missionStory;
   $('orderNumber').textContent = `n° ${String(missionNumber).padStart(3, '0')}`;
@@ -570,7 +573,8 @@ function startGame() {
   lastMoveAt = startTime;
   nextJokeAt = startTime + rand(28000, 40000);
   say(pick(BIP.start), 3, 4500);
-  if (window.matchMedia('(max-width: 700px)').matches) setMissionCollapsed(true);
+  if (phoneMQ.matches || window.matchMedia('(max-width: 700px)').matches) setMissionCollapsed(true);
+  if (phoneMQ.matches) enterFullscreen();
 }
 
 /* ---------- Commandes ---------- */
@@ -1676,6 +1680,38 @@ $('missionToggle').addEventListener('click', (e) => {
   setMissionCollapsed(!missionPanel.classList.contains('collapsed'));
 });
 
+/* ---------- Mode téléphone : jeu en plein écran ---------- */
+function applyPhoneMode() {
+  document.body.classList.toggle('phone', phoneMQ.matches);
+}
+applyPhoneMode();
+phoneMQ.addEventListener('change', applyPhoneMode);
+
+function enterFullscreen() {
+  const el = document.documentElement;
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return; // iPhone : pas d'API plein écran, la mise en page occupe déjà tout l'écran
+  try {
+    const p = req.call(el, { navigationUI: 'hide' });
+    if (p && p.catch) p.catch(() => {});
+  } catch (err) { /* refusé par le navigateur */ }
+}
+
+function pauseGame() {
+  if (state === 'playing' && !paused) {
+    paused = true;
+    pauseStart = performance.now();
+  }
+}
+
+function resumeGame() {
+  if (paused) {
+    startTime += performance.now() - pauseStart;
+    paused = false;
+  }
+}
+
 /* ---------- Carnet de l'explorateur ---------- */
 function renderCarnet() {
   $('carnetSub').textContent = `${discoveredCount()} / ${SPACE_OBJECTS.length} objets découverts — prends-les tous en photo !`;
@@ -1718,19 +1754,13 @@ carnetGrid.addEventListener('click', (e) => {
 function openCarnet() {
   renderCarnet();
   carnetOverlay.hidden = false;
-  if (state === 'playing' && !paused) {
-    paused = true;
-    pauseStart = performance.now();
-  }
+  pauseGame();
   $('carnetClose').focus({ preventScroll: true });
 }
 
 function closeCarnet() {
   carnetOverlay.hidden = true;
-  if (paused) {
-    startTime += performance.now() - pauseStart;
-    paused = false;
-  }
+  if (!leaderboardEl.classList.contains('open')) resumeGame();
 }
 
 $('carnetBtn').addEventListener('click', (e) => { e.currentTarget.blur(); openCarnet(); });
@@ -1800,6 +1830,7 @@ $('restart').addEventListener('click', (e) => {
   e.currentTarget.blur();
   winBanner.classList.remove('show');
   closeCarnet();
+  leaderboardEl.classList.remove('open');
   showStartScreen(true);
 });
 
@@ -1816,6 +1847,18 @@ $('newOrderBtn').addEventListener('click', () => {
 document.querySelectorAll('.mode-btn').forEach((b) => {
   b.addEventListener('click', () => setMode(b.dataset.mode));
 });
+
+// Sur téléphone, le classement s'ouvre par-dessus le jeu (bouton 🏆)
+function toggleLeaderboardPanel(open) {
+  leaderboardEl.classList.toggle('open', open);
+  if (open) pauseGame();
+  else if (carnetOverlay.hidden) resumeGame();
+}
+$('lbBtn').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  toggleLeaderboardPanel(!leaderboardEl.classList.contains('open'));
+});
+$('lbClose').addEventListener('click', () => toggleLeaderboardPanel(false));
 
 document.querySelectorAll('.lb-tabs button').forEach((b) => {
   b.addEventListener('click', () => showLeaderboard(b.dataset.lb));
