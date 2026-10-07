@@ -99,7 +99,7 @@ function titleScreen() {
   music('map');
   const scr = show(`
     <div class="scene-bg">${sceneSVG('meadow')}</div>
-    <a class="back-link" href="../../index.html">← La Cabane</a>
+    <a class="back-link" href="../../cabane.html">← La Cabane</a>
     <div class="top-right">${soundBtn()}</div>
     <div class="title-wrap">
       <p class="eyebrow">La Cabane à Jeux présente</p>

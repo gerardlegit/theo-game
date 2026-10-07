@@ -1,0 +1,173 @@
+:root {
+  --cream: #FFF6E9;
+  --yellow: #FFC93C;
+  --pink: #FF6F91;
+  --green: #58C97B;
+  --purple: #9B6BF2;
+  --ink: #2E2A4D;
+  --muted: #6a6486;
+  --white: #FFFFFF;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  overflow-x: hidden;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  color: var(--white);
+  text-align: center;
+  background:
+    radial-gradient(rgba(255, 255, 255, .14) 1.5px, transparent 1.6px) 0 0 / 24px 24px,
+    linear-gradient(125deg, #2F5BEA 0%, #3F8CFF 45%, #74CBFF 100%);
+  padding: 2.5rem 1rem 0;
+}
+
+.sun {
+  position: absolute;
+  top: 28px;
+  right: 7%;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #FFF3A6 0 45%, #FFD23F 46% 100%);
+  box-shadow: 0 0 0 12px rgba(255, 210, 63, .25), 0 0 50px rgba(255, 210, 63, .8);
+}
+
+.cloud {
+  position: absolute;
+  height: 34px;
+  border-radius: 40px;
+  background: rgba(255, 255, 255, .85);
+}
+.cloud-1 { width: 120px; top: 60px; left: 6%; }
+.cloud-2 { width: 90px; top: 150px; left: 18%; opacity: .7; }
+
+.hero-inner {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 4.5rem;
+}
+
+.hero-logo {
+  width: 130px;
+  height: auto;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .25));
+}
+
+.hero h1 {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.6rem, 8vw, 4.2rem);
+  line-height: 1;
+  margin: .5rem 0 .4rem;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, .15);
+}
+
+.hero-sub {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.hero-hills {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 70px;
+  display: block;
+}
+
+/* ---------- Grille d'applications ---------- */
+.apps {
+  max-width: 1000px;
+  margin: 1.5rem auto 2rem;
+  padding: 0 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.app {
+  --c: var(--purple);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1.5rem;
+  border-radius: 24px;
+  background: var(--white);
+  border: 3px solid var(--c);
+  box-shadow: 0 6px 0 var(--c);
+  color: inherit;
+  text-decoration: none;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+a.app:hover,
+a.app:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 0 var(--c);
+}
+a.app:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+.app-jeux { --c: var(--green); }
+
+.app-icon {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.app h2 {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1.6rem;
+  margin: .6rem 0 .3rem;
+}
+
+.app p {
+  margin: 0 0 1.2rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.app-cta {
+  display: inline-block;
+  padding: .5rem 1.1rem;
+  border-radius: 999px;
+  background: var(--c);
+  color: var(--white);
+  font-weight: 700;
+}
+
+.app.soon {
+  --c: #c9c3dc;
+  border-style: dashed;
+  box-shadow: none;
+  opacity: .85;
+}
+.app.soon .app-cta {
+  background: transparent;
+  color: var(--muted);
+  border: 2px dashed var(--c);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app { transition: none; }
+}
+
+/* ---------- Pied de page ---------- */
+.foot {
+  text-align: center;
+  color: var(--muted);
+  padding: 1rem 1rem 2rem;
+}
