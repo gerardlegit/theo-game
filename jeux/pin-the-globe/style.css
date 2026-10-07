@@ -1257,8 +1257,47 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .ask-country { font-size: 16px; }
   .tip { margin-top: 8px; font-size: 13px; }
   .tip .clue { font-size: 14.5px; margin-bottom: 4px; }
-  .ask-photo { height: 128px; margin-bottom: 8px; }
-  .card-photo { height: 170px; }
+  .card-photo { height: 120px; margin-bottom: 12px; }
+
+  /* Monuments et Safari : une carte compacte pour laisser la place au globe.
+     Petite vignette à gauche du nom (on la touche pour l'agrandir), la
+     devinette et le bouton en dessous. */
+  .play.has-photo {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    column-gap: 12px;
+    align-items: center;
+    text-align: left;
+    padding: 12px 14px;
+  }
+  .play.has-photo > * { grid-column: 1 / -1; }
+  .play.has-photo .ask { display: none; }
+  .play.has-photo .ask-photo {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 76px;
+    height: 76px;
+    margin: 0;
+  }
+  .play.has-photo .ask-photo .photo-btn { height: 100%; border-radius: 14px; }
+  .play.has-photo .ask-photo img { object-fit: cover; }
+  .play.has-photo .ask-photo figcaption { display: none; }
+  .play.has-photo .photo-zoom { width: 22px; height: 22px; right: 4px; bottom: 4px; font-size: 12px; }
+  .play.has-photo .ask-city { grid-column: 2; align-self: end; margin: 0; font-size: 1.45rem; line-height: 1.15; }
+  .play.has-photo .ask-country { grid-column: 2; align-self: start; margin-top: 4px; }
+  .play.has-photo .kind-badge { padding: 2px 10px; font-size: 12px; }
+  .play.has-photo .tip { margin-top: 10px; }
+  .play.has-photo .tip .clue { font-size: 14px; line-height: 1.35; }
+  .play.has-photo .tip-action { font-size: 12px; }
+  .play.has-photo .actions { margin-top: 10px; }
+  .play.has-photo .btn { min-height: 44px; }
+
+  .result:has(.card-photo:not([hidden])) { max-height: 48dvh; }
+  .result:has(.card-photo:not([hidden])) .verdict { padding-bottom: 8px; }
+  .result:has(.card-photo:not([hidden])) .verdict-emoji { width: 50px; height: 50px; font-size: 28px; border-radius: 14px; }
+  .result:has(.card-photo:not([hidden])) .verdict-label { font-size: 19px; }
+  .result:has(.card-photo:not([hidden])) .verdict-km b { font-size: 30px; }
+  .result:has(.card-photo:not([hidden])) .compare { margin-bottom: 12px; padding: 8px 12px; font-size: 13px; }
   .actions { margin-top: 12px; }
   .btn { min-height: 48px; font-size: 17px; padding: 10px 14px; }
   .btn small { font-size: 11px; }
