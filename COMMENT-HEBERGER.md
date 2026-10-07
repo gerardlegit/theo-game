@@ -33,7 +33,7 @@ en 2 minutes, sans rien installer.
 
 1. Crée un nouveau dossier dans `jeux/`, par exemple `jeux/coloriage/`.
 2. Mets-y ton `index.html` (et ses fichiers CSS/JS si besoin).
-3. Dans `cabane.html` (la page des jeux), remplace une des cartes "Bientôt" par un
+3. Dans `index.html` (la page d'accueil), remplace une des cartes "Bientôt" par un
    lien `<a class="card ..." href="jeux/coloriage/index.html">` en t'inspirant de
    la carte "Mémo Animaux".
 4. Pour donner à ton jeu un classement mondial, importe simplement
