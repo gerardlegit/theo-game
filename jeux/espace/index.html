@@ -36,6 +36,7 @@
   </header>
 
   <div class="hud">
+    <button id="quitBtn" class="hud-btn phone-only" aria-label="Quitter le jeu">🏠</button>
     <div class="hud-item">⏱️ <span id="timer">0</span> s</div>
     <div class="hud-item">📸 <span id="photoCount">0</span> / <span id="totalCount">0</span></div>
     <div class="hud-item">⭐ <span id="starCount">0</span></div>
@@ -132,7 +133,9 @@
 
       <ul class="how-to">
         <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter — ou garde le doigt / la souris appuyé(e) sur l'espace</li>
-        <li><kbd>Espace</kbd> ou double-tape : ⚡ TURBO</li>
+        <li class="phone-only">👆 Garde le doigt appuyé sur l'écran : ton vaisseau vole vers lui</li>
+        <li class="desktop-only"><kbd>Espace</kbd> ou double-tape : ⚡ TURBO</li>
+        <li class="phone-only">⚡ Bouton Turbo ou double-tape : TURBO</li>
         <li>📸 Approche-toi d'un objet : la photo se prend toute seule</li>
         <li>⭐ Chaque étoile d'or = 1 seconde en moins · ☄️ Gare aux astéroïdes et au trou noir !</li>
       </ul>
@@ -140,6 +143,7 @@
       <div class="order-actions">
         <button id="startBtn">🚀 Décoller !</button>
         <button id="newOrderBtn" class="ghost-btn">🎲 Une autre mission</button>
+        <a class="ghost-btn quit-link" href="../../index.html">🏠 Quitter</a>
       </div>
       <p class="order-sign">Signé : <em>Général Gloubi</em>, chef des étoiles ⭐</p>
     </div>
@@ -166,6 +170,7 @@
       <div class="win-actions">
         <button id="playAgain">Nouvelle mission</button>
         <button id="winCarnetBtn" class="ghost-btn">📖 Mon carnet</button>
+        <a class="ghost-btn quit-link" href="../../index.html">🏠 Quitter</a>
       </div>
     </div>
   </div>
@@ -178,6 +183,18 @@
       <p class="carnet-sub" id="carnetSub"></p>
       <div class="carnet-detail" id="carnetDetail" hidden></div>
       <div class="carnet-grid" id="carnetGrid"></div>
+    </div>
+  </div>
+
+  <!-- Quitter le jeu -->
+  <div class="quit-overlay" id="quitOverlay" hidden>
+    <div class="quit-card" role="dialog" aria-labelledby="quitTitle">
+      <p class="quit-title" id="quitTitle">Quitter la mission ?</p>
+      <p class="quit-sub">Ta mission en cours sera perdue (ton carnet, lui, est gardé 📖).</p>
+      <div class="quit-actions">
+        <button id="quitYes">🏠 Retour à la Cabane</button>
+        <button id="quitNo" class="ghost-btn">Non, je continue 🚀</button>
+      </div>
     </div>
   </div>
 

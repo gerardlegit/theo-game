@@ -113,6 +113,7 @@ const scoreSaved = $('scoreSaved');
 const leaderboardList = $('leaderboardList');
 const carnetOverlay = $('carnet');
 const leaderboardEl = $('leaderboard');
+const quitOverlay = $('quitOverlay');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 const carnetGrid = $('carnetGrid');
 const carnetDetail = $('carnetDetail');
@@ -592,6 +593,10 @@ function isTyping(e) {
 
 window.addEventListener('keydown', (e) => {
   if (isTyping(e) || winBanner.classList.contains('show')) return;
+  if (!quitOverlay.hidden) {
+    if (e.code === 'Escape') closeQuit();
+    return;
+  }
   if (!carnetOverlay.hidden) {
     if (e.code === 'Escape') closeCarnet();
     return;
@@ -792,6 +797,7 @@ function takePhoto(b) {
 
   flash = { a: 0.85, color: '255,255,255' };
   sfx.click();
+  buzz(25);
   addFloater('📸 CLIC !', b.x, b.y - b.r - 24, '#FFFFFF', 26);
 
   const m = mission.find((x) => x.obj.id === obj.id && !x.done);
@@ -900,6 +906,7 @@ function updateShip(dt, now) {
       ship.spaghetti = 1.8;
       ship.vx = ship.vy = 0;
       sfx.spaghetti();
+      buzz([120, 60, 120]);
       say(lastPhoto ? pick(BIP.spaghettiPhoto) : pick(BIP.spaghetti), 4, 5000);
       addFloater('🍝 SPAGHETTIFICATION !', ship.x, ship.y - 50, '#FFC93C', 26);
       return;
@@ -986,6 +993,7 @@ function updateHazards(dt, now) {
       ship.spin = 0.6;
       shake = Math.max(shake, 0.3);
       sfx.bonk();
+      buzz(70);
       burst(ship.x - nx * 14, ship.y - ny * 14, 12, ['#BCAB95', '#FFFFFF', '#FFC93C'], 160);
       addFloater(pick(['BONK !', 'PAF !', 'BOING !', 'AÏE !']), ship.x, ship.y - 34, '#FFC93C', 24);
       if (now - bonkStreak.t < 6000) bonkStreak.n += 1; else bonkStreak.n = 1;
@@ -1712,6 +1720,50 @@ function resumeGame() {
   }
 }
 
+// On ne reprend que si plus aucune fenêtre ne recouvre le jeu
+function maybeResume() {
+  if (carnetOverlay.hidden && quitOverlay.hidden && !leaderboardEl.classList.contains('open') && !document.hidden) resumeGame();
+}
+
+// Petite vibration sur téléphone (ignorée là où ce n'est pas possible, ex. iPhone)
+function buzz(pattern) {
+  if (!phoneMQ.matches || !navigator.vibrate) return;
+  try { navigator.vibrate(pattern); } catch (err) { /* ignoré */ }
+}
+
+// Si l'enfant change d'appli ou éteint l'écran, le chrono s'arrête
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    pauseGame();
+    Object.keys(keys).forEach((k) => { keys[k] = false; });
+    pointer.active = false;
+  } else {
+    maybeResume();
+  }
+});
+
+// Un appui long sur le jeu ne doit pas ouvrir le menu du navigateur
+stage.addEventListener('contextmenu', (e) => { if (phoneMQ.matches) e.preventDefault(); });
+
+/* ---------- Quitter le jeu ---------- */
+function goHome() {
+  window.location.href = '../../index.html';
+}
+function openQuit() {
+  if (state !== 'playing') { goHome(); return; }
+  quitOverlay.hidden = false;
+  pauseGame();
+  $('quitNo').focus({ preventScroll: true });
+}
+function closeQuit() {
+  quitOverlay.hidden = true;
+  maybeResume();
+}
+$('quitBtn').addEventListener('click', (e) => { e.currentTarget.blur(); openQuit(); });
+$('quitYes').addEventListener('click', goHome);
+$('quitNo').addEventListener('click', closeQuit);
+quitOverlay.addEventListener('click', (e) => { if (e.target === quitOverlay) closeQuit(); });
+
 /* ---------- Carnet de l'explorateur ---------- */
 function renderCarnet() {
   $('carnetSub').textContent = `${discoveredCount()} / ${SPACE_OBJECTS.length} objets découverts — prends-les tous en photo !`;
@@ -1760,7 +1812,7 @@ function openCarnet() {
 
 function closeCarnet() {
   carnetOverlay.hidden = true;
-  if (!leaderboardEl.classList.contains('open')) resumeGame();
+  maybeResume();
 }
 
 $('carnetBtn').addEventListener('click', (e) => { e.currentTarget.blur(); openCarnet(); });
@@ -1802,6 +1854,7 @@ function finishGame() {
   timerEl.textContent = String(seconds);
   say(pick(BIP.win), 5, 6000);
   setTimeout(() => sfx.win(), 300);
+  buzz([60, 50, 60, 50, 150]);
 
   setTimeout(() => {
     $('winPhotos').innerHTML = mission
@@ -1852,7 +1905,7 @@ document.querySelectorAll('.mode-btn').forEach((b) => {
 function toggleLeaderboardPanel(open) {
   leaderboardEl.classList.toggle('open', open);
   if (open) pauseGame();
-  else if (carnetOverlay.hidden) resumeGame();
+  else maybeResume();
 }
 $('lbBtn').addEventListener('click', (e) => {
   e.currentTarget.blur();
