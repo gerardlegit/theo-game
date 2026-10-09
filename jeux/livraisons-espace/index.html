@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0E2A">
+<title>Livraisons dans l'espace — La Cabane à Jeux</title>
+<meta name="description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et achète la planète Terre !">
+<link rel="canonical" href="https://www.la-cabane.app/jeux/livraisons-espace/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Cabane à Jeux">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="https://www.la-cabane.app/jeux/livraisons-espace/">
+<meta property="og:title" content="Livraisons dans l'espace — La Cabane à Jeux">
+<meta property="og:description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et achète la planète Terre !">
+<meta property="og:image" content="https://www.la-cabane.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La Cabane à Jeux : une cabane dans un arbre, des jeux éducatifs pour apprendre en s'amusant">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Même style que Mission Cosmos, plus ce qui est propre aux livraisons -->
+<link rel="stylesheet" href="../espace/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../index.html">← La Cabane</a>
+
+  <header class="game-header">
+    <h1>📦 Livraisons dans l'espace</h1>
+    <p>Livre des ressources rares aux habitants du système solaire… et achète la Terre !</p>
+  </header>
+
+  <div class="hud">
+    <button id="quitBtn" class="hud-btn phone-only" aria-label="Quitter le jeu">🏠</button>
+    <div class="hud-item gold-item" title="Il faut 1000 pièces d'or pour acheter la Terre">
+      💰 <span id="gold">0</span><span class="gold-goal"> / 1000</span>
+      <span class="gold-bar" aria-hidden="true"><i id="goldBar"></i></span>
+    </div>
+    <div class="hud-item">📦 <span id="cargoCount">0/4</span></div>
+    <button id="mapBtn" class="hud-btn" aria-label="Ouvrir la carte">🗺️ <span class="btn-label">Carte</span></button>
+    <button id="soundBtn" class="hud-btn" aria-label="Couper ou remettre le son">🔊</button>
+  </div>
+
+  <section class="game-layout">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="spaceCanvas"></canvas>
+
+        <div class="mission-panel quest-panel" id="questPanel">
+          <button class="mission-head" id="questToggle" aria-expanded="true">
+            📜 <span class="mission-head-text">Mes quêtes</span> <span class="q-count" id="questCount">0/3</span>
+          </button>
+          <ol class="quest-list" id="questList"></ol>
+        </div>
+
+        <div class="cargo-panel" id="cargoPanel">
+          <p class="cargo-head">📦 <span class="cargo-title">Soute</span> <span id="cargoHead">0/4</span></p>
+          <div class="cargo-slots" id="cargoSlots"></div>
+        </div>
+
+        <div class="photo-card fact-card" id="factCard" hidden>
+          <div class="pc-pic"><img id="fcImg" alt=""><span class="fc-icon" id="fcIcon"></span></div>
+          <div class="pc-body">
+            <p class="pc-tag"><span class="tag tag-new">💡 Le savais-tu ?</span></p>
+            <p class="pc-name"><span id="fcName"></span> <small id="fcWhere"></small></p>
+            <p class="pc-fact" id="fcFact"></p>
+          </div>
+        </div>
+
+        <div class="copilot" id="copilot">
+          <svg class="bip" viewBox="0 0 80 84" aria-hidden="true">
+            <line x1="40" y1="16" x2="40" y2="6" stroke="#C9CED8" stroke-width="3"/>
+            <circle class="bip-antenna" cx="40" cy="6" r="4.5" fill="#FF6F91"/>
+            <circle cx="9" cy="42" r="6" fill="#FFC93C" stroke="#2E2A4D" stroke-width="2.5"/>
+            <circle cx="71" cy="42" r="6" fill="#FFC93C" stroke="#2E2A4D" stroke-width="2.5"/>
+            <rect x="24" y="66" width="32" height="14" rx="6" fill="#C9CED8" stroke="#2E2A4D" stroke-width="2.5"/>
+            <rect x="12" y="16" width="56" height="52" rx="22" fill="#E8EDF5" stroke="#2E2A4D" stroke-width="3"/>
+            <rect x="19" y="25" width="42" height="31" rx="13" fill="#1C2260"/>
+            <g class="bip-eyes">
+              <ellipse cx="31" cy="38" rx="5" ry="6.5" fill="#9EE7FF"/>
+              <ellipse cx="49" cy="38" rx="5" ry="6.5" fill="#9EE7FF"/>
+            </g>
+            <path class="bip-mouth" d="M33 48 Q40 53 47 48" stroke="#9EE7FF" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </svg>
+          <div class="bubble" id="bubble"></div>
+        </div>
+
+        <canvas class="minimap" id="minimap" aria-label="Carte du système solaire"></canvas>
+      </div>
+
+      <div class="touch-pad" id="touchPad" aria-label="Commandes tactiles">
+        <div class="dpad">
+          <button data-dir="up" class="dpad-up" aria-label="Haut">▲</button>
+          <button data-dir="left" class="dpad-left" aria-label="Gauche">◀</button>
+          <button data-dir="right" class="dpad-right" aria-label="Droite">▶</button>
+          <button data-dir="down" class="dpad-down" aria-label="Bas">▼</button>
+        </div>
+        <div class="pad-actions">
+          <button id="fireBtn" class="fire-btn" hidden>💥 Tir</button>
+          <button id="turboBtn" class="turbo-btn">⚡ Turbo</button>
+        </div>
+      </div>
+
+      <p class="desk-help desktop-only">
+        <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> piloter ·
+        <kbd>Espace</kbd> turbo · <kbd>F</kbd> tirer · <kbd>M</kbd> carte
+      </p>
+    </div>
+  </section>
+
+  <!-- Écran de départ -->
+  <div class="start-overlay" id="startOverlay" hidden>
+    <div class="order-card start-card">
+      <p class="order-title">📦 Livraisons dans l'espace</p>
+      <p class="start-goal">Livre des <b>ressources rares</b> aux habitants de l'espace.<br>Gagne <b>💰 1000 pièces d'or</b>… et achète la <b>planète Terre</b> ! 🌍👑</p>
+      <ul class="how-to">
+        <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter, <kbd>Espace</kbd> : turbo</li>
+        <li class="phone-only">👆 Garde le doigt appuyé sur l'écran : ta fusée vole vers lui</li>
+        <li><b>!</b> Va voir un personnage avec un « ! » pour accepter sa quête</li>
+        <li>🪐 Approche-toi de la bonne planète : ta soute se remplit toute seule</li>
+        <li>🛸 Gare aux OVNI : un missile, et tout ton chargement s'envole !</li>
+        <li>🗺️ La carte (<kbd>M</kbd>) t'aide à préparer le meilleur trajet</li>
+      </ul>
+      <div class="order-actions">
+        <button id="startBtn">🚀 Décoller !</button>
+        <button id="newGameBtn" class="ghost-btn" hidden>🆕 Nouvelle partie</button>
+        <a class="ghost-btn quit-link" href="../../index.html">🏠 Quitter</a>
+      </div>
+      <p class="save-note">💾 Ta partie est sauvegardée toute seule : tu peux revenir quand tu veux.</p>
+    </div>
+  </div>
+
+  <!-- Fenêtre : quête, marchand, achat de la Terre… -->
+  <div class="dlg-overlay" id="dialog" hidden>
+    <div class="dlg-card" id="dialogCard" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- La grande carte -->
+  <div class="map-overlay" id="mapOverlay" hidden>
+    <div class="map-card" role="dialog" aria-labelledby="mapTitle">
+      <button class="carnet-close" id="mapClose" aria-label="Fermer la carte">✕</button>
+      <h2 id="mapTitle">🗺️ Carte du système solaire</h2>
+      <div class="map-body">
+        <div class="map-canvas-wrap"><canvas id="bigMap"></canvas></div>
+        <div class="map-side" id="mapSide"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- La fin : roi de la Terre ! -->
+  <div class="end-overlay" id="endOverlay" hidden>
+    <canvas id="endCanvas"></canvas>
+    <div class="end-text">
+      <p class="end-title" id="endTitle"></p>
+      <p class="end-sub" id="endSub"></p>
+      <p class="end-stats" id="endStats"></p>
+      <div class="title-switch">
+        <button class="title-btn" data-title="Roi">🤴 Roi</button>
+        <button class="title-btn" data-title="Reine">👸 Reine</button>
+      </div>
+      <div class="end-actions">
+        <button id="endContinue">🚀 Continuer à livrer</button>
+        <button id="endNew" class="ghost-btn">🆕 Nouvelle partie</button>
+        <a class="ghost-btn quit-link" href="../../index.html">🏠 La Cabane</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quitter le jeu -->
+  <div class="quit-overlay" id="quitOverlay" hidden>
+    <div class="quit-card" role="dialog" aria-labelledby="quitTitle">
+      <p class="quit-title" id="quitTitle">Quitter le jeu ?</p>
+      <p class="quit-sub">Pas de panique : ta partie est sauvegardée 💾</p>
+      <div class="quit-actions">
+        <button id="quitYes">🏠 Retour à la Cabane</button>
+        <button id="quitNo" class="ghost-btn">Non, je continue 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
