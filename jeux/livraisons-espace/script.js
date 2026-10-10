@@ -684,7 +684,7 @@ function startGame() {
     say(pick(LINES.resume), 2, 3500);
   }
   if (phoneMQ.matches || window.matchMedia('(max-width: 700px)').matches) setQuestCollapsed(true);
-  if (phoneMQ.matches) enterFullscreen();
+  enterFullscreen();
   saveGame();
 }
 
@@ -3086,8 +3086,10 @@ function drawBigMap() {
 }
 
 /* ---------- Mode téléphone : jeu en plein écran ---------- */
+/* Sur ordinateur aussi, le jeu occupe toute la fenêtre */
 function applyPhoneMode() {
   document.body.classList.toggle('phone', phoneMQ.matches);
+  document.body.classList.toggle('full', !phoneMQ.matches);
 }
 applyPhoneMode();
 phoneMQ.addEventListener('change', applyPhoneMode);
@@ -3102,6 +3104,32 @@ function enterFullscreen() {
     if (p && p.catch) p.catch(() => {});
   } catch (err) { /* refusé par le navigateur */ }
 }
+
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+
+function exitFullscreen() {
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!exit || !isFullscreen()) return;
+  try {
+    const p = exit.call(document);
+    if (p && p.catch) p.catch(() => {});
+  } catch (err) { /* ignoré */ }
+}
+
+function renderFsBtn() {
+  const on = isFullscreen();
+  fsBtn.classList.toggle('on', on);
+  fsBtn.title = on ? 'Quitter le plein écran' : 'Plein écran';
+  fsBtn.setAttribute('aria-label', fsBtn.title);
+}
+const fsBtn = $('fsBtn');
+fsBtn.addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  if (isFullscreen()) exitFullscreen(); else enterFullscreen();
+});
+document.addEventListener('fullscreenchange', renderFsBtn);
+document.addEventListener('webkitfullscreenchange', renderFsBtn);
+renderFsBtn();
 
 function buzz(pattern) {
   if (!phoneMQ.matches || !navigator.vibrate) return;
@@ -3367,6 +3395,7 @@ $('endContinue').addEventListener('click', () => {
   endOverlay.hidden = true;
   state = 'playing';
   say('Bip bip ! À vos ordres, Majesté ! On continue les livraisons ?', 4, 5000);
+  enterFullscreen();
   renderUI();
 });
 $('endNew').addEventListener('click', () => {

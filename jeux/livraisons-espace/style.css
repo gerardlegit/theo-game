@@ -486,6 +486,94 @@
   .fire-btn { padding: .9rem 1.1rem; font-size: 1rem; }
 }
 
+/* ---------- Bouton Quitter : toujours visible, même par-dessus les fenêtres ---------- */
+.exit-btn {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 55;
+  display: none;
+  align-items: center;
+  gap: .3rem;
+  height: 40px;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--white);
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 4px 0 #c94f6e, 0 6px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.exit-btn:hover { transform: translateY(2px); box-shadow: 0 2px 0 #c94f6e, 0 4px 10px rgba(0, 0, 0, 0.35); }
+body.full .exit-btn, body.phone .exit-btn { display: inline-flex; }
+/* la question « Quitter ? » passe devant tout le reste */
+.quit-overlay { z-index: 58; }
+
+#fsBtn { display: inline-flex; align-items: center; justify-content: center; }
+body.phone #fsBtn { display: none; }
+#fsBtn .fs-out { display: none; }
+#fsBtn.on .fs-in { display: none; }
+#fsBtn.on .fs-out { display: inline; }
+
+/* ---------- Ordinateur : le jeu occupe toute la fenêtre ---------- */
+body.full {
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+body.full .back-link,
+body.full .game-header,
+body.full .desk-help { display: none; }
+body.full .hud {
+  position: fixed;
+  top: 10px;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  margin: 0;
+  padding: 0 130px;
+  max-width: none;
+  pointer-events: none;
+}
+body.full .hud > * { pointer-events: auto; }
+body.full .hud-item,
+body.full .hud-btn {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(11, 15, 51, 0.72);
+  backdrop-filter: blur(3px);
+}
+body.full .gold-item { padding-bottom: .4rem; }
+body.full .game-layout { display: block; padding: 0; max-width: none; }
+body.full .stage-col { max-width: none; }
+body.full .stage {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.full .quest-panel { top: 62px; max-height: calc(100% - 200px); }
+body.full .cargo-panel { top: 62px; }
+/* écran tactile assez grand (tablette, PC tactile) : boutons en bas à droite, on pilote au doigt */
+body.full .touch-pad {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 11;
+  margin: 0;
+  padding: 0;
+}
+body.full .dpad { display: none; }
+@media (pointer: coarse) {
+  body.full .minimap { bottom: 110px; }
+}
+
 /* ---------- Téléphone : le jeu occupe tout l'écran ---------- */
 body.phone .gold-item { padding-bottom: .1rem; }
 body.phone .gold-goal { display: none; }
@@ -518,6 +606,14 @@ body.phone .fc-icon { font-size: 1.2rem; }
 body.phone .pad-actions { gap: .4rem; }
 body.phone .fire-btn { padding: .8rem 1rem; font-size: 1rem; opacity: .92; }
 body.phone .copilot { max-width: calc(100% - 210px); }
+body.phone .exit-btn {
+  top: var(--top);
+  left: max(6px, env(safe-area-inset-left));
+  height: var(--hud-h);
+  padding: 0 .6rem;
+  font-size: .9rem;
+  box-shadow: none;
+}
 body.phone .dlg-overlay { padding: .5rem; }
 body.phone .dlg-card { padding: .7rem .8rem .7rem; border-radius: 16px; }
 body.phone .dlg-face { width: 56px; height: 56px; }
