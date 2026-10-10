@@ -122,6 +122,7 @@ const ectx = endCanvas.getContext('2d');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const fireBtn = $('fireBtn');
+const turboBtn = $('turboBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 
 /* ---------- État ---------- */
@@ -771,7 +772,7 @@ document.querySelectorAll('.dpad button').forEach((btn) => {
   btn.addEventListener('pointerleave', release);
   btn.addEventListener('pointercancel', release);
 });
-$('turboBtn').addEventListener('pointerdown', (e) => {
+turboBtn.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   activateTurbo();
 });
@@ -810,6 +811,16 @@ canvas.addEventListener('pointermove', (e) => {
 
 function isDown(dir) {
   return keys[dir] || touchDirs[dir];
+}
+
+/* Le bouton Turbo se remplit pendant la recharge */
+let shownCharge = -1;
+function renderTurboBtn() {
+  const k = ship.turbo > 0 ? 0 : Math.round(ship.charge * 20) / 20;
+  if (k === shownCharge) return;
+  shownCharge = k;
+  turboBtn.style.setProperty('--charge', `${k * 100}%`);
+  turboBtn.classList.toggle('charging', k < 1);
 }
 
 function activateTurbo() {
@@ -1531,6 +1542,7 @@ function update(dt, now) {
     worldT += dt;
     updateBodies(dt);
     updateShip(dt, now);
+    renderTurboBtn();
     updateHazards(now);
     updateExtraction(dt);
     updateVisits();
@@ -2568,7 +2580,7 @@ function renderUI() {
   goldEl.parentElement.classList.toggle('rich', game.gold >= EARTH_PRICE);
   cargoCountEl.textContent = `${game.cargo.length}/${capacity()}`;
   $('questCount').textContent = `${game.quests.length}/${maxQuests()}`;
-  fireBtn.hidden = !weapon();
+  fireBtn.classList.toggle('locked', !weapon());   // sans arme, le bouton explique où en acheter une
 
   const items = game.quests.map((q, i) => {
     const c = CHAR_BY_ID[q.char];

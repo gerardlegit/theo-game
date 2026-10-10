@@ -190,6 +190,14 @@
   touch-action: none;
 }
 .fire-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #c94f6e; }
+/* pas encore d'arme : bouton gris avec un cadenas */
+.fire-btn.locked { background: #6E6A8E; box-shadow: 0 5px 0 #4B4768; }
+.fire-btn.locked::after { content: '🔒'; font-size: .8em; }
+/* turbo en recharge : le bouton se remplit de bleu */
+.turbo-btn.charging {
+  background: linear-gradient(90deg, var(--sky) var(--charge, 0%), #3A4878 var(--charge, 0%));
+  box-shadow: 0 5px 0 #26305A;
+}
 
 .desk-help {
   text-align: center;
@@ -560,18 +568,32 @@ body.full .stage {
 }
 body.full .quest-panel { top: 62px; max-height: calc(100% - 200px); }
 body.full .cargo-panel { top: 62px; }
-/* écran tactile assez grand (tablette, PC tactile) : boutons en bas à droite, on pilote au doigt */
+/* Boutons Tir et Turbo en bas, juste à gauche de la mini-carte (souris ou doigt) */
 body.full .touch-pad {
+  display: flex;
   position: fixed;
-  right: 14px;
-  bottom: 14px;
+  right: 186px;
+  bottom: 18px;
   z-index: 11;
   margin: 0;
   padding: 0;
 }
 body.full .dpad { display: none; }
-@media (pointer: coarse) {
-  body.full .minimap { bottom: 110px; }
+body.full .turbo-btn,
+body.full .fire-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .65rem 1.2rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+body.full .pad-actions kbd { font-size: .7rem; padding: 0 .35em; color: var(--ink); }
+body.full .fact-card { bottom: 96px; }
+@media (max-width: 700px) {
+  body.full .touch-pad { right: 112px; bottom: 10px; }
+  body.full .turbo-btn, body.full .fire-btn { padding: .5rem .8rem; font-size: .95rem; }
+  body.full .pad-actions kbd { display: none; }
 }
 
 /* ---------- Téléphone : le jeu occupe tout l'écran ---------- */
