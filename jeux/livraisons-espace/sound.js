@@ -126,6 +126,14 @@ export const sfx = {
     tone(180, 0.1, 1.5, { type: 'sine', vol: 0.12, to: 720 });
     noise(0.2, 1.3, { vol: 0.08, freq: 400, to: 3000, q: 4 });
   }),
+  /* compte à rebours : bip… bip… BIIIP ! */
+  beep: (go) => play(() => tone(go ? NOTE(84) : NOTE(72), 0, go ? 0.6 : 0.18, { type: 'square', vol: 0.06 })),
+  /* le décollage : un grondement qui dure, puis s'éloigne */
+  launch: () => play(() => {
+    noise(0, 5.5, { vol: 0.5, freq: 160, to: 900, q: 0.6, type: 'lowpass' });
+    noise(0.3, 4, { vol: 0.2, freq: 1200, to: 300, q: 0.8 });
+    tone(55, 0, 4.5, { type: 'sawtooth', vol: 0.08, to: 110 });
+  }),
   /* le grand saut à travers l'espace */
   warp: () => play(() => {
     noise(0, 1.8, { vol: 0.35, freq: 200, to: 6000, q: 1.5 });

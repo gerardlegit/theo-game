@@ -1,11 +1,11 @@
 import { renderArt } from "../espace/art.js";
 import { OBJECT_BY_ID, BIP } from "../espace/data.js";
-import {
-  RESOURCES, RESOURCE_IDS, CHARACTERS, CHAR_BY_ID, PEOPLE_BY_ID, UPGRADES, PAINTS, ACCESSORIES, SHOPS, PORTAL_PARTS, PORTAL_IDS, PORTAL_TOTAL, LINES,
-} from "./data.js";
+import { UPGRADES, PAINTS, ACCESSORIES, SHOPS, NOVA, PORTAL_PARTS as DEFAULT_PORTAL, LINES } from "./data.js";
 import { drawCharacter, characterThumb } from "./chars.js";
-import { CHAPTERS } from "./story.js";
-import { BUILDING_SIZE, drawBuilding, drawConstruction, buildingThumb, renderTriton } from "./buildings.js";
+import { LEVELS } from "./levels/index.js";
+import { BUILDING_SIZE, drawBuilding, drawConstruction, buildingThumb } from "./buildings.js";
+import { renderBody } from "./planets.js";
+import { createIntro } from "./intro.js";
 import { sfx, isSoundOn, toggleSound } from "./sound.js";
 
 const SAVE_KEY = 'livraisons-save';
@@ -13,7 +13,6 @@ const SAVE_VERSION = 2;            // 2 = avec l'histoire (les anciennes parties
 
 /* ---------- Réglages du vol (comme Mission Cosmos) ---------- */
 const TAU = Math.PI * 2;
-const WORLD_R = 4200;              // rayon de la carte
 const EDGE_ZONE = 160;             // bande où l'on est repoussé vers l'intérieur
 const ACCEL = 1100;                // px/s²
 const DRAG = 0.35;                 // part de la vitesse gardée après 1 s sans moteur
@@ -21,14 +20,12 @@ const TURBO_ACCEL = 2600;
 const TURBO_SPEED = 900;
 const TURBO_TIME = 1.6;            // s de turbo
 
-const SUN_BURN = 180;              // trop près du Soleil : ça brûle
 const BH_PULL_R = 620;             // le trou noir attire dans ce rayon
 const BH_PULL = 90000;
 const BH_DEATH = 48;
 const WORMHOLE_R = 46;
 
 /* ---------- Réglages des livraisons ---------- */
-const SAFE_R = 1300;               // zone calme autour du Soleil : jamais d'OVNI
 const EXTRACT_TIME = 0.55;         // s pour charger une ressource
 const CHAR_RANGE = 125;            // distance pour parler à un habitant
 const SHOP_RANGE = 135;
@@ -41,15 +38,6 @@ const UFO_HP = 6;
 const UFO_SPEED = 210;             // moins vite que la fusée : on peut toujours fuir
 const UFO_LEASH = 1300;            // un OVNI ne s'éloigne pas trop de chez lui
 const UFO_RESPAWN = 30;
-/* Plus l'histoire avance, plus les OVNI sont nombreux, voient loin et tirent vite.
-   (turn = vitesse de virage des missiles : un virage serré les fait rater) */
-const DANGER = [
-  { n: 0 },
-  { n: 3, sight: 560, fire: [3.6, 4.6], speed: 270, turn: 1.4 },
-  { n: 4, sight: 620, fire: [3.0, 4.0], speed: 300, turn: 1.55 },
-  { n: 6, sight: 680, fire: [2.6, 3.4], speed: 330, turn: 1.7 },
-  { n: 8, sight: 720, fire: [2.2, 3.0], speed: 360, turn: 1.85 },
-];
 const MISSILE_LIFE = 5.5;
 const BOLT_SPEED = 950;
 const BOLT_LIFE = 0.75;
@@ -61,46 +49,57 @@ const WEAPONS = [
   { bolts: 2, dmg: 2, cd: 0.28, color: '#FFC93C', big: true },
 ];
 
-/* Le système solaire de Mission Cosmos : pas à l'échelle, mais dans le bon ordre */
-const MERCURY_PERIOD = 110;
-const PLANETS = [
-  { id: 'mercure', r: 26, dist: 380 },
-  { id: 'venus', r: 38, dist: 540 },
-  { id: 'terre', r: 46, dist: 830 },
-  { id: 'mars', r: 34, dist: 1140 },
-  { id: 'jupiter', r: 100, dist: 1800 },
-  { id: 'saturne', r: 96, dist: 2260 },
-  { id: 'uranus', r: 60, dist: 2690 },
-  { id: 'neptune', r: 58, dist: 3050 },
-  { id: 'pluton', r: 26, dist: 3370 },
-];
-const MOONS = [
-  { id: 'iss', parent: 'terre', r: 28, dist: 120, period: 28 },
-  { id: 'satellite', parent: 'terre', r: 22, dist: 185, period: 36, phase: Math.PI },
-  { id: 'lune', parent: 'terre', r: 22, dist: 255, period: 46 },
-  { id: 'rover', parent: 'mars', r: 26, dist: 98, period: 40 },
-  { id: 'io', parent: 'jupiter', r: 19, dist: 185, period: 22 },
-  { id: 'europe', parent: 'jupiter', r: 17, dist: 248, period: 34 },
-  { id: 'titan', parent: 'saturne', r: 22, dist: 245, period: 44 },
-  { id: 'triton', parent: 'neptune', r: 20, dist: 150, period: 38 },
-];
-const BELT = { inner: 1340, outer: 1530, count: 95 };
-const FAR = {
-  nebuleuse: { x: 2800, y: -2300, r: 210 },
-  galaxie: { x: -3100, y: -1850, r: 180 },
-  trounoir: { x: -2550, y: 2550, r: 80 },
-};
-const SOCK_HOME = { x: 330, y: 320 };
-const WORMHOLES = [{ x: -1540, y: -560 }, { x: -450, y: -3600 }];
+/* ---------- Le niveau en cours (tout ce qui le décrit est dans levels/) ----------
+   Le moteur ne connaît aucune planète par son nom : useLevel() remplit ces variables. */
+let LV = null;                     // la définition du niveau
+let SYS = null;                    // son système stellaire
+let WORLD_R = 4200;                // rayon de la carte
+let SAFE_R = 1300;                 // zone calme autour de l'étoile : jamais d'OVNI
+let SUN_BURN = 180;                // trop près de l'étoile : ça brûle
+let PLANETS = [];
+let BELT = null;
+let WORMHOLES = [];
+let DANGER = [{ n: 0 }];           // le danger des OVNI, chapitre par chapitre
+let RESOURCES = {};
+let RESOURCE_IDS = [];
+let CHARACTERS = [];
+let CHAR_BY_ID = {};
+let PEOPLE_BY_ID = {};
+let CHAPTERS = [];
+let SHOP_POS = {};
+let PORTAL_PARTS = DEFAULT_PORTAL;
+let PORTAL_IDS = [];
+let PORTAL_TOTAL = 0;
+let PORTAL_PIECES = 0;
+let FULL_PORTAL = {};
+let BH = null;                     // le trou noir du niveau (s'il y en a un)
 
-const MAP_COLORS = {
-  soleil: '#FFC93C', mercure: '#B8ADA2', venus: '#EBC989', terre: '#4FA8F0', lune: '#DADAD6',
-  mars: '#E0703A', jupiter: '#D9B48A', saturne: '#E8CF95', uranus: '#97E1E7', neptune: '#5A84F0',
-  pluton: '#D8BFA4', comete: '#BFEFFF', galaxie: '#B9A8FF', nebuleuse: '#FF7FC8',
-  trounoir: '#FF8A3C', satellite: '#F2C14E', iss: '#E8B254', astronaute: '#FFFFFF', rover: '#F2F4F8',
-  telescope: '#F2BE3A', fusee: '#FF6F91', chaussette: '#FF6F91', io: '#EBCB52',
-  europe: '#EDE3D2', titan: '#E8A23F', triton: '#E9C9C4',
-};
+function useLevel(i) {
+  LV = LEVELS[i];
+  SYS = LV.system;
+  WORLD_R = SYS.worldR;
+  SAFE_R = SYS.safeR;
+  SUN_BURN = SYS.star.burn || SYS.star.r * 1.4;
+  PLANETS = SYS.planets;
+  BELT = SYS.belt || null;
+  WORMHOLES = SYS.wormholes || [];
+  DANGER = LV.danger;
+  RESOURCES = LV.resources;
+  RESOURCE_IDS = Object.keys(RESOURCES);
+  CHARACTERS = LV.characters;
+  CHAR_BY_ID = Object.fromEntries(CHARACTERS.map((c) => [c.id, c]));
+  PEOPLE_BY_ID = { ...CHAR_BY_ID, nova: NOVA };
+  CHAPTERS = LV.chapters;
+  SHOP_POS = Object.fromEntries(Object.entries(LV.shops).map(([id, sh]) => [id, polar(sh.angle, sh.dist)]));
+  PORTAL_PARTS = LV.portal || DEFAULT_PORTAL;
+  PORTAL_IDS = Object.keys(PORTAL_PARTS);
+  PORTAL_TOTAL = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].price * PORTAL_PARTS[id].count, 0);
+  PORTAL_PIECES = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].count, 0);
+  FULL_PORTAL = Object.fromEntries(PORTAL_IDS.map((id) => [id, PORTAL_PARTS[id].count]));
+  // les dessins des astres changent d'un niveau à l'autre
+  arts = {};
+  thumbCache = {};
+}
 
 /* ---------- Éléments de la page ---------- */
 const $ = (id) => document.getElementById(id);
@@ -132,15 +131,18 @@ const ectx = endCanvas.getContext('2d');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const fireBtn = $('fireBtn');
+const introOverlay = $('introOverlay');
+const introCanvas = $('introCanvas');
+const ictx = introCanvas.getContext('2d');
 const turboBtn = $('turboBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 
 /* ---------- État ---------- */
 let game = null;                   // tout ce qui est sauvegardé
-let state = 'loading';             // 'loading' | 'ready' | 'playing' | 'ending'
+let state = 'loading';             // 'loading' | 'ready' | 'intro' | 'playing' | 'ending'
 
-const arts = {};                   // dessins pré-rendus des astres
-const thumbs = {};                 // petites images (dataURL) des astres
+let arts = {};                     // dessins pré-rendus des astres (ceux du niveau en cours)
+let thumbCache = {};               // petites images (dataURL) des astres : voir thumb()
 const faces = {};                  // petites images des personnages
 const faceImgs = {};               // les mêmes, en <img> pour le canvas
 let rockArts = [];
@@ -235,7 +237,6 @@ const weapon = () => WEAPONS[upVal('weapon')];
 const shieldTime = () => upVal('shield');
 
 /* ---------- Le portail spatial ---------- */
-const PORTAL_PIECES = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].count, 0);
 const portalSpent = () => PORTAL_IDS.reduce((n, id) => n + game.portal[id] * PORTAL_PARTS[id].price, 0);
 const portalPieces = () => PORTAL_IDS.reduce((n, id) => n + game.portal[id], 0);
 const portalDone = () => portalPieces() >= PORTAL_PIECES;
@@ -247,7 +248,7 @@ const chapter = () => game.story.chapter;
 const danger = () => DANGER[Math.min(chapter(), DANGER.length - 1)];
 const chapterBuilt = (i) => chapter() > i;
 /** Les magasins ouvrent au fil de l'histoire */
-const shopOpen = (id) => CHAPTERS.findIndex((c) => c.shop === id) < chapter();
+const shopOpen = (id) => !!SHOP_POS[id] && CHAPTERS.findIndex((c) => c.shop === id) < chapter();
 
 /** Les habitants qui proposent des quêtes (les « ! ») */
 function customers() {
@@ -299,28 +300,42 @@ function buildingShown(hostId) {
 }
 
 /* ---------- Sauvegarde (la partie continue la prochaine fois) ---------- */
-function newGame() {
-  game = {
-    v: SAVE_VERSION,
+/** Tout ce qui repart à zéro quand on arrive dans un nouveau niveau */
+function freshLevelState() {
+  return {
     seed: Math.floor(Math.random() * 1e9),
     worldT: 0,
-    gold: 0, earned: 0, questsDone: 0, missionsDone: 0, delivered: 0, ufoKills: 0,
     story: { chapter: 0, step: 0, got: {} },
     cargo: [],
+    quests: [], offers: {}, offerAt: {},
+    portal: Object.fromEntries(PORTAL_IDS.map((id) => [id, 0])),
+    ship: null, finished: false,
+  };
+}
+
+function newGame() {
+  useLevel(0);
+  game = {
+    v: SAVE_VERSION,
+    level: 0,
+    // l'or et la fusée se gardent d'un niveau à l'autre
+    gold: 0, earned: 0, questsDone: 0, missionsDone: 0, delivered: 0, ufoKills: 0,
     up: { cargo: 0, slots: 0, engine: 0, turbo: 0, weapon: 0, shield: 0 },
     paints: ['classique'], paint: 'classique',
     accs: ['aucun'], acc: 'aucun',
-    quests: [], offers: {}, offerAt: {},
     seen: {}, tips: {},
-    portal: Object.fromEntries(PORTAL_IDS.map((id) => [id, 0])),
-    ship: null, started: false, finished: false,
+    started: false,
+    ...freshLevelState(),
   };
 }
 
 function loadGame() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (data && data.v === SAVE_VERSION && data.up && data.offers && data.story) return data;
+    if (data && data.v === SAVE_VERSION && data.up && data.offers && data.story) {
+      data.level = LEVELS[data.level] ? data.level || 0 : 0;
+      return data;
+    }
   } catch (e) { /* stockage indisponible ou abîmé */ }
   return null;
 }
@@ -353,6 +368,7 @@ function resize() {
   minimap.height = Math.round(m.height * dpr);
   if (!mapOverlay.hidden) drawBigMap();
   if (state === 'ending') sizeEndCanvas();
+  if (state === 'intro') sizeIntroCanvas();
 }
 
 /* ---------- Fond étoilé (3 couches qui défilent à des vitesses différentes) ---------- */
@@ -406,12 +422,13 @@ function buildBackground() {
 /* ---------- Construction du monde ---------- */
 let worldT = 0;                    // temps qui fait tourner les planètes
 
-/* Triton n'existe pas dans Mission Cosmos : son nom et son dessin viennent d'ici */
-const EXTRA_OBJECTS = { triton: { id: 'triton', name: 'Triton', kind: 'lune de Neptune' } };
-
-function makeBody(id, r, extra = {}) {
-  const b = { id, obj: OBJECT_BY_ID[id] || EXTRA_OBJECTS[id], r, x: 0, y: 0, rot: 0, ...extra };
-  if (!arts[id]) arts[id] = id === 'triton' ? renderTriton(r) : renderArt(id, r);
+/** Un astre du niveau. Son nom vient du niveau, ou de Mission Cosmos (même id). */
+function makeBody(def, extra = {}) {
+  const id = def.id;
+  const base = OBJECT_BY_ID[id];
+  const obj = { name: def.name || (base && base.name) || id, kind: def.kind || (base && base.kind) || '' };
+  const b = { id, def, obj, r: def.r, x: 0, y: 0, rot: 0, ringed: !!def.ringed, cloud: !!def.cloud, ...extra };
+  if (!arts[id]) arts[id] = renderBody(def, def.r);
   bodies.push(b);
   byId[id] = b;
   return b;
@@ -422,36 +439,37 @@ function buildWorld(seed) {
   const R = mulberry32(seed);
   bodies = [];
   byId = {};
-  Object.entries(FAR).forEach(([id, f]) => makeBody(id, f.r, { motion: 'fixed', x: f.x, y: f.y }));
-  makeBody('soleil', 130, { motion: 'fixed' });
-  PLANETS.forEach((p) => {
-    const period = MERCURY_PERIOD * Math.pow(p.dist / PLANETS[0].dist, 1.5);
-    makeBody(p.id, p.r, { motion: 'orbit', dist: p.dist, period, phase: R() * TAU });
+  (SYS.far || []).forEach((f) => makeBody(f, { motion: 'fixed', x: f.x, y: f.y }));
+  makeBody(SYS.star, { motion: 'fixed', star: true });
+  // loi de Kepler : plus une planète est loin, plus son année est longue
+  const periodAt = (d) => SYS.year.period * Math.pow(d / SYS.year.dist, 1.5);
+  PLANETS.forEach((p) => makeBody(p, { motion: 'orbit', dist: p.dist, period: periodAt(p.dist), phase: R() * TAU }));
+  (SYS.moons || []).forEach((m) => {
+    makeBody(m, { motion: 'moon', parent: m.parent, dist: m.dist, period: m.period, phase: m.phase ?? R() * TAU });
   });
-  MOONS.forEach((m) => {
-    makeBody(m.id, m.r, { motion: 'moon', parent: m.parent, dist: m.dist, period: m.period, phase: m.phase ?? R() * TAU });
+  (SYS.extras || []).forEach((e) => {
+    makeBody(e, {
+      motion: e.motion, of: e.of, dist: e.dist, period: e.period, after: e.after,
+      a: e.a, e: e.e, hx: e.x, hy: e.y, phase: R() * TAU, tilt: R() * TAU,
+    });
   });
-  makeBody('telescope', 34, { motion: 'l2' });
-  makeBody('astronaute', 22, { motion: 'spacewalk' });
-  makeBody('fusee', 30, { motion: 'rocket', dist: 690, period: 55, phase: R() * TAU });
-  makeBody('chaussette', 24, { motion: 'drift' });
-  makeBody('comete', 40, { motion: 'comet', a: 1950, e: 0.78, period: 150, tilt: R() * TAU, phase: R() * TAU });
+  BH = bodies.find((b) => b.def.blackHole) || null;
 
   // Les mines : chaque ressource a son astre
   RESOURCE_IDS.forEach((res) => {
     const b = byId[RESOURCES[res].source];
     b.res = res;
-    b.range = b.id === 'nebuleuse' ? 250 : b.r + 85;
+    b.range = b.def.mineRange || b.r + 85;
   });
 
   if (!rockArts.length) rockArts = Array.from({ length: 6 }, (_, i) => renderArt('asteroide', 24, 2, 1000 + i * 7919));
-  rocks = Array.from({ length: BELT.count }, (_, i) => {
+  rocks = !BELT ? [] : Array.from({ length: BELT.count }, (_, i) => {
     const d = BELT.inner + R() * (BELT.outer - BELT.inner);
     const r = R() < 0.15 ? 24 + R() * 8 : 10 + R() * 12;
     return {
       id: 'asteroide', r, rock: true, art: rockArts[i % rockArts.length],
       dist: d, phase: (i / BELT.count) * TAU + (R() - 0.5) * 0.06,
-      period: MERCURY_PERIOD * Math.pow(d / PLANETS[0].dist, 1.5),
+      period: periodAt(d),
       spin: (R() - 0.5) * 1.2, rot: R() * TAU, x: 0, y: 0,
     };
   });
@@ -474,15 +492,16 @@ function updateBodies(dt) {
         break;
       }
       case 'l2': {
-        const e = byId.terre;
+        // toujours derrière sa planète, à l'opposé de l'étoile (comme le télescope James Webb)
+        const e = byId[b.of];
         const d = Math.hypot(e.x, e.y) || 1;
-        b.x = e.x + (e.x / d) * 350; b.y = e.y + (e.y / d) * 350;
+        b.x = e.x + (e.x / d) * b.dist; b.y = e.y + (e.y / d) * b.dist;
         break;
       }
       case 'spacewalk': {
-        const iss = byId.iss;
-        const p = polar(t * 0.5, 85);
-        b.x = iss.x + p.x; b.y = iss.y + p.y;
+        const host = byId[b.of];
+        const p = polar(t * 0.5, b.dist);
+        b.x = host.x + p.x; b.y = host.y + p.y;
         b.rot = Math.sin(t * 0.8) * 0.4;
         break;
       }
@@ -498,12 +517,12 @@ function updateBodies(dt) {
         break;
       }
       case 'drift':
-        b.x = SOCK_HOME.x + Math.cos(t * 0.3) * 50;
-        b.y = SOCK_HOME.y + Math.sin(t * 0.4) * 40;
+        b.x = b.hx + Math.cos(t * 0.3) * 50;
+        b.y = b.hy + Math.sin(t * 0.4) * 40;
         b.rot = t * 0.5;
         break;
       case 'comet': {
-        // Vraie orbite en ellipse : la comète accélère près du Soleil (loi de Kepler)
+        // Vraie orbite en ellipse : la comète accélère près de l'étoile (loi de Kepler)
         const M = b.phase + (TAU * t) / b.period;
         let E = M;
         for (let i = 0; i < 6; i++) E -= (E - b.e * Math.sin(E) - M) / (1 - b.e * Math.cos(E));
@@ -526,27 +545,55 @@ function updateBodies(dt) {
 }
 
 /* ---------- Où vivent les habitants et les marchands ---------- */
+/** Où se tient quelqu'un : le chef de chantier sur son chantier, les habitants chez eux */
+function homeOf(id) {
+  const sq = storyQuest();
+  return sq && sq.char === id ? CHAPTERS[chapter()].host : PEOPLE_BY_ID[id].home;
+}
+
+/** Le chapitre qui construit quelque chose sur cet astre (s'il y en a un) */
+const chapterOn = (hostId) => CHAPTERS.find((c) => c.host === hostId);
+
 function charPos(id) {
-  const b = byId[PEOPLE_BY_ID[id].home];
+  const b = byId[homeOf(id)];
   // au-dessus du bâtiment, s'il y en a un
-  const extra = BUILDING_SIZE[b.id] && buildingShown(b.id) ? BUILDING_SIZE[b.id].h - 4 : 0;
-  const lift = (b.id === 'saturne' ? b.r * 0.72 : b.r) + 46 + extra;
+  const ch = chapterOn(b.id);
+  const size = ch && BUILDING_SIZE[ch.building];
+  const extra = size && buildingShown(b.id) ? size.h - 4 : 0;
+  const lift = (b.ringed ? b.r * 0.72 : b.r) + 46 + extra;
   return { x: b.x, y: b.y - lift };
 }
 
-const SHOP_POS = Object.fromEntries(SHOPS.map((s) => [s.id, polar(s.angle, s.dist)]));
 const SHOP_BY_ID = Object.fromEntries(SHOPS.map((s) => [s.id, s]));
 
-/** Distance moyenne au Soleil d'un astre (pour calculer la récompense d'une quête). */
+/** Distance moyenne d'un astre à l'étoile (pour calculer la récompense d'une quête). */
 function orbitDist(id) {
-  if (id === 'iss' || id === 'lune') return 830;
-  if (id === 'io' || id === 'europe') return 1800;
-  if (id === 'titan') return 2260;
-  if (id === 'triton') return 3050;
-  if (id === 'comete') return 1950;
-  if (FAR[id]) return Math.hypot(FAR[id].x, FAR[id].y);
-  return PLANETS.find((p) => p.id === id).dist;
+  const b = byId[id];
+  if (!b) return 0;
+  if (b.motion === 'moon') return orbitDist(b.parent);
+  if (b.motion === 'orbit' || b.motion === 'rocket') return b.dist;
+  if (b.motion === 'comet') return b.a;
+  return Math.hypot(b.x, b.y);
 }
+
+/** Le nom d'un astre, pour les textes */
+const bodyName = (id) => (byId[id] ? byId[id].obj.name : id);
+
+/** Petite image d'un astre (faite à la demande) */
+function thumb(id) {
+  if (!thumbCache[id]) thumbCache[id] = renderBody(byId[id] ? byId[id].def : { id }, 34).canvas.toDataURL();
+  return thumbCache[id];
+}
+
+/** Un astre qu'on ne voit pas encore (l'astronaute n'arrive qu'une fois la Station construite) */
+function hiddenBody(b) {
+  if (!b.after) return false;
+  const i = CHAPTERS.findIndex((c) => c.host === b.after);
+  return i >= 0 && !chapterBuilt(i);
+}
+
+/** L'astre lui-même est en chantier (comme la Station spatiale) */
+const isBuildingBody = (id) => CHAPTERS.some((c) => c.host === id && c.building === 'body');
 
 /* ---------- Quêtes ---------- */
 function unitValue(charId, res) {
@@ -743,7 +790,7 @@ function startMission() {
 /** Bâtiment terminé : ce qu'on a construit, un fait réel, et ce qui change */
 function openChapterDone(i) {
   const ch = CHAPTERS[i];
-  const img = ch.host === 'iss' ? thumbs.iss : buildingThumb(ch.host);
+  const img = ch.building === 'body' ? thumb(ch.host) : buildingThumb(ch.building);
   openDialog(`
     <div class="built">
       <img src="${img}" alt="">
@@ -755,7 +802,7 @@ function openChapterDone(i) {
     <div class="dlg-actions"><button class="primary" data-act="next">Chapitre suivant →</button></div>`, {
     next: () => {
       openChapterIntro();
-      if (i === 0) say(LINES.ufoAwake, 4, 7500);
+      if (i === 0) say(LV.lines.ufoAwake || LINES.ufoAwake, 4, 7500);
       else if (danger().n > DANGER[chapter() - 1].n) say(LINES.ufoAngrier, 3, 5000);
     },
   }, 'dlg-story');
@@ -791,7 +838,7 @@ function acceptOffer(charId) {
   if (!game.tips.firstQuest) {
     game.tips.firstQuest = true;
     const res = RESOURCES[Object.keys(offer.needs)[0]];
-    say(LINES.firstQuest(res.icon, res.name, res.place || OBJECT_BY_ID[res.source].name), 4, 8000);
+    say(LINES.firstQuest(res.icon, res.name, res.place || bodyName(res.source)), 4, 8000);
   } else {
     say(pick(LINES.quest), 2, 3500);
   }
@@ -820,8 +867,8 @@ function updateOffers() {
 
 /* ---------- Nouvelle partie / reprise ---------- */
 function resetShip() {
-  // on décolle de la Terre
-  const e = byId.terre;
+  // on part de l'astre de départ du niveau (la Terre, au niveau 1)
+  const e = byId[SYS.start];
   placeShip(e.x - e.r - 45, e.y);
 }
 
@@ -857,12 +904,19 @@ function showStartScreen() {
   const hasSave = saved && saved.started;
   game = hasSave ? saved : null;
   if (!game) newGame();
+  useLevel(game.level);
   setupGame();
-  // niveau 1 terminé : on peut revoir le voyage ou rejouer, mais plus continuer
+  // niveau terminé : on part au suivant s'il existe ; sinon on peut revoir le voyage ou rejouer
   const done = game.finished;
-  $('startBtn').textContent = done ? '🎬 Revoir le voyage' : hasSave ? `🚀 Continuer (💰 ${game.gold})` : '🚀 Décoller !';
-  $('newGameBtn').textContent = done ? '🔁 Rejouer le niveau 1' : '🆕 Nouvelle partie';
+  const next = done && LEVELS[game.level + 1];
+  $('startLevel').textContent = `Niveau ${game.level + 1} — ${LV.name}`;
+  document.querySelector('.start-goal').innerHTML = LV.goal;
+  $('startBtn').textContent = next ? `🚀 Niveau ${game.level + 2} : ${next.name}`
+    : done ? '🎬 Revoir le voyage' : hasSave ? `🚀 Continuer (💰 ${game.gold})` : '🚀 Décoller !';
+  $('newGameBtn').textContent = done ? '🔁 Recommencer au niveau 1' : '🆕 Nouvelle partie';
   $('newGameBtn').hidden = !hasSave;
+  $('startDone').innerHTML = `🏆 Bravo, tu as terminé le niveau ${game.level + 1} : ton portail t'a emmené jusqu'à ${escapeHtml(LV.destination.name)} !`
+    + (next ? '' : `<br><b>Le niveau ${game.level + 2} arrive bientôt…</b>`);
   $('startDone').hidden = !done;
   document.querySelector('.start-goal').hidden = done;
   document.querySelector('.start-card .how-to').hidden = done;
@@ -877,23 +931,72 @@ function startGame() {
   startOverlay.hidden = true;
   if (game.finished) {
     enterFullscreen();
-    startEnding();
+    if (LEVELS[game.level + 1]) goNextLevel();
+    else startEnding();
     return;
   }
+  enterFullscreen();
+  // une toute nouvelle partie commence par le décollage depuis la Terre
+  if (!game.started && LV.launch) {
+    playIntro();
+    return;
+  }
+  beginPlay();
+}
+
+function beginPlay() {
   state = 'playing';
   lastMoveAt = performance.now();
   nextJokeAt = lastMoveAt + rand(40000, 55000);
   if (!game.started) {
     game.started = true;
-    say(LINES.firstStart, 4, 8000);
+    say(LV.lines.start || LINES.firstStart, 4, 8000);
     setTimeout(() => { if (state === 'playing') openChapterIntro(); }, 500);
   } else {
     say(pick(LINES.resume), 2, 3500);
   }
   if (phoneMQ.matches || window.matchMedia('(max-width: 700px)').matches) setQuestCollapsed(true);
-  enterFullscreen();
   saveGame();
 }
+
+/* ---------- L'animation de départ (intro.js) ---------- */
+let intro = null;
+
+function sizeIntroCanvas() {
+  const r = introOverlay.getBoundingClientRect();
+  introCanvas.width = Math.round(r.width * dpr);
+  introCanvas.height = Math.round(r.height * dpr);
+}
+
+function playIntro() {
+  state = 'intro';
+  intro = createIntro({
+    sfx,
+    drawRocket: (c, t, thrust) => drawShipShape(c, game.paint, game.acc, t, { thrust }),
+  });
+  introOverlay.hidden = false;
+  sizeIntroCanvas();
+  $('introSkip').focus({ preventScroll: true });
+}
+
+function drawIntro() {
+  ictx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  intro.draw(ictx, introCanvas.width / dpr, introCanvas.height / dpr);
+}
+
+function endIntro() {
+  if (state !== 'intro') return;
+  intro = null;
+  introOverlay.hidden = true;
+  // la fusée apparaît dans l'espace, juste à côté de la Terre
+  flash = { a: 0.8, color: '255,255,255' };
+  beginPlay();
+}
+
+$('introSkip').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  endIntro();
+});
 
 /* ---------- Commandes ---------- */
 const KEYMAP = {
@@ -912,6 +1015,11 @@ window.addEventListener('keydown', (e) => {
   if (isTyping(e)) return;
   const key = e.key.toLowerCase();
   if (state === 'ending') return;
+  if (state === 'intro') {
+    // Échap, Entrée ou Espace : on passe l'animation
+    if (['Escape', 'Enter', 'Space'].includes(e.code)) { e.preventDefault(); endIntro(); }
+    return;
+  }
   if (!quitOverlay.hidden) {
     if (e.code === 'Escape') closeQuit();
     return;
@@ -1109,8 +1217,8 @@ function spawnCoins(x, y, n) {
 /* ---------- Fiche « Le savais-tu ? » (la première fois qu'on visite une mine) ---------- */
 function showFactCard(res) {
   const r = RESOURCES[res];
-  const obj = OBJECT_BY_ID[r.source];
-  $('fcImg').src = thumbs[r.source];
+  const obj = byId[r.source].obj;
+  $('fcImg').src = thumb(r.source);
   $('fcIcon').textContent = r.icon;
   $('fcName').textContent = r.name;
   $('fcWhere').textContent = `sur ${obj.name}`;
@@ -1132,7 +1240,7 @@ function hideFactCard() {
 function updateShip(dt, now) {
   if (ship.spaghetti > 0) {
     ship.spaghetti -= dt;
-    const bh = byId.trounoir;
+    const bh = BH;
     ship.x += (bh.x - ship.x) * Math.min(1, dt * 3);
     ship.y += (bh.y - ship.y) * Math.min(1, dt * 3);
     ship.angle += dt * 14;
@@ -1172,10 +1280,10 @@ function updateShip(dt, now) {
   }
 
   // Le trou noir attire tout ce qui passe près de lui
-  const bh = byId.trounoir;
+  const bh = BH || { x: 1e9, y: 1e9 };
   const bdx = bh.x - ship.x, bdy = bh.y - ship.y;
   const bd = Math.hypot(bdx, bdy);
-  if (bd < BH_PULL_R) {
+  if (BH && bd < BH_PULL_R) {
     const pull = BH_PULL / Math.max(bd, 50);
     ship.vx += (bdx / bd) * pull * dt;
     ship.vy += (bdy / bd) * pull * dt;
@@ -1302,11 +1410,13 @@ function updateHazards(now) {
     });
   }
 
-  const ur = byId.uranus;
-  if (Math.hypot(ship.x - ur.x, ship.y - ur.y) < 280) {
-    sayOnce('uranus', BIP.uranus, 60, 1);
-    if (Math.random() < 0.15) particles.push({ x: ship.x + rand(-30, 30), y: ship.y + rand(-30, 30), vx: rand(-20, 20), vy: -40, life: 0, max: 1.2, size: rand(3, 6), color: '#A6E86A' });
-  }
+  // petites remarques de Bip selon l'endroit (l'odeur d'Uranus…)
+  (SYS.ambient || []).forEach((a) => {
+    const b = byId[a.near];
+    if (Math.hypot(ship.x - b.x, ship.y - b.y) > a.r) return;
+    sayOnce(`near-${a.near}`, a.say, 60, 1);
+    if (a.puff && Math.random() < 0.15) particles.push({ x: ship.x + rand(-30, 30), y: ship.y + rand(-30, 30), vx: rand(-20, 20), vy: -40, life: 0, max: 1.2, size: rand(3, 6), color: a.puff });
+  });
 }
 
 /** Remplir la soute près d'une mine */
@@ -1502,7 +1612,7 @@ function spawnUfo(anywhere = false) {
   for (let tries = 0; tries < 40; tries++) {
     const p = polar(rand(0, TAU), rand(SAFE_R + 450, WORLD_R - 300));
     if (ship && dist(p, ship) < (anywhere ? 900 : 1300)) continue;
-    if (dist(p, byId.trounoir) < 700) continue;
+    if (BH && dist(p, BH) < 700) continue;
     ufos.push({ x: p.x, y: p.y, hx: p.x, hy: p.y, vx: 0, vy: 0, hp: UFO_HP, fire: rand(1.2, 2.2), hit: 0, phase: rand(0, TAU), chasing: false, orbit: rand(0, TAU) });
     return;
   }
@@ -1837,7 +1947,7 @@ function drawOrbits() {
     ctx.setLineDash([]);
   }
 
-  if (Math.abs((BELT.inner + BELT.outer) / 2 - sd) < reach + 200) {
+  if (BELT && Math.abs((BELT.inner + BELT.outer) / 2 - sd) < reach + 200) {
     ctx.strokeStyle = 'rgba(200,170,130,0.06)';
     ctx.lineWidth = BELT.outer - BELT.inner + 60;
     ctx.beginPath();
@@ -1894,14 +2004,14 @@ function drawBody(b) {
   ctx.save();
   ctx.translate(b.x, b.y);
   if (b.rot) ctx.rotate(b.rot);
-  if (b.id === 'comete') {
+  if (b.motion === 'comet') {
     ctx.drawImage(art.canvas, -half - 0.6 * b.r, -half + 0.6 * b.r, half * 2, half * 2);
   } else {
     ctx.drawImage(art.canvas, -half, -half, half * 2, half * 2);
   }
   ctx.restore();
 
-  if (b.id === 'trounoir') {
+  if (b === BH) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 40; i++) {
@@ -1925,15 +2035,15 @@ function drawBuildings() {
     if (!inView(b.x, b.y, 170)) return;
     const k = chapterProgress(i);
     ctx.save();
-    if (ch.host === 'iss') {
-      // la Station spatiale, c'est l'astre lui-même : elle se construit de bas en haut
-      const art = arts.iss;
+    if (ch.building === 'body') {
+      // l'astre lui-même est le bâtiment (la Station spatiale) : il se construit de bas en haut
+      const art = arts[ch.host];
       const h = b.r * 2.4;
       ctx.translate(b.x, b.y + h / 2);
       drawConstruction(ctx, (c) => c.drawImage(art.canvas, -art.half, -h / 2 - art.half, art.half * 2, art.half * 2), { w: h, h }, k, worldT);
     } else {
       ctx.translate(b.x, b.y - b.r * 0.9);
-      drawBuilding(ctx, ch.host, k, worldT);
+      drawBuilding(ctx, ch.building, k, worldT);
     }
     ctx.restore();
   });
@@ -1973,9 +2083,10 @@ function drawLabels() {
   ctx.lineJoin = 'round';
   for (const b of bodies) {
     if (!inView(b.x, b.y, b.r + 60)) continue;
-    if (b.id === 'astronaute' && !chapterBuilt(0)) continue;
-    const y = b.y + (b.id === 'saturne' ? b.r * 0.85 : b.id === 'galaxie' || b.id === 'nebuleuse' ? b.r * 0.95 : b.r + 22);
-    const name = b.id === 'iss' && !chapterBuilt(0) ? '🏗️ Chantier de la Station' : b.obj.name;
+    if (hiddenBody(b)) continue;
+    const y = b.y + (b.ringed ? b.r * 0.85 : b.cloud ? b.r * 0.95 : b.r + 22);
+    const site = isBuildingBody(b.id) && !chapterBuilt(CHAPTERS.findIndex((c) => c.host === b.id)) && chapterOn(b.id);
+    const name = site ? site.site || `🏗️ Chantier : ${b.obj.name}` : b.obj.name;
     textOutlined(name, b.x, y, 'rgba(255,255,255,0.85)', '700 17px "Baloo 2", "Quicksand", sans-serif');
     if (b.res) {
       const r = RESOURCES[b.res];
@@ -2876,8 +2987,8 @@ function drawMinimap() {
     mctx.fill();
   };
   for (const b of bodies) {
-    const big = ['soleil', 'jupiter', 'saturne', 'galaxie', 'nebuleuse'].includes(b.id);
-    dot(b.x, b.y, b.id === 'soleil' ? 5 : big ? 3.5 : b.r > 40 ? 3 : 2, MAP_COLORS[b.id] || '#FFFFFF');
+    const color = (SYS.colors && SYS.colors[b.id]) || (b.def.paint && b.def.paint.colors[1]) || '#FFFFFF';
+    dot(b.x, b.y, b.star ? 5 : b.r >= 90 ? 3.5 : b.r > 40 ? 3 : 2, color);
     if (b.res && outstanding(b.res) > carried(b.res)) {
       mctx.strokeStyle = `rgba(255,201,60,${0.6 + Math.sin(worldT * 5) * 0.4})`;
       mctx.lineWidth = 1.5 * dpr;
@@ -2935,8 +3046,8 @@ function draw(now) {
   drawOrbits();
   drawWormholes();
   bodies.forEach((b) => {
-    // la Station spatiale se dessine comme un bâtiment (voir drawBuildings)
-    if (b.id === 'iss' || (b.id === 'astronaute' && !chapterBuilt(0))) return;
+    // un astre en chantier se dessine comme un bâtiment (voir drawBuildings)
+    if (isBuildingBody(b.id) || hiddenBody(b)) return;
     drawBody(b);
   });
   rocks.forEach(drawBody);
@@ -2969,7 +3080,11 @@ let lastFrame = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
-  if (state === 'ending') {
+  if (state === 'intro') {
+    intro.update(dt);
+    drawIntro();
+    if (intro.done) endIntro();
+  } else if (state === 'ending') {
     updateEnding(dt);
     drawEnding();
   } else if (ship) {
@@ -2997,7 +3112,7 @@ function renderUI() {
     const got = q.got[r] || 0;
     const res = RESOURCES[r];
     const cls = got >= n ? ' done' : carried(r) ? ' carry' : '';
-    return `<span class="need${cls}" title="${escapeHtml(res.name)} : sur ${escapeHtml(OBJECT_BY_ID[res.source].name)}"><b>${res.icon}</b> ${got}/${n}<small>${escapeHtml(OBJECT_BY_ID[res.source].name)}</small></span>`;
+    return `<span class="need${cls}" title="${escapeHtml(res.name)} : sur ${escapeHtml(bodyName(res.source))}"><b>${res.icon}</b> ${got}/${n}<small>${escapeHtml(bodyName(res.source))}</small></span>`;
   }).join('');
 
   // la mission de l'histoire, toujours en haut (clique dessus pour la relire)
@@ -3127,7 +3242,7 @@ function needRows(needs) {
   return Object.entries(needs).map(([r, n]) => {
     const res = RESOURCES[r];
     return `<li><span class="nr-icon">${res.icon}</span><span class="nr-count">×${n}</span>
-      <span class="nr-name">${escapeHtml(res.name)}<small>à prendre sur <img src="${thumbs[res.source]}" alt=""> ${escapeHtml(OBJECT_BY_ID[res.source].name)}</small></span></li>`;
+      <span class="nr-name">${escapeHtml(res.name)}<small>à prendre sur <img src="${thumb(res.source)}" alt=""> ${escapeHtml(bodyName(res.source))}</small></span></li>`;
   }).join('');
 }
 
@@ -3305,7 +3420,7 @@ function openPortalShop() {
       <p class="dlg-gold">💰 ${game.gold}</p>
     </div>
     <div class="portal-progress">
-      <p>🌀 Portail vers <b>Proxima du Centaure</b> : <b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰</p>
+      <p>🌀 Portail vers <b>${escapeHtml(LV.destination.name)}</b> : <b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰</p>
       <span class="pp-bar"><i style="width:${pct}%"></i></span>
     </div>
     <ul class="shop-rows">${PORTAL_IDS.map(portalRow).join('')}</ul>
@@ -3347,6 +3462,7 @@ function lightPortal() {
 function openMap() {
   if (state !== 'playing') return;
   mapOverlay.hidden = false;
+  $('mapTitle').textContent = `🗺️ Carte : ${LV.name}`;
   Object.keys(keys).forEach((k) => { keys[k] = false; });
   pointer.active = false;
   renderMapSide();
@@ -3384,7 +3500,7 @@ function renderMapSide() {
     } else status = '<span class="ms-tag">…</span> réfléchit à une commande';
     return `<li><img src="${faces[c.id]}" alt=""><span><b>${escapeHtml(c.name)}</b> <small>(${escapeHtml(c.where)})</small><br>${status}</span></li>`;
   }).join('');
-  const res = RESOURCE_IDS.map((r) => `<li class="ms-res"><span>${RESOURCES[r].icon}</span> ${escapeHtml(RESOURCES[r].name)} <small>→ ${escapeHtml(OBJECT_BY_ID[RESOURCES[r].source].name)}</small></li>`).join('');
+  const res = RESOURCE_IDS.map((r) => `<li class="ms-res"><span>${RESOURCES[r].icon}</span> ${escapeHtml(RESOURCES[r].name)} <small>→ ${escapeHtml(bodyName(RESOURCES[r].source))}</small></li>`).join('');
   const parts = PORTAL_IDS.map((id) => `${PORTAL_PARTS[id].icon} ${game.portal[id]}/${PORTAL_PARTS[id].count}`).join(' · ');
   $('mapSide').innerHTML = `
     <p class="ms-head">📖 L'histoire</p><ul class="ms-list ms-story">${story}</ul>
@@ -3397,7 +3513,6 @@ function renderMapSide() {
 
 /* La carte grossit le centre du système solaire, sinon les planètes proches seraient toutes collées */
 const MAP_POW = 0.62;
-const MOON_GAP = { iss: 20, lune: 36, io: 26, europe: 40, titan: 32, triton: 30 };
 const mapRad = (d, R) => R * Math.pow(Math.min(d, WORLD_R) / WORLD_R, MAP_POW);
 
 function mapPoint(x, y, R) {
@@ -3408,12 +3523,14 @@ function mapPoint(x, y, R) {
 }
 
 function mapBody(b, R) {
-  if (MOON_GAP[b.id]) {
+  if (b.motion === 'moon') {
+    // une lune reste collée à sa planète, un peu écartée pour qu'on la voie
+    const gap = clamp(b.dist * 0.13, 18, 40);
     const parent = byId[b.parent];
     const p = mapPoint(parent.x, parent.y, R);
     const dx = b.x - parent.x, dy = b.y - parent.y;
     const d = Math.hypot(dx, dy) || 1;
-    return { x: p.x + (dx / d) * MOON_GAP[b.id], y: p.y + (dy / d) * MOON_GAP[b.id] };
+    return { x: p.x + (dx / d) * gap, y: p.y + (dy / d) * gap };
   }
   return mapPoint(b.x, b.y, R);
 }
@@ -3456,28 +3573,32 @@ function drawBigMap() {
     c.arc(0, 0, mapRad(p.dist, R), 0, TAU);
     c.stroke();
   });
-  const b0 = mapRad(BELT.inner, R), b1 = mapRad(BELT.outer, R);
-  c.strokeStyle = 'rgba(200,170,130,0.25)';
-  c.lineWidth = b1 - b0;
-  c.beginPath();
-  c.arc(0, 0, (b0 + b1) / 2, 0, TAU);
-  c.stroke();
-  // trous de ver
-  const w0 = mp(WORMHOLES[0].x, WORMHOLES[0].y), w1 = mp(WORMHOLES[1].x, WORMHOLES[1].y);
-  c.strokeStyle = 'rgba(185,139,255,0.5)';
-  c.lineWidth = 1.5;
-  c.setLineDash([4, 4]);
-  c.beginPath();
-  c.moveTo(w0.x, w0.y);
-  c.lineTo(w1.x, w1.y);
-  c.stroke();
-  c.setLineDash([]);
-  [w0, w1].forEach((w) => {
-    c.fillStyle = '#B98BFF';
+  if (BELT) {
+    const b0 = mapRad(BELT.inner, R), b1 = mapRad(BELT.outer, R);
+    c.strokeStyle = 'rgba(200,170,130,0.25)';
+    c.lineWidth = b1 - b0;
     c.beginPath();
-    c.arc(w.x, w.y, 5, 0, TAU);
-    c.fill();
-  });
+    c.arc(0, 0, (b0 + b1) / 2, 0, TAU);
+    c.stroke();
+  }
+  // trous de ver (toujours par deux)
+  if (WORMHOLES.length === 2) {
+    const w0 = mp(WORMHOLES[0].x, WORMHOLES[0].y), w1 = mp(WORMHOLES[1].x, WORMHOLES[1].y);
+    c.strokeStyle = 'rgba(185,139,255,0.5)';
+    c.lineWidth = 1.5;
+    c.setLineDash([4, 4]);
+    c.beginPath();
+    c.moveTo(w0.x, w0.y);
+    c.lineTo(w1.x, w1.y);
+    c.stroke();
+    c.setLineDash([]);
+    [w0, w1].forEach((w) => {
+      c.fillStyle = '#B98BFF';
+      c.beginPath();
+      c.arc(w.x, w.y, 5, 0, TAU);
+      c.fill();
+    });
+  }
 
   const fs = clamp(R / 26, 9, 14);
   const label = (text, x, y, color = 'rgba(255,255,255,0.85)', size = fs) => {
@@ -3491,13 +3612,15 @@ function drawBigMap() {
     c.fillStyle = color;
     c.fillText(text, x, y);
   };
-  const small = ['io', 'europe', 'titan', 'lune', 'iss', 'triton'];
-  const showIds = ['soleil', 'mercure', 'venus', 'terre', 'mars', 'jupiter', 'saturne', 'uranus', 'neptune', 'pluton', 'comete', 'nebuleuse', 'galaxie', 'trounoir', ...small];
   const iconSize = clamp(R / 24, 8, 20);
-  showIds.forEach((id) => {
-    const b = byId[id];
+  // une lune n'apparaît que si elle sert à quelque chose (une mine, un chantier, un habitant)
+  const onMap = (b) => ['fixed', 'orbit', 'comet'].includes(b.motion)
+    || (b.motion === 'moon' && (b.res || chapterOn(b.id) || CHARACTERS.some((ch) => ch.home === b.id)) && !hiddenBody(b));
+  const iconOf = (b) => (b.star ? iconSize * 1.5 : b.r >= 90 || b.cloud ? iconSize * 1.25 : b.motion === 'moon' ? iconSize * 0.6 : iconSize);
+  bodies.filter(onMap).forEach((b) => {
+    const id = b.id;
     const m = mapBody(b, R);
-    const size = id === 'soleil' ? iconSize * 1.5 : ['jupiter', 'saturne', 'nebuleuse', 'galaxie'].includes(id) ? iconSize * 1.25 : small.includes(id) ? iconSize * 0.6 : iconSize;
+    const size = iconOf(b);
     const art = arts[id];
     c.drawImage(art.canvas, m.x - size, m.y - size, size * 2, size * 2);
     if (b.res) {
@@ -3513,12 +3636,14 @@ function drawBigMap() {
       c.textBaseline = 'middle';
       c.fillText(RESOURCES[b.res].icon, m.x + size * 0.7 + 4, m.y - size * 0.7 - 2);
     }
-    if (!small.includes(id) || b.res) {
+    if (b.motion !== 'moon' || b.res) {
       label(b.obj.name, m.x, m.y + size * 0.6 + fs * 0.6, b.res ? '#FFE9A8' : 'rgba(255,255,255,0.75)', fs * 0.9);
     }
   });
-  const bh = mapBody(byId.trounoir, R);
-  label('⚠️ Danger', bh.x, bh.y - iconSize - 4, '#FF8A3C', fs * 0.85);
+  if (BH) {
+    const bh = mapBody(BH, R);
+    label('⚠️ Danger', bh.x, bh.y - iconSize - 4, '#FF8A3C', fs * 0.85);
+  }
 
   // marchands
   SHOPS.forEach((s) => {
@@ -3541,11 +3666,12 @@ function drawBigMap() {
 
   // habitants : leur visage au-dessus de chez eux
   visiblePeople().forEach((ch) => {
-    const home = mapBody(byId[ch.home], R);
+    const hb = byId[homeOf(ch.id)];
+    const home = mapBody(hb, R);
     const q = allQuests().find((x) => x.char === ch.id);
     const offer = game.offers[ch.id];
     const canDeliver = q && Object.keys(q.needs).some((r) => carried(r) > 0 && (q.got[r] || 0) < q.needs[r]);
-    const lift = ['jupiter', 'saturne'].includes(ch.home) ? iconSize * 1.25 + 14 : small.includes(ch.home) ? 18 : iconSize + 14;
+    const lift = hb.motion === 'moon' ? 18 : iconOf(hb) + 14;
     const x = home.x, y = home.y - lift;
     c.fillStyle = 'rgba(11,15,51,0.9)';
     c.strokeStyle = canDeliver ? '#7CF0A0' : q && q.story ? '#FFE58A' : q ? '#4FB8E8' : offer ? '#FFC93C' : '#C9CED8';
@@ -3716,12 +3842,11 @@ $('newGameBtn').addEventListener('click', () => {
   });
 });
 
-/* ---------- La fin : à travers le portail, jusqu'à Proxima du Centaure ----------
+/* ---------- La fin d'un niveau : à travers le portail, jusqu'à l'étoile suivante ----------
    0 → 1,5 s   le portail s'allume
    1,5 → 4 s   la fusée fonce dedans
    4 → 5,8 s   flash, puis voyage à travers l'espace (traits d'étoiles)
-   5,8 s →     arrivée : Proxima du Centaure, sa planète Proxima b, et l'annonce du niveau 2 */
-const FULL_PORTAL = Object.fromEntries(PORTAL_IDS.map((id) => [id, PORTAL_PARTS[id].count]));
+   5,8 s →     arrivée près de l'étoile du niveau suivant (LV.destination), puis la suite */
 const SHOW_TEXT_AT = 7.2;
 
 function sizeEndCanvas() {
@@ -3744,6 +3869,16 @@ function startEnding() {
   endOverlay.classList.remove('show-text');
   sizeEndCanvas();
   $('endStats').textContent = `${game.missionsDone} missions de construction · ${game.questsDone} livraisons pour les habitants · ${game.ufoKills} OVNI vaincus`;
+  const dest = LV.destination;
+  const next = LEVELS[game.level + 1];
+  $('endTitle').textContent = dest.title;
+  $('endSub').textContent = dest.text;
+  // s'il existe un niveau suivant, on peut y aller ; sinon on l'annonce
+  $('endSoon').innerHTML = next ? '' : `🚀 Bientôt : ${dest.soon} !`;
+  $('endSoon').hidden = !!next;
+  $('endNext').hidden = !next;
+  if (next) $('endNext').textContent = `🚀 Niveau ${game.level + 2} : ${next.name}`;
+  $('endNew').textContent = game.level ? '🔁 Recommencer au niveau 1' : '🔁 Rejouer le niveau 1';
 }
 
 /** Une seule fois par voyage (sons, texte…) */
@@ -3911,10 +4046,11 @@ function drawEnding() {
       c.restore();
     }
   } else {
-    // --- 4 : l'arrivée près de Proxima du Centaure
+    // --- 4 : l'arrivée près de l'étoile suivante
+    const dest = LV.destination;
     const g = c.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#120A2E');
-    g.addColorStop(1, '#3A1230');
+    g.addColorStop(0, dest.sky[0]);
+    g.addColorStop(1, dest.sky[1]);
     c.fillStyle = g;
     c.fillRect(0, 0, W, H);
     for (const st of endStars) {
@@ -3925,9 +4061,9 @@ function drawEnding() {
     c.save();
     c.globalAlpha = fade;
 
-    // Alpha du Centaure A et B : deux étoiles jaunes, plus loin
+    // deux étoiles compagnes, plus loin (Alpha du Centaure A et B, au niveau 1)
     const ax = W < 700 ? 0.76 : 0.87;
-    [[ax, 0.36, 1], [ax + 0.03, 0.39, 0.75]].forEach(([x, y, k]) => {
+    (dest.companions ? [[ax, 0.36, 1], [ax + 0.03, 0.39, 0.75]] : []).forEach(([x, y, k]) => {
       const sx = x * W, sy = y * H, sr = m * 0.022 * k;
       const hg = c.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
       hg.addColorStop(0, 'rgba(255,250,220,1)');
@@ -3939,20 +4075,21 @@ function drawEnding() {
       c.fill();
     });
 
-    // Proxima du Centaure : une petite étoile rouge (une « naine rouge »)
+    // l'étoile d'arrivée (Proxima du Centaure, une petite étoile rouge, au niveau 1)
     const S = L.star;
+    const sc = dest.star.colors;
     const pulse = 1 + Math.sin(t * 2) * 0.03;
     const corona = c.createRadialGradient(S.x, S.y, S.r * 0.6, S.x, S.y, S.r * 2.2 * pulse);
-    corona.addColorStop(0, 'rgba(255,110,60,0.55)');
-    corona.addColorStop(1, 'rgba(200,40,40,0)');
+    corona.addColorStop(0, `rgba(${dest.star.corona},0.55)`);
+    corona.addColorStop(1, `rgba(${dest.star.corona},0)`);
     c.fillStyle = corona;
     c.beginPath();
     c.arc(S.x, S.y, S.r * 2.2 * pulse, 0, TAU);
     c.fill();
     const body = c.createRadialGradient(S.x - S.r * 0.3, S.y - S.r * 0.3, S.r * 0.1, S.x, S.y, S.r);
-    body.addColorStop(0, '#FFE2B8');
-    body.addColorStop(0.45, '#FF8A3C');
-    body.addColorStop(1, '#C2261E');
+    body.addColorStop(0, sc[0]);
+    body.addColorStop(0.45, sc[1]);
+    body.addColorStop(1, sc[2]);
     c.fillStyle = body;
     c.beginPath();
     c.arc(S.x, S.y, S.r, 0, TAU);
@@ -3966,12 +4103,13 @@ function drawEnding() {
       c.fill();
     }
 
-    // Proxima b : une planète rocheuse, qui montre toujours la même face à son étoile
+    // sa planète (Proxima b, au niveau 1), éclairée d'un seul côté
     const P = L.planet;
+    const pc = dest.planet.colors;
     const pg = c.createRadialGradient(P.x - P.r * 0.5, P.y, P.r * 0.1, P.x, P.y, P.r);
-    pg.addColorStop(0, '#E8A07A');
-    pg.addColorStop(0.6, '#A4583C');
-    pg.addColorStop(1, '#4A2420');
+    pg.addColorStop(0, pc[0]);
+    pg.addColorStop(0.6, pc[1]);
+    pg.addColorStop(1, pc[2]);
     c.fillStyle = pg;
     c.beginPath();
     c.arc(P.x, P.y, P.r, 0, TAU);
@@ -3999,9 +4137,9 @@ function drawEnding() {
       c.fillText(text, x, y);
     };
     const fs = clamp(m / 32, 12, 22);
-    name('Proxima du Centaure', S.x, Math.min(H - fs, S.y + S.r + fs * 1.1), fs);
-    name('Proxima b', P.x, Math.min(H - fs, P.y + P.r + fs), fs * 0.85);
-    name('Alpha du Centaure A et B', (ax + 0.015) * W, 0.36 * H + m * 0.09, fs * 0.7);
+    name(dest.name, S.x, Math.min(H - fs, S.y + S.r + fs * 1.1), fs);
+    name(dest.planet.name, P.x, Math.min(H - fs, P.y + P.r + fs), fs * 0.85);
+    if (dest.companions) name(dest.companions, (ax + 0.015) * W, 0.36 * H + m * 0.09, fs * 0.7);
 
     // le petit portail de sortie, qui s'ouvre puis se referme
     const open = t < 8.6 ? Math.min(1, (t - 5.8) / 0.5) : Math.max(0, 1 - (t - 8.6) / 0.6);
@@ -4055,16 +4193,36 @@ $('endNew').addEventListener('click', () => {
   endOverlay.hidden = true;
   resetGame();
 });
+$('endNext').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  goNextLevel();
+});
+
+/** Le portail mène au niveau suivant : on garde son or et sa fusée, le reste repart à zéro */
+function goNextLevel() {
+  if (!LEVELS[game.level + 1]) return;
+  game.level += 1;
+  useLevel(game.level);
+  Object.assign(game, freshLevelState());
+  endOverlay.hidden = true;
+  startOverlay.hidden = true;
+  setupGame();
+  state = 'playing';
+  lastMoveAt = performance.now();
+  say(LV.lines.start || LINES.firstStart, 4, 8000);
+  setTimeout(() => { if (state === 'playing') openChapterIntro(); }, 500);
+  enterFullscreen();
+  saveGame();
+}
 
 /* ---------- Démarrage ---------- */
 async function init() {
   resize();
   new ResizeObserver(resize).observe(stage);
   buildBackground();
-  ['soleil', 'mercure', 'venus', 'terre', 'lune', 'iss', 'mars', 'jupiter', 'saturne', 'uranus', 'neptune', 'pluton', 'comete', 'io', 'europe', 'titan', 'nebuleuse']
-    .forEach((id) => { thumbs[id] = renderArt(id, 34).canvas.toDataURL(); });
   ufoArt = renderArt('ovni', 30);
-  [...CHARACTERS.map((c) => c.id), ...SHOPS.map((s) => s.id)].forEach((id) => {
+  const people = new Set([...LEVELS.flatMap((lv) => lv.characters.map((c) => c.id)), ...SHOPS.map((sh) => sh.id)]);
+  people.forEach((id) => {
     faces[id] = characterThumb(id);
     const img = new Image();
     img.src = faces[id];

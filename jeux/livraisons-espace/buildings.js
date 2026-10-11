@@ -1,6 +1,10 @@
 // ============================================================================
-// LES CONSTRUCTIONS — bases sur la Lune et sur Mars, station de Triton — et
-// le dessin de Triton (la lune de Neptune n'existe pas dans Mission Cosmos).
+// LES CONSTRUCTIONS — trois sortes de bâtiments, réutilisables dans tous les
+// niveaux (un chapitre choisit son type avec "building") :
+//   - domes   : deux dômes et un tunnel (la base lunaire)
+//   - colonie : une serre et des habitats (la base martienne)
+//   - tour    : une haute station avec une parabole (la station de Triton)
+//   - body    : l'astre lui-même est le bâtiment (la Station spatiale)
 //
 // Chaque bâtiment est dessiné posé au sol en (0, 0) et monte vers le haut
 // (y négatif). BUILDING_SIZE donne sa largeur et sa hauteur.
@@ -10,9 +14,9 @@ const TAU = Math.PI * 2;
 const INK = '#2E2A4D';
 
 export const BUILDING_SIZE = {
-  lune: { w: 80, h: 42 },
-  mars: { w: 100, h: 52 },
-  triton: { w: 70, h: 74 },
+  domes: { w: 80, h: 42 },
+  colonie: { w: 100, h: 52 },
+  tour: { w: 70, h: 74 },
 };
 
 function dome(c, x, r, fill, glass = false) {
@@ -233,7 +237,7 @@ function tritonStation(c, t) {
   blink(c, -30, -40, t, 4.2);
 }
 
-const DRAW = { lune: lunarBase, mars: marsBase, triton: tritonStation };
+const DRAW = { domes: lunarBase, colonie: marsBase, tour: tritonStation };
 
 /** Une grue jaune de chantier, avec son crochet qui se balance */
 function crane(c, x, h, t) {
@@ -309,66 +313,4 @@ export function buildingThumb(id, px = 120) {
   c.scale(k, k);
   DRAW[id](c, 1);
   return cv.toDataURL();
-}
-
-/** Triton : une lune glacée rose pâle, avec des traînées sombres laissées par ses geysers */
-export function renderTriton(r, scale = 2) {
-  const half = r * 2.2;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = Math.ceil(half * 2 * scale);
-  const c = canvas.getContext('2d');
-  c.scale(scale, scale);
-  c.translate(half, half);
-  const halo = c.createRadialGradient(0, 0, r * 0.9, 0, 0, r * 1.3);
-  halo.addColorStop(0, 'rgba(220,230,255,0.35)');
-  halo.addColorStop(1, 'rgba(220,230,255,0)');
-  c.fillStyle = halo;
-  c.beginPath();
-  c.arc(0, 0, r * 1.3, 0, TAU);
-  c.fill();
-  const g = c.createRadialGradient(-r * 0.3, -r * 0.3, 0, 0, 0, r);
-  g.addColorStop(0, '#FFF4F0');
-  g.addColorStop(0.55, '#E9C9C4');
-  g.addColorStop(1, '#A98A92');
-  c.fillStyle = g;
-  c.beginPath();
-  c.arc(0, 0, r, 0, TAU);
-  c.fill();
-  c.save();
-  c.beginPath();
-  c.arc(0, 0, r, 0, TAU);
-  c.clip();
-  // calotte polaire plus claire
-  c.fillStyle = 'rgba(255,240,245,0.6)';
-  c.beginPath();
-  c.ellipse(0, r * 0.75, r * 1.1, r * 0.55, 0, 0, TAU);
-  c.fill();
-  // traînées des geysers
-  c.strokeStyle = 'rgba(90,60,70,0.4)';
-  c.lineCap = 'round';
-  [[-0.3, 0.3, 0.5], [0.1, 0.45, 0.4], [0.4, 0.2, 0.45], [-0.5, -0.1, 0.35]].forEach(([x, y, l]) => {
-    c.lineWidth = r * 0.07;
-    c.beginPath();
-    c.moveTo(x * r, y * r);
-    c.lineTo((x + l * 0.8) * r, (y - l * 0.3) * r);
-    c.stroke();
-  });
-  // le relief « peau de melon »
-  for (let i = 0; i < 9; i++) {
-    const a = i * 2.4, d = r * (0.2 + (i % 3) * 0.2);
-    c.fillStyle = 'rgba(150,110,120,0.18)';
-    c.beginPath();
-    c.arc(Math.cos(a) * d, -r * 0.3 + Math.sin(a) * d * 0.5, r * 0.12, 0, TAU);
-    c.fill();
-  }
-  c.restore();
-  const sh = c.createRadialGradient(-r * 0.45, -r * 0.5, r * 0.05, -r * 0.15, -r * 0.15, r * 1.2);
-  sh.addColorStop(0, 'rgba(255,255,255,0.35)');
-  sh.addColorStop(0.6, 'rgba(0,0,20,0)');
-  sh.addColorStop(1, 'rgba(0,0,20,0.55)');
-  c.fillStyle = sh;
-  c.beginPath();
-  c.arc(0, 0, r, 0, TAU);
-  c.fill();
-  return { canvas, half };
 }

@@ -128,8 +128,9 @@
   <div class="start-overlay" id="startOverlay" hidden>
     <div class="order-card start-card">
       <p class="order-title">📦 Livraisons dans l'espace</p>
+      <p class="start-level" id="startLevel"></p>
       <p class="start-goal">Livre des <b>ressources rares</b> pour conquérir l'espace, étape par étape :<br>🛰️ la Station spatiale → 🌙 une base sur la Lune → 🔴 une base sur Mars → ❄️ une station sur Triton → 🌀 un portail vers une autre étoile !</p>
-      <p class="start-done" id="startDone" hidden>🏆 Bravo, tu as terminé le niveau 1 : ton portail t'a emmené jusqu'à Proxima du Centaure !<br><b>Le niveau 2 arrive bientôt…</b></p>
+      <p class="start-done" id="startDone" hidden></p>
       <ul class="how-to">
         <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter, <kbd>Espace</kbd> : turbo</li>
         <li class="phone-only">👆 Garde le doigt appuyé sur l'écran : ta fusée vole vers lui</li>
@@ -165,20 +166,27 @@
     </div>
   </div>
 
-  <!-- La fin : à travers le portail, jusqu'à Proxima du Centaure -->
+  <!-- La fin d'un niveau : à travers le portail, jusqu'à l'étoile suivante (textes : levels/) -->
   <div class="end-overlay" id="endOverlay" hidden>
     <canvas id="endCanvas"></canvas>
     <div class="end-text">
-      <p class="end-title">✨ Bienvenue à Proxima du Centaure ! ✨</p>
-      <p class="end-sub">Ton portail t'a emmené jusqu'à l'étoile la plus proche du Soleil : une petite étoile rouge, si loin que sa lumière met plus de 4 ans pour arriver jusqu'à la Terre !</p>
+      <p class="end-title" id="endTitle"></p>
+      <p class="end-sub" id="endSub"></p>
       <p class="end-stats" id="endStats"></p>
-      <p class="end-soon">🚀 Bientôt : le <b>niveau 2</b>, autour de Proxima du Centaure !</p>
+      <p class="end-soon" id="endSoon"></p>
       <div class="end-actions">
+        <button id="endNext" class="royal-btn" hidden></button>
         <button id="endReplay">🎬 Revoir le voyage</button>
         <button id="endNew" class="ghost-btn">🔁 Rejouer le niveau 1</button>
         <a class="ghost-btn quit-link" href="../../index.html">🏠 La Cabane</a>
       </div>
     </div>
+  </div>
+
+  <!-- L'animation de départ : l'astronaute embarque et la fusée décolle de la Terre (intro.js) -->
+  <div class="intro-overlay" id="introOverlay" hidden>
+    <canvas id="introCanvas"></canvas>
+    <button id="introSkip" class="intro-skip">Passer ⏭</button>
   </div>
 
   <!-- Quitter le jeu -->
