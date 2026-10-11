@@ -9,42 +9,51 @@
 //  - LINES      : ce que dit Bip, le copilote
 // ============================================================================
 
-/* "source" = id d'un astre de Mission Cosmos (son dessin vient de ../espace/art.js) */
+/* "source" = id d'un astre de Mission Cosmos (son dessin vient de ../espace/art.js)
+   "ch" = à partir de quel chapitre les habitants peuvent en commander (plus c'est loin, plus c'est tard) */
 export const RESOURCES = {
   fer: {
-    name: 'Fer', icon: '🔩', source: 'mercure', color: '#C9C2B8',
+    name: 'Fer', icon: '🔩', source: 'mercure', color: '#C9C2B8', ch: 1,
     fact: "Le cœur de Mercure est une énorme boule de fer : il prend presque toute la place dans la planète !",
   },
+  lune: {
+    name: 'Poussière de Lune', icon: '🌑', source: 'lune', color: '#C9C9C4', ch: 1,
+    fact: "La poussière de Lune s'appelle le régolithe. Elle colle partout : les astronautes en avaient plein leurs combinaisons !",
+  },
+  sable: {
+    name: 'Sable rouge', icon: '🏜️', source: 'mars', color: '#E0703A', ch: 1,
+    fact: "Le sable de Mars est rouge parce qu'il contient de la rouille : du fer qui a rouillé il y a très, très longtemps !",
+  },
   comete: {
-    name: 'Poussière de comète', icon: '☄️', source: 'comete', place: 'la comète', color: '#BFEFFF',
+    name: 'Poussière de comète', icon: '☄️', source: 'comete', place: 'la comète', color: '#BFEFFF', ch: 1,
     fact: "Une comète est une boule de glace et de poussière vieille de 4,6 milliards d'années. Elle ne reste jamais au même endroit : il faut la rattraper !",
   },
   soufre: {
-    name: 'Soufre', icon: '🌋', source: 'io', color: '#EBCB52',
+    name: 'Soufre', icon: '🌋', source: 'io', color: '#EBCB52', ch: 1,
     fact: "Les volcans d'Io crachent du soufre jaune et orange : c'est pour ça qu'elle ressemble à une pizza !",
   },
   eau: {
-    name: 'Eau salée', icon: '💧', source: 'europe', color: '#7FD3FF',
+    name: 'Eau salée', icon: '💧', source: 'europe', color: '#7FD3FF', ch: 1,
     fact: "Sous la glace d'Europe se cache un immense océan d'eau salée. Il y a peut-être de la vie dedans !",
   },
   methane: {
-    name: 'Méthane liquide', icon: '🛢️', source: 'titan', color: '#E8A23F',
+    name: 'Méthane liquide', icon: '🛢️', source: 'titan', color: '#E8A23F', ch: 2,
     fact: "Sur Titan, il y a des lacs et des rivières… mais ils sont remplis de méthane liquide, pas d'eau !",
   },
   puant: {
-    name: 'Gaz qui pue', icon: '💨', source: 'uranus', color: '#A6E86A',
+    name: 'Gaz qui pue', icon: '💨', source: 'uranus', color: '#A6E86A', ch: 2,
     fact: "Les nuages d'Uranus contiennent du sulfure d'hydrogène : un gaz qui sent l'œuf pourri. Pouah !",
   },
   diamant: {
-    name: 'Diamants', icon: '💎', source: 'neptune', color: '#8FB4FF',
+    name: 'Diamants', icon: '💎', source: 'neptune', color: '#8FB4FF', ch: 3,
     fact: "Au cœur de Neptune, la pression est si forte qu'il pleut peut-être des diamants !",
   },
   azote: {
-    name: "Glace d'azote", icon: '❄️', source: 'pluton', color: '#F4E9DC',
+    name: "Glace d'azote", icon: '❄️', source: 'pluton', color: '#F4E9DC', ch: 3,
     fact: "Le grand cœur blanc de Pluton est un glacier de glace d'azote, à -230 °C !",
   },
   etoile: {
-    name: "Poussière d'étoile", icon: '✨', source: 'nebuleuse', place: 'la Nébuleuse', color: '#FF9AD8',
+    name: "Poussière d'étoile", icon: '✨', source: 'nebuleuse', place: 'la Nébuleuse', color: '#FF9AD8', ch: 3,
     fact: "Une nébuleuse est un nuage géant de gaz et de poussière : c'est là que naissent les étoiles.",
   },
 };
@@ -54,7 +63,7 @@ export const RESOURCE_IDS = Object.keys(RESOURCES);
 export const CHARACTERS = [
   {
     id: 'lila', name: 'Capitaine Lila', home: 'iss', where: 'la Station spatiale',
-    likes: ['fer', 'eau', 'methane', 'comete'],
+    likes: ['fer', 'eau', 'methane', 'comete', 'lune'],
     reasons: [
       "Les réservoirs de la Station spatiale sont presque vides !",
       "Il faut réparer un panneau solaire, vite !",
@@ -64,7 +73,7 @@ export const CHARACTERS = [
   },
   {
     id: 'mamie', name: 'Mamie Lune', home: 'lune', where: 'la Lune',
-    likes: ['fer', 'eau', 'azote', 'comete', 'etoile'],
+    likes: ['fer', 'eau', 'azote', 'comete', 'etoile', 'lune'],
     reasons: [
       "Je prépare un gâteau pour mon anniversaire : 4 milliards et demi d'années !",
       "Mes confitures de cratère ont besoin d'ingrédients spéciaux.",
@@ -74,7 +83,7 @@ export const CHARACTERS = [
   },
   {
     id: 'martin', name: 'Martin le Martien', home: 'mars', where: 'Mars',
-    likes: ['fer', 'eau', 'soufre', 'methane'],
+    likes: ['fer', 'eau', 'soufre', 'methane', 'sable'],
     reasons: [
       "Mon potager martien a besoin d'ingrédients… bizarres !",
       "Mon robot à six roues est tombé en panne.",
@@ -84,7 +93,7 @@ export const CHARACTERS = [
   },
   {
     id: 'zinzin', name: 'Professeur Zinzin', home: 'venus', where: 'Vénus',
-    likes: ['fer', 'soufre', 'puant', 'diamant', 'azote', 'etoile'],
+    likes: ['fer', 'soufre', 'puant', 'diamant', 'azote', 'etoile', 'sable'],
     reasons: [
       "Mon expérience va faire BOUM… enfin, j'espère que non !",
       "J'invente une machine à fabriquer des arcs-en-ciel.",
@@ -94,7 +103,7 @@ export const CHARACTERS = [
   },
   {
     id: 'gloubi', name: 'Général Gloubi', home: 'jupiter', where: 'Jupiter',
-    likes: ['fer', 'soufre', 'diamant', 'azote', 'etoile'],
+    likes: ['fer', 'soufre', 'diamant', 'azote', 'etoile', 'lune'],
     reasons: [
       "Mes soldats-robots ont besoin de pièces neuves.",
       "Je fabrique la plus grande médaille de l'Univers !",
@@ -104,7 +113,7 @@ export const CHARACTERS = [
   },
   {
     id: 'reine', name: 'Reine des Anneaux', home: 'saturne', where: 'Saturne',
-    likes: ['eau', 'diamant', 'puant', 'comete', 'etoile'],
+    likes: ['eau', 'diamant', 'puant', 'comete', 'etoile', 'sable'],
     reasons: [
       "Ma couronne a perdu ses brillants !",
       "Je veux faire une farce au Roi Neptune, hi hi !",
@@ -114,6 +123,10 @@ export const CHARACTERS = [
   },
 ];
 export const CHAR_BY_ID = Object.fromEntries(CHARACTERS.map((c) => [c.id, c]));
+
+/* L'ingénieure Nova n'est pas une cliente : elle dirige le chantier de Triton, puis celui du portail */
+export const NOVA = { id: 'nova', name: 'Ingénieure Nova', home: 'triton', where: 'Triton' };
+export const PEOPLE_BY_ID = { ...CHAR_BY_ID, nova: NOVA };
 
 /* Les améliorations : values[niveau], prices[niveau actuel] = prix du niveau suivant */
 export const UPGRADES = {
@@ -204,7 +217,11 @@ export const PORTAL_TOTAL = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].pr
 
 /* Bip, le copilote */
 export const LINES = {
-  firstStart: "Bip bip ! Je suis Bip, ton copilote. Va voir Capitaine Lila, juste au-dessus de la Station spatiale : elle a une livraison pour toi !",
+  firstStart: "Bip bip ! Je suis Bip, ton copilote. Capitaine Lila nous attend juste au-dessus de la Terre, sur le chantier de la Station spatiale !",
+  missionDone: ["Mission réussie ! Le chantier avance !", "Bravo chef ! Encore une pièce de posée !", "Super livraison ! Ça prend forme !"],
+  chapterDone: "Youpiii ! On l'a construite ! Regarde comme c'est beau !",
+  ufoAwake: "Attention chef : les OVNI se réveillent au-delà de la ceinture d'astéroïdes ! Près du Soleil, on est à l'abri.",
+  ufoAngrier: "Les OVNI sont de plus en plus nombreux et rapides… Prudence, chef !",
   resume: [
     "Bip bip ! On reprend les livraisons, chef !",
     "Re-bonjour chef ! Les clients nous attendent.",
@@ -219,7 +236,7 @@ export const LINES = {
   ],
   load: ["Chargé !", "Dans la soute !", "Hop, embarqué !"],
   cargoFull: ["La soute est pleine, chef ! Il faut livrer ou l'agrandir chez Gus.", "Plus de place dans la soute !"],
-  notNeeded: "Aucune de tes quêtes n'a besoin de ça pour l'instant.",
+  notNeeded: "Aucune de tes missions n'a besoin de ça pour l'instant.",
   noSlot: "Ton carnet de quêtes est plein ! Termine une quête, ou agrandis ton carnet chez Gus.",
   partial: ["Livraison partielle ! Il en manque encore un peu.", "C'est un bon début ! Il faudra revenir avec le reste."],
   done: [

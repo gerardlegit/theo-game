@@ -1,13 +1,15 @@
 import { renderArt } from "../espace/art.js";
 import { OBJECT_BY_ID, BIP } from "../espace/data.js";
 import {
-  RESOURCES, RESOURCE_IDS, CHARACTERS, CHAR_BY_ID, UPGRADES, PAINTS, ACCESSORIES, SHOPS, PORTAL_PARTS, PORTAL_IDS, PORTAL_TOTAL, LINES,
+  RESOURCES, RESOURCE_IDS, CHARACTERS, CHAR_BY_ID, PEOPLE_BY_ID, UPGRADES, PAINTS, ACCESSORIES, SHOPS, PORTAL_PARTS, PORTAL_IDS, PORTAL_TOTAL, LINES,
 } from "./data.js";
 import { drawCharacter, characterThumb } from "./chars.js";
+import { CHAPTERS } from "./story.js";
+import { BUILDING_SIZE, drawBuilding, drawConstruction, buildingThumb, renderTriton } from "./buildings.js";
 import { sfx, isSoundOn, toggleSound } from "./sound.js";
 
 const SAVE_KEY = 'livraisons-save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;            // 2 = avec l'histoire (les anciennes parties repartent de zéro)
 
 /* ---------- Réglages du vol (comme Mission Cosmos) ---------- */
 const TAU = Math.PI * 2;
@@ -37,11 +39,17 @@ const SLOW_SPEED = 140;            // vitesse sous laquelle on « s'arrête » p
 /* ---------- OVNI et combats ---------- */
 const UFO_HP = 6;
 const UFO_SPEED = 210;             // moins vite que la fusée : on peut toujours fuir
-const UFO_SIGHT = 650;
 const UFO_LEASH = 1300;            // un OVNI ne s'éloigne pas trop de chez lui
 const UFO_RESPAWN = 30;
-const MISSILE_SPEED = 330;
-const MISSILE_TURN = 1.7;          // rad/s : un virage serré fait rater le missile
+/* Plus l'histoire avance, plus les OVNI sont nombreux, voient loin et tirent vite.
+   (turn = vitesse de virage des missiles : un virage serré les fait rater) */
+const DANGER = [
+  { n: 0 },
+  { n: 3, sight: 560, fire: [3.6, 4.6], speed: 270, turn: 1.4 },
+  { n: 4, sight: 620, fire: [3.0, 4.0], speed: 300, turn: 1.55 },
+  { n: 6, sight: 680, fire: [2.6, 3.4], speed: 330, turn: 1.7 },
+  { n: 8, sight: 720, fire: [2.2, 3.0], speed: 360, turn: 1.85 },
+];
 const MISSILE_LIFE = 5.5;
 const BOLT_SPEED = 950;
 const BOLT_LIFE = 0.75;
@@ -69,11 +77,12 @@ const PLANETS = [
 const MOONS = [
   { id: 'iss', parent: 'terre', r: 28, dist: 120, period: 28 },
   { id: 'satellite', parent: 'terre', r: 22, dist: 185, period: 36, phase: Math.PI },
-  { id: 'lune', parent: 'terre', r: 18, dist: 255, period: 46 },
+  { id: 'lune', parent: 'terre', r: 22, dist: 255, period: 46 },
   { id: 'rover', parent: 'mars', r: 26, dist: 98, period: 40 },
   { id: 'io', parent: 'jupiter', r: 19, dist: 185, period: 22 },
   { id: 'europe', parent: 'jupiter', r: 17, dist: 248, period: 34 },
   { id: 'titan', parent: 'saturne', r: 22, dist: 245, period: 44 },
+  { id: 'triton', parent: 'neptune', r: 20, dist: 150, period: 38 },
 ];
 const BELT = { inner: 1340, outer: 1530, count: 95 };
 const FAR = {
@@ -90,7 +99,7 @@ const MAP_COLORS = {
   pluton: '#D8BFA4', comete: '#BFEFFF', galaxie: '#B9A8FF', nebuleuse: '#FF7FC8',
   trounoir: '#FF8A3C', satellite: '#F2C14E', iss: '#E8B254', astronaute: '#FFFFFF', rover: '#F2F4F8',
   telescope: '#F2BE3A', fusee: '#FF6F91', chaussette: '#FF6F91', io: '#EBCB52',
-  europe: '#EDE3D2', titan: '#E8A23F',
+  europe: '#EDE3D2', titan: '#E8A23F', triton: '#E9C9C4',
 };
 
 /* ---------- Éléments de la page ---------- */
@@ -233,13 +242,70 @@ const portalDone = () => portalPieces() >= PORTAL_PIECES;
 const portalLeft = () => PORTAL_TOTAL - portalSpent();
 const cheapestPart = () => Math.min(...PORTAL_IDS.filter((id) => game.portal[id] < PORTAL_PARTS[id].count).map((id) => PORTAL_PARTS[id].price));
 
+/* ---------- L'histoire ---------- */
+const chapter = () => game.story.chapter;
+const danger = () => DANGER[Math.min(chapter(), DANGER.length - 1)];
+const chapterBuilt = (i) => chapter() > i;
+/** Les magasins ouvrent au fil de l'histoire */
+const shopOpen = (id) => CHAPTERS.findIndex((c) => c.shop === id) < chapter();
+
+/** Les habitants qui proposent des quêtes (les « ! ») */
+function customers() {
+  const ids = new Set();
+  CHAPTERS.slice(0, chapter()).forEach((c) => (c.customers || []).forEach((id) => ids.add(id)));
+  if (chapter() >= CHAPTERS.length - 1) CHARACTERS.forEach((c) => ids.add(c.id));
+  return CHARACTERS.filter((c) => ids.has(c.id));
+}
+
+/** La mission de construction en cours, présentée comme une quête */
+function storyQuest() {
+  const ch = CHAPTERS[chapter()];
+  const m = ch && ch.missions[game.story.step];
+  if (!m) return null;
+  return { char: ch.chef, needs: m.needs, got: game.story.got, reward: m.reward, story: true, title: m.title };
+}
+const allQuests = () => {
+  const sq = storyQuest();
+  return sq ? [sq, ...game.quests] : game.quests;
+};
+
+/** Ceux qu'on voit dans l'espace : les clients, plus le chef du chantier en cours */
+function visiblePeople() {
+  const list = customers().slice();
+  const sq = storyQuest();
+  if (sq && !list.some((c) => c.id === sq.char)) list.push(PEOPLE_BY_ID[sq.char]);
+  return list;
+}
+
+/** Avancement d'un chantier (0 à 1), en comptant aussi les livraisons de la mission en cours */
+function chapterProgress(i) {
+  if (chapterBuilt(i)) return 1;
+  if (i > chapter()) return 0;
+  const ch = CHAPTERS[i];
+  const m = ch.missions[game.story.step];
+  let part = 0;
+  if (m) {
+    const need = Object.values(m.needs).reduce((a, b) => a + b, 0);
+    const got = Object.values(game.story.got).reduce((a, b) => a + b, 0);
+    part = got / need;
+  }
+  return (game.story.step + part) / ch.missions.length;
+}
+
+/** Un astre porte-t-il déjà un bâtiment (fini ou en chantier) ? */
+function buildingShown(hostId) {
+  const i = CHAPTERS.findIndex((c) => c.host === hostId);
+  return i >= 0 && i <= chapter();
+}
+
 /* ---------- Sauvegarde (la partie continue la prochaine fois) ---------- */
 function newGame() {
   game = {
     v: SAVE_VERSION,
     seed: Math.floor(Math.random() * 1e9),
     worldT: 0,
-    gold: 0, earned: 0, questsDone: 0, delivered: 0, ufoKills: 0,
+    gold: 0, earned: 0, questsDone: 0, missionsDone: 0, delivered: 0, ufoKills: 0,
+    story: { chapter: 0, step: 0, got: {} },
     cargo: [],
     up: { cargo: 0, slots: 0, engine: 0, turbo: 0, weapon: 0, shield: 0 },
     paints: ['classique'], paint: 'classique',
@@ -249,22 +315,12 @@ function newGame() {
     portal: Object.fromEntries(PORTAL_IDS.map((id) => [id, 0])),
     ship: null, started: false, finished: false,
   };
-  CHARACTERS.forEach((c) => { game.offers[c.id] = makeOffer(c.id); });
-  // La toute première quête est facile : du fer de Mercure pour Capitaine Lila
-  game.offers.lila = { needs: { fer: 2 }, reward: 25, reason: CHAR_BY_ID.lila.reasons[0] };
 }
 
 function loadGame() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (data && data.v === SAVE_VERSION && data.up && data.offers) {
-      // anciennes sauvegardes (quand on achetait la Terre) : on ajoute le portail
-      delete data.won;
-      data.portal = data.portal || {};
-      PORTAL_IDS.forEach((id) => { data.portal[id] = data.portal[id] || 0; });
-      data.finished = !!data.finished;
-      return data;
-    }
+    if (data && data.v === SAVE_VERSION && data.up && data.offers && data.story) return data;
   } catch (e) { /* stockage indisponible ou abîmé */ }
   return null;
 }
@@ -350,9 +406,12 @@ function buildBackground() {
 /* ---------- Construction du monde ---------- */
 let worldT = 0;                    // temps qui fait tourner les planètes
 
+/* Triton n'existe pas dans Mission Cosmos : son nom et son dessin viennent d'ici */
+const EXTRA_OBJECTS = { triton: { id: 'triton', name: 'Triton', kind: 'lune de Neptune' } };
+
 function makeBody(id, r, extra = {}) {
-  const b = { id, obj: OBJECT_BY_ID[id], r, x: 0, y: 0, rot: 0, ...extra };
-  if (!arts[id]) arts[id] = renderArt(id, r);
+  const b = { id, obj: OBJECT_BY_ID[id] || EXTRA_OBJECTS[id], r, x: 0, y: 0, rot: 0, ...extra };
+  if (!arts[id]) arts[id] = id === 'triton' ? renderTriton(r) : renderArt(id, r);
   bodies.push(b);
   byId[id] = b;
   return b;
@@ -468,8 +527,10 @@ function updateBodies(dt) {
 
 /* ---------- Où vivent les habitants et les marchands ---------- */
 function charPos(id) {
-  const b = byId[CHAR_BY_ID[id].home];
-  const lift = (b.id === 'saturne' ? b.r * 0.72 : b.r) + 46;
+  const b = byId[PEOPLE_BY_ID[id].home];
+  // au-dessus du bâtiment, s'il y en a un
+  const extra = BUILDING_SIZE[b.id] && buildingShown(b.id) ? BUILDING_SIZE[b.id].h - 4 : 0;
+  const lift = (b.id === 'saturne' ? b.r * 0.72 : b.r) + 46 + extra;
   return { x: b.x, y: b.y - lift };
 }
 
@@ -481,6 +542,7 @@ function orbitDist(id) {
   if (id === 'iss' || id === 'lune') return 830;
   if (id === 'io' || id === 'europe') return 1800;
   if (id === 'titan') return 2260;
+  if (id === 'triton') return 3050;
   if (id === 'comete') return 1950;
   if (FAR[id]) return Math.hypot(FAR[id].x, FAR[id].y);
   return PLANETS.find((p) => p.id === id).dist;
@@ -495,16 +557,11 @@ function unitValue(charId, res) {
 /** Une commande au hasard, de plus en plus grosse au fil de la partie. */
 function makeOffer(charId) {
   const c = CHAR_BY_ID[charId];
-  const done = game ? game.questsDone : 0;
-  let tier;
-  if (done < 3) tier = 1;
-  else if (done < 8) tier = Math.random() < 0.65 ? 2 : 1;
-  else if (done < 18) tier = Math.random() < 0.55 ? 3 : 2;
-  else tier = Math.random() < 0.5 ? 4 : 3;
-
-  let pool = shuffle(c.likes);
-  // Au début, on demande plutôt des ressources pas trop loin
-  if (done < 3) pool = pool.sort((a, b) => unitValue(charId, a) - unitValue(charId, b)).slice(0, 2);
+  // plus l'histoire avance, plus les commandes sont grosses… et lointaines
+  const ch = Math.max(1, chapter());
+  const tier = pick([[1, 2], [1, 2], [2, 3], [2, 3], [3, 4]][ch]);
+  let pool = shuffle(c.likes.filter((r) => RESOURCES[r].ch <= ch));
+  if (!pool.length) pool = ['fer'];
   const types = tier === 1 ? 1 : tier === 2 ? 2 : tier === 3 ? (Math.random() < 0.5 ? 2 : 3) : 3;
   const chosen = shuffle(pool).slice(0, types);
   const total = [0, randInt(2, 3), randInt(3, 5), randInt(5, 8), randInt(8, 11)][tier];
@@ -522,7 +579,7 @@ const carried = (res) => game.cargo.filter((r) => r === res).length;
 
 /** Combien il en faut encore, toutes quêtes confondues */
 function outstanding(res) {
-  return game.quests.reduce((n, q) => n + Math.max(0, (q.needs[res] || 0) - (q.got[res] || 0)), 0);
+  return allQuests().reduce((n, q) => n + Math.max(0, (q.needs[res] || 0) - (q.got[res] || 0)), 0);
 }
 
 function questDone(q) {
@@ -537,7 +594,7 @@ function removeCargo(res) {
 }
 
 function deliverTo(charId) {
-  const q = game.quests.find((x) => x.char === charId);
+  const q = allQuests().find((x) => x.char === charId);
   if (!q) return false;
   const pos = charPos(charId);
   let given = 0;
@@ -558,7 +615,8 @@ function deliverTo(charId) {
   if (!given) return false;
   game.delivered += given;
   if (questDone(q)) {
-    completeQuest(q);
+    if (q.story) completeStoryMission();
+    else completeQuest(q);
   } else {
     sfx.deliver();
     addFloater(`+${given} livré${given > 1 ? 's' : ''}`, pos.x, pos.y - 50, '#9EE7FF', 22);
@@ -589,6 +647,120 @@ function completeQuest(q) {
   }
 }
 
+/* ---------- L'histoire : missions de construction et chapitres ---------- */
+function completeStoryMission() {
+  const ch = CHAPTERS[chapter()];
+  const m = ch.missions[game.story.step];
+  const pos = charPos(ch.chef);
+  game.story.step += 1;
+  game.story.got = {};
+  game.missionsDone += 1;
+  setTimeout(() => sfx.cash(), 250);
+  setTimeout(() => sfx.build(), 550);
+  addFloater(`+${m.reward} 💰`, pos.x, pos.y - 60, '#FFD24A', 30);
+  burst(pos.x, pos.y, 50, ['#FFC93C', '#FF6F91', '#4FB8E8', '#58C97B', '#FFFFFF'], 300);
+  spawnCoins(pos.x, pos.y, Math.min(24, 6 + Math.round(m.reward / 10)));
+  addGold(m.reward);
+  if (game.story.step < ch.missions.length) {
+    say(pick(LINES.missionDone), 3, 3500);
+    setTimeout(() => { if (state === 'playing') openMissionDialog(); }, 1100);
+  } else {
+    finishChapter();
+  }
+}
+
+function finishChapter() {
+  const i = chapter();
+  const ch = CHAPTERS[i];
+  game.story.chapter += 1;
+  game.story.step = 0;
+  game.story.got = {};
+  // les nouveaux clients ont tout de suite une commande à proposer
+  customers().forEach((c) => {
+    if (!game.offers[c.id] && !game.quests.some((q) => q.char === c.id)) {
+      game.offers[c.id] = makeOffer(c.id);
+      game.offerAt[c.id] = 0;
+    }
+  });
+  // les OVNI se réveillent, ou deviennent plus nombreux
+  for (let k = ufos.length; k < ufoTarget(); k++) spawnUfo(true);
+  const b = byId[ch.host];
+  burst(b.x, b.y - b.r, 90, ['#FFC93C', '#FF6F91', '#4FB8E8', '#58C97B', '#FFFFFF', '#C38BFF'], 420);
+  flash = { a: 0.5, color: '255,240,200' };
+  shake = Math.max(shake, 0.3);
+  say(LINES.chapterDone, 5, 4500);
+  setTimeout(() => sfx.fanfare(), 300);
+  launchConfetti();
+  saveGame();
+  renderUI();
+  setTimeout(() => { if (state === 'playing') openChapterDone(i); }, 1600);
+}
+
+function missionCard(m) {
+  return `<p class="dlg-say">« ${escapeHtml(m.say)} »</p>
+    <p class="dlg-sub">📦 Apporte-moi :</p>
+    <ul class="need-rows">${needRows(m.needs)}</ul>
+    <p class="dlg-reward">Récompense : <b>💰 ${m.reward}</b> pièces d'or</p>`;
+}
+
+function chefHead(chefId, title, sub) {
+  return `<div class="dlg-head">
+      <img class="dlg-face" src="${faces[chefId]}" alt="">
+      <div><p class="dlg-chapter">${escapeHtml(sub)}</p><p class="dlg-name">${escapeHtml(title)}</p></div>
+    </div>`;
+}
+
+/** Début d'un chapitre : le chef se présente et donne la première mission */
+function openChapterIntro() {
+  const i = chapter();
+  const ch = CHAPTERS[i];
+  const m = ch.missions[game.story.step];
+  const body = m
+    ? `<p class="dlg-intro">${escapeHtml(ch.intro)}</p>
+       <p class="dlg-mission">Mission ${game.story.step + 1}/${ch.missions.length} : <b>${escapeHtml(m.title)}</b></p>${missionCard(m)}`
+    : `<p class="dlg-intro">${escapeHtml(ch.intro)}</p>
+       <p class="dlg-mission">🌀 Le portail : ${PORTAL_IDS.map((id) => PORTAL_PARTS[id].icon).join(' ')} · <b>${PORTAL_TOTAL} 💰</b> en tout</p>`;
+  openDialog(`${chefHead(ch.chef, `Chapitre ${i + 1} — ${ch.title}`, PEOPLE_BY_ID[ch.chef].name)}${body}
+    <div class="dlg-actions"><button class="primary" data-act="go">🚀 C'est parti !</button></div>`, { go: startMission }, 'dlg-story');
+}
+
+function openMissionDialog() {
+  const ch = CHAPTERS[chapter()];
+  const m = ch.missions[game.story.step];
+  if (!m) { openChapterIntro(); return; }
+  openDialog(`${chefHead(ch.chef, `Mission ${game.story.step + 1}/${ch.missions.length} : ${m.title}`, `${PEOPLE_BY_ID[ch.chef].name} · ${ch.title}`)}${missionCard(m)}
+    <div class="dlg-actions"><button class="primary" data-act="go">🚀 C'est parti !</button></div>`, { go: startMission }, 'dlg-story');
+}
+
+/** On ferme la fenêtre ; si la soute contient déjà ce qu'il faut et qu'on est à côté du chef, on livre aussitôt */
+function startMission() {
+  closeDialog();
+  const sq = storyQuest();
+  if (sq && dist(ship, charPos(sq.char)) < CHAR_RANGE) deliverTo(sq.char);
+  renderUI();
+}
+
+/** Bâtiment terminé : ce qu'on a construit, un fait réel, et ce qui change */
+function openChapterDone(i) {
+  const ch = CHAPTERS[i];
+  const img = ch.host === 'iss' ? thumbs.iss : buildingThumb(ch.host);
+  openDialog(`
+    <div class="built">
+      <img src="${img}" alt="">
+      <p class="dlg-title">🎉 ${escapeHtml(ch.built)}</p>
+      <p class="built-fact">💡 ${escapeHtml(ch.fact)}</p>
+    </div>
+    <p class="dlg-sub">Ce qui change :</p>
+    <ul class="unlocks">${ch.unlocks.map((u) => `<li>${escapeHtml(u)}</li>`).join('')}</ul>
+    <div class="dlg-actions"><button class="primary" data-act="next">Chapitre suivant →</button></div>`, {
+    next: () => {
+      openChapterIntro();
+      if (i === 0) say(LINES.ufoAwake, 4, 7500);
+      else if (danger().n > DANGER[chapter() - 1].n) say(LINES.ufoAngrier, 3, 5000);
+    },
+  }, 'dlg-story');
+}
+
 function addGold(n) {
   const before = game.gold;
   game.gold += n;
@@ -596,12 +768,12 @@ function addGold(n) {
   goldEl.parentElement.classList.remove('bump');
   void goldEl.parentElement.offsetWidth;
   goldEl.parentElement.classList.add('bump');
-  if (!portalDone() && before < portalLeft() && game.gold >= portalLeft()) {
+  if (chapter() >= CHAPTERS.length - 1 && !portalDone() && before < portalLeft() && game.gold >= portalLeft()) {
     setTimeout(() => say(LINES.portalRich, 5, 7000), 1800);
-  } else if (!game.tips.firstPortal && portalPieces() === 0 && game.gold >= cheapestPart()) {
+  } else if (chapter() >= CHAPTERS.length - 1 && !game.tips.firstPortal && portalPieces() === 0 && game.gold >= cheapestPart()) {
     game.tips.firstPortal = true;
     setTimeout(() => say(LINES.firstPortal, 4, 8000), 2500);
-  } else if (!game.tips.richGus && game.gold >= UPGRADES.cargo.prices[0] && game.up.cargo === 0) {
+  } else if (shopOpen('gus') && !game.tips.richGus && game.gold >= UPGRADES.cargo.prices[0] && game.up.cargo === 0) {
     game.tips.richGus = true;
     setTimeout(() => say(LINES.richGus, 3, 6500), 2500);
   }
@@ -639,7 +811,7 @@ function abandonQuest(q) {
 }
 
 function updateOffers() {
-  CHARACTERS.forEach((c) => {
+  customers().forEach((c) => {
     if (!game.offers[c.id] && !game.quests.some((q) => q.char === c.id) && worldT >= (game.offerAt[c.id] ?? 0)) {
       game.offers[c.id] = makeOffer(c.id);
     }
@@ -648,10 +820,9 @@ function updateOffers() {
 
 /* ---------- Nouvelle partie / reprise ---------- */
 function resetShip() {
+  // on décolle de la Terre
   const e = byId.terre;
-  const a = Math.atan2(e.y, e.x) - 0.45;
-  const p = polar(a, Math.hypot(e.x, e.y));
-  placeShip(p.x, p.y);
+  placeShip(e.x - e.r - 45, e.y);
 }
 
 function placeShip(x, y) {
@@ -715,6 +886,7 @@ function startGame() {
   if (!game.started) {
     game.started = true;
     say(LINES.firstStart, 4, 8000);
+    setTimeout(() => { if (state === 'playing') openChapterIntro(); }, 500);
   } else {
     say(pick(LINES.resume), 2, 3500);
   }
@@ -1160,8 +1332,8 @@ function updateExtraction(dt) {
     extract = { res: null, p: 0 };
     if ((cooldowns[`need-${res}`] || 0) < performance.now()) {
       cooldowns[`need-${res}`] = performance.now() + 9000;
-      addFloater(game.quests.length ? `Pas besoin de ${r.icon}` : `${r.icon} ${r.name}`, best.x, best.y - best.r - 40, 'rgba(255,255,255,0.8)', 20);
-      if (!game.quests.length) sayOnce('noQuest', "Prends d'abord une quête chez un personnage avec un « ! ». Ensuite, je remplirai la soute !", 30, 2);
+      addFloater(allQuests().length ? `Pas besoin de ${r.icon}` : `${r.icon} ${r.name}`, best.x, best.y - best.r - 40, 'rgba(255,255,255,0.8)', 20);
+      if (!allQuests().length) sayOnce('noQuest', "Prends d'abord une quête chez un personnage avec un « ! ». Ensuite, je remplirai la soute !", 30, 2);
       else sayOnce('notNeeded', LINES.notNeeded, 20, 1);
     }
     return;
@@ -1185,10 +1357,10 @@ function updateExtraction(dt) {
     sfx.load();
     floaters.push({ text: r.icon, x: best.x, y: best.y, tx: ship.x, ty: ship.y, life: 0, max: 0.45, size: 24, fly: true });
     addFloater(`+1 ${r.icon}`, ship.x, ship.y - 40, '#FFFFFF', 20);
-    const q = game.quests.find((x) => x.needs[res]);
+    const q = allQuests().find((x) => x.needs[res]);
     if (!game.tips.firstLoad && q && Object.keys(q.needs).every((r) => outstanding(r) <= carried(r))) {
       game.tips.firstLoad = true;
-      say(LINES.firstLoad(CHAR_BY_ID[q.char].name), 3, 5000);
+      say(LINES.firstLoad(PEOPLE_BY_ID[q.char].name), 3, 5000);
     }
     renderUI();
   }
@@ -1209,14 +1381,14 @@ function hintSlow(id, pos, who) {
 
 function updateVisits() {
   if (ship.spaghetti > 0 || !dialogEl.hidden) return;
-  CHARACTERS.forEach((c) => {
+  visiblePeople().forEach((c) => {
     const pos = charPos(c.id);
     const d = dist(ship, pos);
     if (d < CHAR_RANGE) {
       if (!near.has(c.id)) {
         near.add(c.id);
         arriveAtChar(c);
-      } else if (!offerShown.has(c.id) && game.offers[c.id] && !game.quests.some((q) => q.char === c.id) && canPopup(c.id)) {
+      } else if (!offerShown.has(c.id) && game.offers[c.id] && !allQuests().some((q) => q.char === c.id) && canPopup(c.id)) {
         offerShown.add(c.id);
         openOffer(c.id);
       }
@@ -1225,7 +1397,7 @@ function updateVisits() {
       offerShown.delete(c.id);
     }
   });
-  SHOPS.forEach((sh) => {
+  SHOPS.filter((sh) => shopOpen(sh.id)).forEach((sh) => {
     const pos = SHOP_POS[sh.id];
     const d = dist(ship, pos);
     if (d < SHOP_RANGE) {
@@ -1239,9 +1411,9 @@ function updateVisits() {
 }
 
 function arriveAtChar(c) {
-  const hadQuest = game.quests.some((q) => q.char === c.id);
+  const hadQuest = allQuests().some((q) => q.char === c.id);
   const delivered = deliverTo(c.id);
-  const q = game.quests.find((x) => x.char === c.id);
+  const q = allQuests().find((x) => x.char === c.id);
   if (q) {
     if (!delivered) talk[c.id] = { text: `Il me manque encore : ${needsText(q)}`, until: worldT + 4 };
     return;
@@ -1324,7 +1496,7 @@ function updateCratesAndCoins(dt) {
 }
 
 /* ---------- OVNI, missiles et laser ---------- */
-const ufoTarget = () => 4 + Math.min(3, Math.floor((game ? game.earned : 0) / 300));
+const ufoTarget = () => (game ? danger().n : 0);
 
 function spawnUfo(anywhere = false) {
   for (let tries = 0; tries < 40; tries++) {
@@ -1348,7 +1520,7 @@ function updateUfos(dt) {
   for (const u of ufos) {
     const d = dist(u, ship);
     const fromHome = Math.hypot(u.x - u.hx, u.y - u.hy);
-    const chase = !shipSafe && d < UFO_SIGHT && fromHome < UFO_LEASH;
+    const chase = !shipSafe && d < danger().sight && fromHome < UFO_LEASH;
     if (chase && !u.chasing && !game.tips.firstUfo) {
       game.tips.firstUfo = true;
       say(LINES.firstUfo, 4, 8000);
@@ -1363,7 +1535,7 @@ function updateUfos(dt) {
       u.fire -= dt;
       if (u.fire <= 0) {
         fireMissile(u);
-        u.fire = rand(2.6, 3.6);
+        u.fire = rand(...danger().fire);
       }
     } else {
       tx = u.hx + Math.sin(worldT * 0.4 + u.phase) * 240;
@@ -1395,11 +1567,11 @@ function fireMissile(u) {
 function updateMissiles(dt) {
   for (const m of missiles) {
     m.life -= dt;
-    m.speed = Math.min(MISSILE_SPEED, m.speed + 400 * dt);
+    m.speed = Math.min(danger().speed, m.speed + 400 * dt);
     if (ship.spaghetti <= 0) {
       const want = Math.atan2(ship.y - m.y, ship.x - m.x);
       let diff = ((want - m.a + Math.PI) % TAU + TAU) % TAU - Math.PI;
-      diff = clamp(diff, -MISSILE_TURN * dt, MISSILE_TURN * dt);
+      diff = clamp(diff, -danger().turn * dt, danger().turn * dt);
       m.a += diff;
     }
     m.x += Math.cos(m.a) * m.speed * dt;
@@ -1745,6 +1917,44 @@ function drawBody(b) {
   }
 }
 
+/** Les bâtiments de l'histoire : finis, ou en chantier (on ne voit pas encore les suivants) */
+function drawBuildings() {
+  CHAPTERS.forEach((ch, i) => {
+    if (!ch.host || i > chapter()) return;
+    const b = byId[ch.host];
+    if (!inView(b.x, b.y, 170)) return;
+    const k = chapterProgress(i);
+    ctx.save();
+    if (ch.host === 'iss') {
+      // la Station spatiale, c'est l'astre lui-même : elle se construit de bas en haut
+      const art = arts.iss;
+      const h = b.r * 2.4;
+      ctx.translate(b.x, b.y + h / 2);
+      drawConstruction(ctx, (c) => c.drawImage(art.canvas, -art.half, -h / 2 - art.half, art.half * 2, art.half * 2), { w: h, h }, k, worldT);
+    } else {
+      ctx.translate(b.x, b.y - b.r * 0.9);
+      drawBuilding(ctx, ch.host, k, worldT);
+    }
+    ctx.restore();
+  });
+}
+
+/** Étoile dorée : le chef de chantier a une mission de l'histoire */
+function drawStoryStar(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i / 10) * TAU;
+    const rr = i % 2 ? r * 0.45 : r;
+    ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#FFC93C';
+  ctx.fill();
+  ctx.strokeStyle = '#2E2A4D';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+}
+
 function textOutlined(text, x, y, color, font, width = 4) {
   ctx.font = font;
   if (width > 0) {
@@ -1763,8 +1973,10 @@ function drawLabels() {
   ctx.lineJoin = 'round';
   for (const b of bodies) {
     if (!inView(b.x, b.y, b.r + 60)) continue;
+    if (b.id === 'astronaute' && !chapterBuilt(0)) continue;
     const y = b.y + (b.id === 'saturne' ? b.r * 0.85 : b.id === 'galaxie' || b.id === 'nebuleuse' ? b.r * 0.95 : b.r + 22);
-    textOutlined(b.obj.name, b.x, y, 'rgba(255,255,255,0.85)', '700 17px "Baloo 2", "Quicksand", sans-serif');
+    const name = b.id === 'iss' && !chapterBuilt(0) ? '🏗️ Chantier de la Station' : b.obj.name;
+    textOutlined(name, b.x, y, 'rgba(255,255,255,0.85)', '700 17px "Baloo 2", "Quicksand", sans-serif');
     if (b.res) {
       const r = RESOURCES[b.res];
       const wanted = outstanding(b.res) > carried(b.res);
@@ -1857,17 +2069,17 @@ function drawSpeech(x, y, text, maxW = 230) {
 }
 
 function drawCharacters() {
-  for (const c of CHARACTERS) {
+  for (const c of visiblePeople()) {
     const p = charPos(c.id);
     if (!inView(p.x, p.y, 120)) continue;
-    const q = game.quests.find((x) => x.char === c.id);
+    const q = allQuests().find((x) => x.char === c.id);
     const offer = game.offers[c.id];
     const canDeliver = q && Object.keys(q.needs).some((r) => carried(r) > 0 && (q.got[r] || 0) < q.needs[r]);
     const bob = Math.sin(worldT * 2 + c.id.length) * 4;
     ctx.save();
     ctx.translate(p.x, p.y + bob);
     // halo
-    const col = canDeliver ? '124,240,160' : q ? '79,184,232' : offer ? '255,201,60' : '200,200,255';
+    const col = canDeliver ? '124,240,160' : q && q.story ? '255,201,60' : q ? '79,184,232' : offer ? '255,201,60' : '200,200,255';
     const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 52);
     g.addColorStop(0, `rgba(${col},0.45)`);
     g.addColorStop(1, `rgba(${col},0)`);
@@ -1909,6 +2121,7 @@ function drawCharacters() {
       ctx.fill();
       ctx.fillStyle = '#FFFFFF';
       ctx.fillText(txt, p.x, p.y + bob - 53);
+      if (q.story) drawStoryStar(p.x + w / 2 + 6, p.y + bob - 66, 13 + Math.sin(worldT * 5) * 1.5);
     }
     ctx.restore();
     const tk = talk[c.id];
@@ -1918,6 +2131,7 @@ function drawCharacters() {
 
 function drawShops() {
   for (const s of SHOPS) {
+    if (!shopOpen(s.id)) continue;
     const p = SHOP_POS[s.id];
     if (s.id === 'nova') { drawPortalSite(s, p); continue; }
     if (!inView(p.x, p.y, 140)) continue;
@@ -2540,13 +2754,13 @@ function compassTargets() {
       list.push({ x: byId[RESOURCES[res].source].x, y: byId[RESOURCES[res].source].y, icon: RESOURCES[res].icon, color: '#FFC93C' });
     }
   });
-  game.quests.forEach((q) => {
+  allQuests().forEach((q) => {
     if (Object.keys(q.needs).some((r) => carried(r) > 0 && (q.got[r] || 0) < q.needs[r])) {
       list.push({ ...charPos(q.char), face: q.char, color: '#7CF0A0' });
     }
   });
   if (!game.quests.length || (!list.length && game.quests.length < maxQuests())) {
-    CHARACTERS.forEach((c) => {
+    customers().forEach((c) => {
       if (game.offers[c.id] && !game.quests.some((q) => q.char === c.id)) list.push({ ...charPos(c.id), face: c.id, color: '#FFC93C', bang: true });
     });
   }
@@ -2555,7 +2769,7 @@ function compassTargets() {
     list.push({ x: c.x, y: c.y, icon: '📦', color: '#C98A4B' });
   }
   // le portail : quand il est fini, ou quand on a assez d'or pour le finir
-  if (portalDone() || game.gold >= portalLeft()) list.push({ ...SHOP_POS.nova, icon: '🌀', color: '#C38BFF' });
+  if (shopOpen('nova') && (portalDone() || game.gold >= portalLeft())) list.push({ ...SHOP_POS.nova, icon: '🌀', color: '#C38BFF' });
   return list;
 }
 
@@ -2673,6 +2887,7 @@ function drawMinimap() {
     }
   }
   SHOPS.forEach((s) => {
+    if (!shopOpen(s.id)) return;
     const p = SHOP_POS[s.id];
     if (s.id === 'nova') {
       mctx.strokeStyle = '#C38BFF';
@@ -2685,10 +2900,10 @@ function drawMinimap() {
     mctx.fillStyle = '#FFFFFF';
     mctx.fillRect(p.x * k - 2.5 * dpr, p.y * k - 2.5 * dpr, 5 * dpr, 5 * dpr);
   });
-  CHARACTERS.forEach((c) => {
+  visiblePeople().forEach((c) => {
     const p = charPos(c.id);
-    const q = game.quests.find((x) => x.char === c.id);
-    const color = q ? '#4FB8E8' : game.offers[c.id] ? '#FFC93C' : '#C9CED8';
+    const q = allQuests().find((x) => x.char === c.id);
+    const color = q && q.story ? '#FFE58A' : q ? '#4FB8E8' : game.offers[c.id] ? '#FFC93C' : '#C9CED8';
     dot(p.x, p.y, 3, color);
   });
   ufos.forEach((u) => dot(u.x, u.y, 2.2, '#FF5A5A'));
@@ -2719,8 +2934,13 @@ function draw(now) {
   ctx.translate(viewW / 2 - ship.x + sx, viewH / 2 - ship.y + sy);
   drawOrbits();
   drawWormholes();
-  bodies.forEach(drawBody);
+  bodies.forEach((b) => {
+    // la Station spatiale se dessine comme un bâtiment (voir drawBuildings)
+    if (b.id === 'iss' || (b.id === 'astronaute' && !chapterBuilt(0))) return;
+    drawBody(b);
+  });
   rocks.forEach(drawBody);
+  drawBuildings();
   drawWantedMines();
   drawShops();
   drawLabels();
@@ -2768,17 +2988,44 @@ function renderUI() {
   portalBar.style.width = `${(portalSpent() / PORTAL_TOTAL) * 100}%`;
   portalItem.classList.toggle('ready', portalDone());
   cargoCountEl.textContent = `${game.cargo.length}/${capacity()}`;
-  $('questCount').textContent = `${game.quests.length}/${maxQuests()}`;
+  $('questCount').textContent = customers().length ? `${game.quests.length}/${maxQuests()}` : '';
   fireBtn.classList.toggle('locked', !weapon());   // sans arme, le bouton explique où en acheter une
+  fireBtn.hidden = chapter() === 0;                // pas encore d'OVNI au chapitre 1
+  portalItem.hidden = !shopOpen('nova');
 
-  const items = game.quests.map((q, i) => {
+  const needSpans = (q) => Object.entries(q.needs).map(([r, n]) => {
+    const got = q.got[r] || 0;
+    const res = RESOURCES[r];
+    const cls = got >= n ? ' done' : carried(r) ? ' carry' : '';
+    return `<span class="need${cls}" title="${escapeHtml(res.name)} : sur ${escapeHtml(OBJECT_BY_ID[res.source].name)}"><b>${res.icon}</b> ${got}/${n}<small>${escapeHtml(OBJECT_BY_ID[res.source].name)}</small></span>`;
+  }).join('');
+
+  // la mission de l'histoire, toujours en haut (clique dessus pour la relire)
+  const items = [];
+  const sq = storyQuest();
+  const ch = CHAPTERS[chapter()];
+  if (sq) {
+    items.push(`<li class="q-item q-story" title="Revoir la mission">
+      <img class="q-face" src="${faces[sq.char]}" alt="">
+      <div class="q-body">
+        <p class="q-top"><strong>📖 ${escapeHtml(ch.title)}</strong><span class="q-reward">💰 ${sq.reward}</span></p>
+        <p class="q-mission">Mission ${game.story.step + 1}/${ch.missions.length} : ${escapeHtml(sq.title)}</p>
+        <div class="q-needs">${needSpans(sq)}</div>
+      </div>
+    </li>`);
+  } else if (ch) {
+    items.push(`<li class="q-item q-story" title="Revoir le chapitre">
+      <img class="q-face" src="${faces[ch.chef]}" alt="">
+      <div class="q-body">
+        <p class="q-top"><strong>📖 Le portail</strong><span class="q-reward">🌀 ${portalSpent()}/${PORTAL_TOTAL}</span></p>
+        <p class="q-mission">Gagne de l'or et achète les pièces chez Nova 🌀</p>
+      </div>
+    </li>`);
+  }
+
+  items.push(...game.quests.map((q, i) => {
     const c = CHAR_BY_ID[q.char];
-    const needs = Object.entries(q.needs).map(([r, n]) => {
-      const got = q.got[r] || 0;
-      const res = RESOURCES[r];
-      const cls = got >= n ? ' done' : carried(r) ? ' carry' : '';
-      return `<span class="need${cls}" title="${escapeHtml(res.name)} : sur ${escapeHtml(OBJECT_BY_ID[res.source].name)}"><b>${res.icon}</b> ${got}/${n}<small>${escapeHtml(OBJECT_BY_ID[res.source].name)}</small></span>`;
-    }).join('');
+    const needs = needSpans(q);
     return `<li class="q-item">
       <img class="q-face" src="${faces[q.char]}" alt="">
       <div class="q-body">
@@ -2787,8 +3034,8 @@ function renderUI() {
       </div>
       <button class="q-drop" data-i="${i}" aria-label="Abandonner cette quête" title="Abandonner">✕</button>
     </li>`;
-  });
-  for (let i = game.quests.length; i < maxQuests(); i++) {
+  }));
+  for (let i = game.quests.length; customers().length && i < maxQuests(); i++) {
     items.push('<li class="q-item q-empty">Place libre : va voir un personnage avec un <b>!</b></li>');
   }
   questList.innerHTML = items.join('');
@@ -2808,6 +3055,10 @@ function renderUI() {
 }
 
 questList.addEventListener('click', (e) => {
+  if (e.target.closest('.q-story') && state === 'playing') {
+    openMissionDialog();
+    return;
+  }
   const btn = e.target.closest('.q-drop');
   if (!btn) return;
   btn.blur();
@@ -3116,7 +3367,13 @@ $('mapClose').addEventListener('click', closeMap);
 mapOverlay.addEventListener('click', (e) => { if (e.target === mapOverlay) closeMap(); });
 
 function renderMapSide() {
-  const chars = CHARACTERS.map((c) => {
+  const story = CHAPTERS.map((c, i) => {
+    const mark = i < chapter() ? '✅' : i === chapter() ? '▶️' : '🔒';
+    let more = '';
+    if (i === chapter()) more = c.missions.length ? ` <small>mission ${game.story.step + 1}/${c.missions.length}</small>` : ` <small>${portalSpent()}/${PORTAL_TOTAL} 💰</small>`;
+    return `<li class="ms-chapter${i === chapter() ? ' now' : ''}">${mark} ${i + 1}. ${escapeHtml(c.title)}${more}</li>`;
+  }).join('');
+  const chars = customers().map((c) => {
     const q = game.quests.find((x) => x.char === c.id);
     const offer = game.offers[c.id];
     let status;
@@ -3130,16 +3387,17 @@ function renderMapSide() {
   const res = RESOURCE_IDS.map((r) => `<li class="ms-res"><span>${RESOURCES[r].icon}</span> ${escapeHtml(RESOURCES[r].name)} <small>→ ${escapeHtml(OBJECT_BY_ID[RESOURCES[r].source].name)}</small></li>`).join('');
   const parts = PORTAL_IDS.map((id) => `${PORTAL_PARTS[id].icon} ${game.portal[id]}/${PORTAL_PARTS[id].count}`).join(' · ');
   $('mapSide').innerHTML = `
-    <p class="ms-head">🌀 Le portail (chantier de l'ingénieure Nova)</p>
-    <p class="ms-portal">${parts}<br><b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰 investis</p>
-    <p class="ms-head">Les habitants</p><ul class="ms-list">${chars}</ul>
+    <p class="ms-head">📖 L'histoire</p><ul class="ms-list ms-story">${story}</ul>
+    ${shopOpen('nova') ? `<p class="ms-head">🌀 Le portail (chantier de l'ingénieure Nova)</p>
+    <p class="ms-portal">${parts}<br><b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰 investis</p>` : ''}
+    ${chars ? `<p class="ms-head">Les habitants</p><ul class="ms-list">${chars}</ul>` : ''}
     <p class="ms-head">Où trouver les ressources</p><ul class="ms-list ms-grid">${res}</ul>
     <p class="ms-note">🟢 Zone calme : pas d'OVNI · 🔴 Zone des OVNI · Les planètes tournent : la carte change avec le temps !</p>`;
 }
 
 /* La carte grossit le centre du système solaire, sinon les planètes proches seraient toutes collées */
 const MAP_POW = 0.62;
-const MOON_GAP = { iss: 20, lune: 36, io: 26, europe: 40, titan: 32 };
+const MOON_GAP = { iss: 20, lune: 36, io: 26, europe: 40, titan: 32, triton: 30 };
 const mapRad = (d, R) => R * Math.pow(Math.min(d, WORLD_R) / WORLD_R, MAP_POW);
 
 function mapPoint(x, y, R) {
@@ -3233,7 +3491,7 @@ function drawBigMap() {
     c.fillStyle = color;
     c.fillText(text, x, y);
   };
-  const small = ['io', 'europe', 'titan', 'lune', 'iss'];
+  const small = ['io', 'europe', 'titan', 'lune', 'iss', 'triton'];
   const showIds = ['soleil', 'mercure', 'venus', 'terre', 'mars', 'jupiter', 'saturne', 'uranus', 'neptune', 'pluton', 'comete', 'nebuleuse', 'galaxie', 'trounoir', ...small];
   const iconSize = clamp(R / 24, 8, 20);
   showIds.forEach((id) => {
@@ -3264,6 +3522,7 @@ function drawBigMap() {
 
   // marchands
   SHOPS.forEach((s) => {
+    if (!shopOpen(s.id)) return;
     const p = mp(SHOP_POS[s.id].x, SHOP_POS[s.id].y);
     c.fillStyle = '#FFFCF3';
     c.strokeStyle = '#2E2A4D';
@@ -3281,16 +3540,16 @@ function drawBigMap() {
   });
 
   // habitants : leur visage au-dessus de chez eux
-  CHARACTERS.forEach((ch) => {
+  visiblePeople().forEach((ch) => {
     const home = mapBody(byId[ch.home], R);
-    const q = game.quests.find((x) => x.char === ch.id);
+    const q = allQuests().find((x) => x.char === ch.id);
     const offer = game.offers[ch.id];
     const canDeliver = q && Object.keys(q.needs).some((r) => carried(r) > 0 && (q.got[r] || 0) < q.needs[r]);
     const lift = ['jupiter', 'saturne'].includes(ch.home) ? iconSize * 1.25 + 14 : small.includes(ch.home) ? 18 : iconSize + 14;
     const x = home.x, y = home.y - lift;
     c.fillStyle = 'rgba(11,15,51,0.9)';
-    c.strokeStyle = canDeliver ? '#7CF0A0' : q ? '#4FB8E8' : offer ? '#FFC93C' : '#C9CED8';
-    c.lineWidth = 3;
+    c.strokeStyle = canDeliver ? '#7CF0A0' : q && q.story ? '#FFE58A' : q ? '#4FB8E8' : offer ? '#FFC93C' : '#C9CED8';
+    c.lineWidth = q && q.story ? 4 : 3;
     c.beginPath();
     c.arc(x, y, 15, 0, TAU);
     c.fill();
@@ -3302,6 +3561,7 @@ function drawBigMap() {
     c.drawImage(faceImgs[ch.id], x - 16, y - 16, 32, 32);
     c.restore();
     if (offer && !q) label('!', x + 14, y - 13, '#FFC93C', fs * 1.4);
+    if (q && q.story) label('⭐', x + 14, y - 13, '#FFC93C', fs * 1.1);
   });
 
   // OVNI et caisses perdues
@@ -3483,7 +3743,7 @@ function startEnding() {
   endOverlay.hidden = false;
   endOverlay.classList.remove('show-text');
   sizeEndCanvas();
-  $('endStats').textContent = `${game.questsDone} quêtes réussies · ${game.delivered} ressources livrées · ${game.ufoKills} OVNI vaincus`;
+  $('endStats').textContent = `${game.missionsDone} missions de construction · ${game.questsDone} livraisons pour les habitants · ${game.ufoKills} OVNI vaincus`;
 }
 
 /** Une seule fois par voyage (sons, texte…) */
@@ -3801,7 +4061,7 @@ async function init() {
   resize();
   new ResizeObserver(resize).observe(stage);
   buildBackground();
-  ['soleil', 'mercure', 'venus', 'terre', 'mars', 'jupiter', 'saturne', 'uranus', 'neptune', 'pluton', 'comete', 'io', 'europe', 'titan', 'nebuleuse']
+  ['soleil', 'mercure', 'venus', 'terre', 'lune', 'iss', 'mars', 'jupiter', 'saturne', 'uranus', 'neptune', 'pluton', 'comete', 'io', 'europe', 'titan', 'nebuleuse']
     .forEach((id) => { thumbs[id] = renderArt(id, 34).canvas.toDataURL(); });
   ufoArt = renderArt('ovni', 30);
   [...CHARACTERS.map((c) => c.id), ...SHOPS.map((s) => s.id)].forEach((id) => {
