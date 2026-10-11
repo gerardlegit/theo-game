@@ -1,5 +1,5 @@
 // ============================================================================
-// LES PERSONNAGES — habitants, marchands et le futur roi de la Terre,
+// LES PERSONNAGES — habitants, marchands et l'ingénieure du portail,
 // peints en code. Chaque dessin tient dans un cercle de rayon "s" centré sur
 // (0, 0). "t" (en secondes) sert à faire cligner les yeux.
 // ============================================================================
@@ -104,32 +104,6 @@ function star(ctx, x, y, r, color) {
   }
   ctx.closePath();
   ctx.fillStyle = color;
-  ctx.fill();
-}
-
-/** Couronne dorée à 3 pointes, posée sur (0, y). */
-function crown(ctx, s, y, w = 0.42) {
-  ctx.beginPath();
-  ctx.moveTo(-w * s, y * s);
-  ctx.lineTo(-w * s, (y - 0.32) * s);
-  ctx.lineTo(-w * 0.5 * s, (y - 0.16) * s);
-  ctx.lineTo(0, (y - 0.42) * s);
-  ctx.lineTo(w * 0.5 * s, (y - 0.16) * s);
-  ctx.lineTo(w * s, (y - 0.32) * s);
-  ctx.lineTo(w * s, y * s);
-  ctx.closePath();
-  fillStroke(ctx, '#FFD24A', s, 0.05);
-  [[-w, y - 0.32], [0, y - 0.42], [w, y - 0.32]].forEach(([x, yy]) => {
-    circle(ctx, x * s, yy * s, 0.06 * s);
-    fillStroke(ctx, '#FFF6C8', s, 0.03);
-  });
-  circle(ctx, 0, (y - 0.1) * s, 0.07 * s);
-  ctx.fillStyle = '#E85757';
-  ctx.fill();
-  circle(ctx, -w * 0.62 * s, (y - 0.08) * s, 0.05 * s);
-  ctx.fillStyle = '#4FB8E8';
-  ctx.fill();
-  circle(ctx, w * 0.62 * s, (y - 0.08) * s, 0.05 * s);
   ctx.fill();
 }
 
@@ -494,74 +468,60 @@ const DRAW = {
     fillStroke(ctx, '#FFFFFF', s, 0.05);
   },
 
-  /* Le joueur, devenu roi de la Terre (pour l'animation de fin) */
-  king(ctx, s, t) {
-    // cape
+  /* Ingénieure Nova, qui construit le portail : casque de chantier et lunettes de soudure */
+  nova(ctx, s, t) {
+    // combinaison orange à bandes réfléchissantes
     ctx.beginPath();
-    ctx.moveTo(-0.35 * s, 0.1 * s);
-    ctx.quadraticCurveTo(-0.95 * s, 0.7 * s, -0.8 * s, 1.15 * s);
-    ctx.lineTo(0.8 * s, 1.15 * s);
-    ctx.quadraticCurveTo(0.95 * s, 0.7 * s, 0.35 * s, 0.1 * s);
+    ctx.moveTo(-0.6 * s, 0.98 * s);
+    ctx.quadraticCurveTo(-0.58 * s, 0.5 * s, 0, 0.46 * s);
+    ctx.quadraticCurveTo(0.58 * s, 0.5 * s, 0.6 * s, 0.98 * s);
     ctx.closePath();
-    fillStroke(ctx, '#D63B5A', s);
-    for (let i = 0; i < 7; i++) {
-      const x = -0.75 + i * 0.25;
-      ellipse(ctx, x * s, 1.12 * s, 0.13 * s, 0.08 * s);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      circle(ctx, x * s, 1.12 * s, 0.025 * s);
-      ctx.fillStyle = INK;
-      ctx.fill();
-    }
-    // combinaison
-    ellipse(ctx, 0, 0.62 * s, 0.42 * s, 0.45 * s);
-    fillStroke(ctx, '#F2F4F8', s);
-    ellipse(ctx, 0, 0.3 * s, 0.3 * s, 0.08 * s);
-    fillStroke(ctx, '#FFC93C', s, 0.04);
-    // bras qui salue avec le sceptre
-    const wave = Math.sin(t * 5) * 0.25;
-    ctx.save();
-    ctx.translate(0.3 * s, 0.4 * s);
-    ctx.rotate(0.75 + wave);
-    ctx.beginPath();
-    ctx.roundRect(-0.08 * s, -0.5 * s, 0.16 * s, 0.5 * s, 0.08 * s);
-    fillStroke(ctx, '#F2F4F8', s, 0.045);
-    ctx.strokeStyle = '#C99212';
-    ctx.lineWidth = 0.07 * s;
-    ctx.beginPath();
-    ctx.moveTo(0, -0.45 * s);
-    ctx.lineTo(0, -0.95 * s);
-    ctx.stroke();
-    star(ctx, 0, -1.02 * s, 0.13 * s, '#FFD24A');
-    ctx.restore();
-    // tête
-    circle(ctx, 0, -0.18 * s, 0.38 * s);
-    fillStroke(ctx, SKIN, s);
-    ctx.save();
-    circle(ctx, 0, -0.18 * s, 0.38 * s);
-    ctx.clip();
-    ctx.fillStyle = '#6B3E26';
-    ctx.beginPath();
-    ctx.moveTo(-0.5 * s, -0.7 * s);
-    ctx.lineTo(0.5 * s, -0.7 * s);
-    ctx.lineTo(0.5 * s, -0.25 * s);
-    ctx.quadraticCurveTo(0.15 * s, -0.4 * s, 0, -0.3 * s);
-    ctx.quadraticCurveTo(-0.2 * s, -0.42 * s, -0.5 * s, -0.22 * s);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    // yeux fermés de bonheur
+    fillStroke(ctx, '#FF8A3C', s);
+    ctx.fillStyle = '#F4F4F8';
+    ctx.fillRect(-0.55 * s, 0.72 * s, 1.1 * s, 0.08 * s);
+    // tête : une extraterrestre bleu ciel
+    ellipse(ctx, 0, 0.0, 0.55 * s, 0.56 * s);
+    fillStroke(ctx, '#8FD3FF', s);
+    shine(ctx, 0, 0, 0.55 * s, 0.56 * s);
+    // lunettes de soudure relevées
     ctx.strokeStyle = INK;
     ctx.lineWidth = 0.05 * s;
-    ctx.lineCap = 'round';
-    [-0.14, 0.14].forEach((x) => {
-      ctx.beginPath();
-      ctx.arc(x * s, -0.14 * s, 0.07 * s, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-0.55 * s, -0.3 * s);
+    ctx.lineTo(0.55 * s, -0.3 * s);
+    ctx.stroke();
+    [-0.2, 0.2].forEach((x) => {
+      circle(ctx, x * s, -0.3 * s, 0.14 * s);
+      fillStroke(ctx, '#3A4878', s, 0.045);
+      circle(ctx, (x - 0.04) * s, -0.34 * s, 0.04 * s);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fill();
     });
-    cheeks(ctx, s, -0.02, 0.24);
-    smile(ctx, s, 0.0, 0.13, true);
-    crown(ctx, s, -0.5, 0.32);
+    // casque de chantier jaune
+    ctx.beginPath();
+    ctx.arc(0, -0.42 * s, 0.5 * s, Math.PI, TAU);
+    ctx.closePath();
+    fillStroke(ctx, '#FFC93C', s);
+    ellipse(ctx, 0, -0.42 * s, 0.66 * s, 0.09 * s);
+    fillStroke(ctx, '#F2A93B', s, 0.045);
+    ctx.fillStyle = '#F2A93B';
+    ctx.fillRect(-0.06 * s, -0.9 * s, 0.12 * s, 0.46 * s);
+    eyes(ctx, s, t, { x: 0.22, y: 0.0, r: 0.12, seed: 4.1 });
+    cheeks(ctx, s, 0.18, 0.38);
+    smile(ctx, s, 0.26, 0.15, true);
+    // le plan du portail, roulé sous le bras
+    ctx.save();
+    ctx.translate(0.55 * s, 0.7 * s);
+    ctx.rotate(-0.5);
+    ctx.beginPath();
+    ctx.roundRect(-0.08 * s, -0.32 * s, 0.16 * s, 0.64 * s, 0.08 * s);
+    fillStroke(ctx, '#BFE9FF', s, 0.035);
+    ctx.strokeStyle = '#4FB8E8';
+    ctx.lineWidth = 0.03 * s;
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.06 * s, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
   },
 };
 

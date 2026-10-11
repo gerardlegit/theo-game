@@ -1,6 +1,6 @@
 // ============================================================================
 // Bruitages synthétisés (aucun fichier audio) : chargement, pièces d'or,
-// laser, missiles, explosions, gazouillis de Bip et fanfare royale.
+// laser, missiles, explosions, gazouillis de Bip, portail et fanfare finale.
 // ============================================================================
 
 const STORAGE_KEY = 'livraisons-sound';
@@ -114,8 +114,25 @@ export const sfx = {
       tone(700 + Math.random() * 900, i * 0.07, 0.06, { type: 'square', vol: 0.03 });
     }
   }),
-  /* Fanfare du couronnement */
-  royal: () => play(() => {
+  /* une pièce du portail est installée : clang ! */
+  build: () => play(() => {
+    tone(220, 0, 0.18, { type: 'square', vol: 0.07, to: 180 });
+    noise(0, 0.12, { vol: 0.2, freq: 2500, q: 3 });
+    tone(NOTE(84), 0.12, 0.3, { type: 'triangle', vol: 0.1 });
+  }),
+  /* le portail s'allume : un bourdonnement qui monte */
+  portal: () => play(() => {
+    tone(90, 0, 1.6, { type: 'sawtooth', vol: 0.05, to: 360 });
+    tone(180, 0.1, 1.5, { type: 'sine', vol: 0.12, to: 720 });
+    noise(0.2, 1.3, { vol: 0.08, freq: 400, to: 3000, q: 4 });
+  }),
+  /* le grand saut à travers l'espace */
+  warp: () => play(() => {
+    noise(0, 1.8, { vol: 0.35, freq: 200, to: 6000, q: 1.5 });
+    tone(110, 0, 1.6, { type: 'sine', vol: 0.15, to: 880 });
+  }),
+  /* Fanfare de l'arrivée à Proxima du Centaure */
+  fanfare: () => play(() => {
     const melody = [
       [67, 0, 0.2], [67, 0.2, 0.12], [72, 0.34, 0.45], [76, 0.8, 0.2], [79, 1.0, 0.45],
       [76, 1.5, 0.2], [79, 1.7, 0.2], [84, 1.9, 0.9], [83, 2.85, 0.2], [84, 3.05, 1.2],

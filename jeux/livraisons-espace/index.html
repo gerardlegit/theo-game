@@ -8,14 +8,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B0E2A">
 <title>Livraisons dans l'espace — La Cabane à Jeux</title>
-<meta name="description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et achète la planète Terre !">
+<meta name="description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et construis un portail spatial vers une autre étoile : Proxima du Centaure !">
 <link rel="canonical" href="https://www.la-cabane.app/jeux/livraisons-espace/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="La Cabane à Jeux">
 <meta property="og:locale" content="fr_FR">
 <meta property="og:url" content="https://www.la-cabane.app/jeux/livraisons-espace/">
 <meta property="og:title" content="Livraisons dans l'espace — La Cabane à Jeux">
-<meta property="og:description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et achète la planète Terre !">
+<meta property="og:description" content="Jeu de logistique spatial gratuit pour enfants : livre des ressources rares de Pluton, Neptune ou Titan aux habitants du système solaire, échappe aux OVNI et construis un portail spatial vers une autre étoile : Proxima du Centaure !">
 <meta property="og:image" content="https://www.la-cabane.app/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -37,13 +37,14 @@
 
   <header class="game-header">
     <h1>📦 Livraisons dans l'espace</h1>
-    <p>Livre des ressources rares aux habitants du système solaire… et achète la Terre !</p>
+    <p>Livre des ressources rares aux habitants du système solaire… et construis un portail vers une autre étoile !</p>
   </header>
 
   <div class="hud">
-    <div class="hud-item gold-item" title="Il faut 1000 pièces d'or pour acheter la Terre">
-      💰 <span id="gold">0</span><span class="gold-goal"> / 1000</span>
-      <span class="gold-bar" aria-hidden="true"><i id="goldBar"></i></span>
+    <div class="hud-item gold-item" title="Tes pièces d'or">💰 <span id="gold">0</span></div>
+    <div class="hud-item portal-item" id="portalItem" title="Le portail spatial : l'or déjà investi, sur 4000">
+      🌀 <span id="portalSpent">0</span><span class="gold-goal"> / 4000</span>
+      <span class="gold-bar" aria-hidden="true"><i id="portalBar"></i></span>
     </div>
     <div class="hud-item">📦 <span id="cargoCount">0/4</span></div>
     <button id="mapBtn" class="hud-btn" aria-label="Ouvrir la carte">🗺️ <span class="btn-label">Carte</span></button>
@@ -127,7 +128,8 @@
   <div class="start-overlay" id="startOverlay" hidden>
     <div class="order-card start-card">
       <p class="order-title">📦 Livraisons dans l'espace</p>
-      <p class="start-goal">Livre des <b>ressources rares</b> aux habitants de l'espace.<br>Gagne <b>💰 1000 pièces d'or</b>… et achète la <b>planète Terre</b> ! 🌍👑</p>
+      <p class="start-goal">Livre des <b>ressources rares</b> aux habitants de l'espace et gagne de l'or.<br>Construis un <b>portail spatial</b> (💰 4000) pour partir vers une nouvelle étoile : <b>Proxima du Centaure</b> ! ✨</p>
+      <p class="start-done" id="startDone" hidden>🏆 Bravo, tu as terminé le niveau 1 : ton portail t'a emmené jusqu'à Proxima du Centaure !<br><b>Le niveau 2 arrive bientôt…</b></p>
       <ul class="how-to">
         <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour piloter, <kbd>Espace</kbd> : turbo</li>
         <li class="phone-only">👆 Garde le doigt appuyé sur l'écran : ta fusée vole vers lui</li>
@@ -135,6 +137,7 @@
         <li>🪐 Approche-toi de la bonne planète : ta soute se remplit toute seule</li>
         <li>🛸 Gare aux OVNI : un missile, et tout ton chargement s'envole !</li>
         <li>🗺️ La carte (<kbd>M</kbd>) t'aide à préparer le meilleur trajet</li>
+        <li>🌀 Achète les pièces du portail au Chantier de l'ingénieure Nova</li>
       </ul>
       <div class="order-actions">
         <button id="startBtn">🚀 Décoller !</button>
@@ -145,7 +148,7 @@
     </div>
   </div>
 
-  <!-- Fenêtre : quête, marchand, achat de la Terre… -->
+  <!-- Fenêtre : quête, marchand, chantier du portail… -->
   <div class="dlg-overlay" id="dialog" hidden>
     <div class="dlg-card" id="dialogCard" role="dialog" aria-modal="true"></div>
   </div>
@@ -162,20 +165,17 @@
     </div>
   </div>
 
-  <!-- La fin : roi de la Terre ! -->
+  <!-- La fin : à travers le portail, jusqu'à Proxima du Centaure -->
   <div class="end-overlay" id="endOverlay" hidden>
     <canvas id="endCanvas"></canvas>
     <div class="end-text">
-      <p class="end-title" id="endTitle"></p>
-      <p class="end-sub" id="endSub"></p>
+      <p class="end-title">✨ Bienvenue à Proxima du Centaure ! ✨</p>
+      <p class="end-sub">Ton portail t'a emmené jusqu'à l'étoile la plus proche du Soleil : une petite étoile rouge, si loin que sa lumière met plus de 4 ans pour arriver jusqu'à la Terre !</p>
       <p class="end-stats" id="endStats"></p>
-      <div class="title-switch">
-        <button class="title-btn" data-title="Roi">🤴 Roi</button>
-        <button class="title-btn" data-title="Reine">👸 Reine</button>
-      </div>
+      <p class="end-soon">🚀 Bientôt : le <b>niveau 2</b>, autour de Proxima du Centaure !</p>
       <div class="end-actions">
-        <button id="endContinue">🚀 Continuer à livrer</button>
-        <button id="endNew" class="ghost-btn">🆕 Nouvelle partie</button>
+        <button id="endReplay">🎬 Revoir le voyage</button>
+        <button id="endNew" class="ghost-btn">🔁 Rejouer le niveau 1</button>
         <a class="ghost-btn quit-link" href="../../index.html">🏠 La Cabane</a>
       </div>
     </div>

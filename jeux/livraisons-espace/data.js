@@ -3,7 +3,8 @@
 //
 //  - RESOURCES  : les ressources rares, et l'astre inhabité où on les trouve
 //  - CHARACTERS : les habitants qui proposent des quêtes (et ce qu'ils aiment demander)
-//  - SHOPS      : les trois marchands et ce qu'ils vendent
+//  - SHOPS      : les marchands, dont le Chantier du Portail
+//  - PORTAL_PARTS : les pièces du portail spatial (le but du jeu)
 //  - PAINTS / ACCESSORIES : les styles de fusée de l'atelier de Stella
 //  - LINES      : ce que dit Bip, le copilote
 // ============================================================================
@@ -176,9 +177,30 @@ export const SHOPS = [
   { id: 'gus', name: 'Garage de Gus', icon: '🔧', who: 'Gus le mécano', angle: 2.55, dist: 990, hello: "Salut ! Ici on rend les fusées plus grandes, plus rapides et plus fortes !" },
   { id: 'stella', name: 'Atelier de Stella', icon: '🎨', who: 'Stella', angle: -0.55, dist: 990, hello: "Bienvenue ! Une fusée, c'est comme un tableau : elle doit être belle !" },
   { id: 'boum', name: 'Armurerie du Colonel Boum', icon: '💥', who: 'Colonel Boum', angle: 0.95, dist: 1240, hello: "Des OVNI t'embêtent, soldat ? J'ai ce qu'il te faut !" },
+  { id: 'nova', name: 'Chantier du Portail', icon: '🌀', who: 'Ingénieure Nova', angle: 0.35, dist: 3800, hello: "Bienvenue sur mon chantier ! Ensemble, on va construire un portail jusqu'à une autre étoile." },
 ];
 
-export const EARTH_PRICE = 1000;
+/* Le portail spatial : 600 + 800 + 1200 + 1400 = 4000 pièces d'or en tout */
+export const PORTAL_PARTS = {
+  acier: {
+    name: "Poutres d'acier", icon: '🏗️', price: 150, count: 4,
+    fact: "L'acier, c'est du fer mélangé à un tout petit peu de carbone : il devient beaucoup plus solide. Parfait pour l'anneau du portail !",
+  },
+  solaire: {
+    name: 'Panneaux solaires', icon: '☀️', price: 200, count: 4,
+    fact: "Un panneau solaire transforme la lumière du Soleil en électricité. La Station spatiale en a d'immenses, grands comme un terrain de foot !",
+  },
+  pile: {
+    name: 'Piles atomiques', icon: '⚛️', price: 400, count: 3,
+    fact: "Une pile atomique donne de l'énergie pendant des dizaines d'années. Celles des sondes Voyager marchent depuis 1977, très loin du Soleil !",
+  },
+  quantique: {
+    name: 'Ordinateurs quantiques', icon: '💻', price: 700, count: 2,
+    fact: "Un ordinateur quantique est un ordinateur d'un genre nouveau, très puissant pour certains calculs. Ici, il calcule le chemin jusqu'à l'autre étoile !",
+  },
+};
+export const PORTAL_IDS = Object.keys(PORTAL_PARTS);
+export const PORTAL_TOTAL = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].price * PORTAL_PARTS[id].count, 0);
 
 /* Bip, le copilote */
 export const LINES = {
@@ -219,8 +241,10 @@ export const LINES = {
   noWeapon: "On n'a pas d'arme ! Le Colonel Boum 💥 en vend.",
   buy: ["Super achat !", "Ça, c'est de la fusée !", "On est encore plus forts !"],
   paint: ["Waouh, trop classe !", "Tout le monde va nous regarder !"],
-  earthPrice: "La Terre est à vendre : 1000 pièces d'or. Continue tes livraisons !",
-  rich: "1000 pièces d'or ! Fonce sur la Terre 🌍 pour l'acheter !",
+  firstPortal: "Tu as assez d'or pour une première pièce du portail ! Le Chantier de l'ingénieure Nova 🌀 est tout au bord de la carte, après Pluton.",
+  portalBuy: ["Une pièce de plus pour le portail !", "Le portail grandit !", "Nova est ravie, chef !"],
+  portalReady: "Le portail est terminé ! Retourne voir l'ingénieure Nova 🌀 pour l'allumer !",
+  portalRich: "On a assez d'or pour finir tout le portail ! Direction le Chantier de Nova 🌀 !",
   blackhole: "Oh non, le trou noir a avalé notre chargement ! Retour près de la Terre…",
   safe: "Ici, près du Soleil, c'est la zone calme : les OVNI n'y viennent jamais.",
 };

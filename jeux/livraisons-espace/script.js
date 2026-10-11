@@ -1,7 +1,7 @@
 import { renderArt } from "../espace/art.js";
 import { OBJECT_BY_ID, BIP } from "../espace/data.js";
 import {
-  RESOURCES, RESOURCE_IDS, CHARACTERS, CHAR_BY_ID, UPGRADES, PAINTS, ACCESSORIES, SHOPS, EARTH_PRICE, LINES,
+  RESOURCES, RESOURCE_IDS, CHARACTERS, CHAR_BY_ID, UPGRADES, PAINTS, ACCESSORIES, SHOPS, PORTAL_PARTS, PORTAL_IDS, PORTAL_TOTAL, LINES,
 } from "./data.js";
 import { drawCharacter, characterThumb } from "./chars.js";
 import { sfx, isSoundOn, toggleSound } from "./sound.js";
@@ -101,7 +101,8 @@ const ctx = canvas.getContext('2d');
 const minimap = $('minimap');
 const mctx = minimap.getContext('2d');
 const goldEl = $('gold');
-const goldBar = $('goldBar');
+const portalItem = $('portalItem');
+const portalBar = $('portalBar');
 const cargoCountEl = $('cargoCount');
 const soundBtn = $('soundBtn');
 const questPanel = $('questPanel');
@@ -171,7 +172,8 @@ let saveAt = 0;
 let dialogActions = {};
 let endT = 0;
 let endFx = [];
-let kingTitle = 'Roi';
+let endStars = [];
+const endCues = new Set();          // sons et textes déjà lancés pendant l'animation de fin
 
 const keys = { left: false, right: false, up: false, down: false };
 const touchDirs = { left: false, right: false, up: false, down: false };
@@ -223,6 +225,14 @@ const maxSpeed = () => upVal('engine');
 const weapon = () => WEAPONS[upVal('weapon')];
 const shieldTime = () => upVal('shield');
 
+/* ---------- Le portail spatial ---------- */
+const PORTAL_PIECES = PORTAL_IDS.reduce((n, id) => n + PORTAL_PARTS[id].count, 0);
+const portalSpent = () => PORTAL_IDS.reduce((n, id) => n + game.portal[id] * PORTAL_PARTS[id].price, 0);
+const portalPieces = () => PORTAL_IDS.reduce((n, id) => n + game.portal[id], 0);
+const portalDone = () => portalPieces() >= PORTAL_PIECES;
+const portalLeft = () => PORTAL_TOTAL - portalSpent();
+const cheapestPart = () => Math.min(...PORTAL_IDS.filter((id) => game.portal[id] < PORTAL_PARTS[id].count).map((id) => PORTAL_PARTS[id].price));
+
 /* ---------- Sauvegarde (la partie continue la prochaine fois) ---------- */
 function newGame() {
   game = {
@@ -236,7 +246,8 @@ function newGame() {
     accs: ['aucun'], acc: 'aucun',
     quests: [], offers: {}, offerAt: {},
     seen: {}, tips: {},
-    ship: null, won: false, started: false,
+    portal: Object.fromEntries(PORTAL_IDS.map((id) => [id, 0])),
+    ship: null, started: false, finished: false,
   };
   CHARACTERS.forEach((c) => { game.offers[c.id] = makeOffer(c.id); });
   // La toute première quête est facile : du fer de Mercure pour Capitaine Lila
@@ -246,7 +257,14 @@ function newGame() {
 function loadGame() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (data && data.v === SAVE_VERSION && data.up && data.offers) return data;
+    if (data && data.v === SAVE_VERSION && data.up && data.offers) {
+      // anciennes sauvegardes (quand on achetait la Terre) : on ajoute le portail
+      delete data.won;
+      data.portal = data.portal || {};
+      PORTAL_IDS.forEach((id) => { data.portal[id] = data.portal[id] || 0; });
+      data.finished = !!data.finished;
+      return data;
+    }
   } catch (e) { /* stockage indisponible ou abîmé */ }
   return null;
 }
@@ -481,14 +499,15 @@ function makeOffer(charId) {
   let tier;
   if (done < 3) tier = 1;
   else if (done < 8) tier = Math.random() < 0.65 ? 2 : 1;
-  else tier = Math.random() < 0.55 ? 3 : 2;
+  else if (done < 18) tier = Math.random() < 0.55 ? 3 : 2;
+  else tier = Math.random() < 0.5 ? 4 : 3;
 
   let pool = shuffle(c.likes);
   // Au début, on demande plutôt des ressources pas trop loin
   if (done < 3) pool = pool.sort((a, b) => unitValue(charId, a) - unitValue(charId, b)).slice(0, 2);
-  const types = tier === 1 ? 1 : tier === 2 ? 2 : (Math.random() < 0.5 ? 2 : 3);
+  const types = tier === 1 ? 1 : tier === 2 ? 2 : tier === 3 ? (Math.random() < 0.5 ? 2 : 3) : 3;
   const chosen = shuffle(pool).slice(0, types);
-  const total = tier === 1 ? randInt(2, 3) : tier === 2 ? randInt(3, 5) : randInt(5, 8);
+  const total = [0, randInt(2, 3), randInt(3, 5), randInt(5, 8), randInt(8, 11)][tier];
   const needs = {};
   chosen.forEach((r) => { needs[r] = 1; });
   for (let i = chosen.length; i < total; i++) needs[pick(chosen)] += 1;
@@ -577,8 +596,11 @@ function addGold(n) {
   goldEl.parentElement.classList.remove('bump');
   void goldEl.parentElement.offsetWidth;
   goldEl.parentElement.classList.add('bump');
-  if (before < EARTH_PRICE && game.gold >= EARTH_PRICE) {
-    setTimeout(() => say(LINES.rich, 5, 7000), 1800);
+  if (!portalDone() && before < portalLeft() && game.gold >= portalLeft()) {
+    setTimeout(() => say(LINES.portalRich, 5, 7000), 1800);
+  } else if (!game.tips.firstPortal && portalPieces() === 0 && game.gold >= cheapestPart()) {
+    game.tips.firstPortal = true;
+    setTimeout(() => say(LINES.firstPortal, 4, 8000), 2500);
   } else if (!game.tips.richGus && game.gold >= UPGRADES.cargo.prices[0] && game.up.cargo === 0) {
     game.tips.richGus = true;
     setTimeout(() => say(LINES.richGus, 3, 6500), 2500);
@@ -662,11 +684,18 @@ function setupGame() {
 function showStartScreen() {
   const saved = loadGame();
   const hasSave = saved && saved.started;
-  $('startBtn').textContent = hasSave ? `🚀 Continuer (💰 ${saved.gold})` : '🚀 Décoller !';
-  $('newGameBtn').hidden = !hasSave;
   game = hasSave ? saved : null;
   if (!game) newGame();
   setupGame();
+  // niveau 1 terminé : on peut revoir le voyage ou rejouer, mais plus continuer
+  const done = game.finished;
+  $('startBtn').textContent = done ? '🎬 Revoir le voyage' : hasSave ? `🚀 Continuer (💰 ${game.gold})` : '🚀 Décoller !';
+  $('newGameBtn').textContent = done ? '🔁 Rejouer le niveau 1' : '🆕 Nouvelle partie';
+  $('newGameBtn').hidden = !hasSave;
+  $('startDone').hidden = !done;
+  document.querySelector('.start-goal').hidden = done;
+  document.querySelector('.start-card .how-to').hidden = done;
+  document.querySelector('.save-note').hidden = done;
   state = 'ready';
   startOverlay.hidden = false;
   setTimeout(() => $('startBtn').focus({ preventScroll: true }), 50);
@@ -675,6 +704,11 @@ function showStartScreen() {
 function startGame() {
   if (state !== 'ready') return;
   startOverlay.hidden = true;
+  if (game.finished) {
+    enterFullscreen();
+    startEnding();
+    return;
+  }
   state = 'playing';
   lastMoveAt = performance.now();
   nextJokeAt = lastMoveAt + rand(40000, 55000);
@@ -1160,7 +1194,7 @@ function updateExtraction(dt) {
   }
 }
 
-/** Rencontres : habitants, marchands, et la Terre à vendre.
+/** Rencontres : habitants, marchands et chantier du portail.
  *  La première fois, la fenêtre s'ouvre toute seule. Si on l'a refermée,
  *  il faut ralentir à côté pour la rouvrir (sinon elle s'ouvrirait à chaque passage). */
 function canPopup(id) {
@@ -1202,19 +1236,6 @@ function updateVisits() {
       } else hintSlow(sh.id, pos, sh.who);
     } else if (d > SHOP_RANGE + 60) near.delete(sh.id);
   });
-  const earth = byId.terre;
-  const d = dist(ship, earth);
-  if (d < earth.r + 70) {
-    if (near.has('terre') || game.won) return;
-    if (game.gold < EARTH_PRICE) {
-      near.add('terre');
-      sayOnce('earthPrice', LINES.earthPrice, 40, 1);
-      addFloater(`À vendre : ${EARTH_PRICE} 💰`, earth.x, earth.y - earth.r - 30, '#FFD24A', 22);
-    } else if (canPopup('terre')) {
-      near.add('terre');
-      openBuyEarth();
-    } else hintSlow('terre', earth, 'la Terre');
-  } else if (d > earth.r + 130) near.delete('terre');
 }
 
 function arriveAtChar(c) {
@@ -1898,6 +1919,7 @@ function drawCharacters() {
 function drawShops() {
   for (const s of SHOPS) {
     const p = SHOP_POS[s.id];
+    if (s.id === 'nova') { drawPortalSite(s, p); continue; }
     if (!inView(p.x, p.y, 140)) continue;
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -1949,32 +1971,210 @@ function drawShops() {
   }
 }
 
-/** Le panneau « À VENDRE » planté à côté de la Terre */
-function drawEarthSign() {
-  const e = byId.terre;
-  if (!inView(e.x, e.y, 200) || game.won) return;
-  const x = e.x + e.r + 38, y = e.y - e.r + 6;
+/** Le chantier : le portail en construction, l'ingénieure Nova et son panneau */
+function drawPortalSite(s, p) {
+  if (!inView(p.x, p.y, 230)) return;
   ctx.save();
-  ctx.fillStyle = '#8A5A2B';
-  ctx.fillRect(x - 3, y, 6, 50);
-  ctx.translate(x, y);
-  ctx.rotate(Math.sin(worldT * 1.5) * 0.04);
-  ctx.fillStyle = '#FFFCF3';
-  ctx.strokeStyle = '#8A5A2B';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.roundRect(-52, -44, 104, 50, 8);
-  ctx.fill();
-  ctx.stroke();
+  ctx.translate(p.x, p.y);
+  drawPortal(ctx, worldT, game.portal, portalDone() ? 0.75 + Math.sin(worldT * 3) * 0.15 : 0);
+  ctx.translate(0, 136);
+  drawCharacter(ctx, 'nova', 24, worldT);
+  ctx.restore();
+  ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#E85757';
-  ctx.font = '800 17px "Baloo 2", sans-serif';
-  ctx.fillText('À VENDRE', 0, -30);
-  ctx.fillStyle = '#2E2A4D';
   ctx.font = '800 16px "Baloo 2", sans-serif';
-  ctx.fillText(`${EARTH_PRICE} 💰`, 0, -10);
+  const label = `${s.icon} ${s.name} · ${portalPieces()}/${PORTAL_PIECES}`;
+  const w = ctx.measureText(label).width + 22;
+  ctx.fillStyle = '#FFFCF3';
+  ctx.strokeStyle = '#2E2A4D';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(p.x - w / 2, p.y - 205, w, 28, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#2E2A4D';
+  ctx.fillText(label, p.x, p.y - 190);
   ctx.restore();
+}
+
+/** Petit atome dessiné (le symbole de l'atome n'existe pas dans toutes les polices) */
+function drawAtom(c, r, color) {
+  c.save();
+  c.strokeStyle = color;
+  c.lineWidth = r * 0.16;
+  for (let i = 0; i < 3; i++) {
+    c.beginPath();
+    c.ellipse(0, 0, r, r * 0.38, (i * Math.PI) / 3, 0, TAU);
+    c.stroke();
+  }
+  c.fillStyle = color;
+  c.beginPath();
+  c.arc(0, 0, r * 0.22, 0, TAU);
+  c.fill();
+  c.restore();
+}
+
+/**
+ * Le portail spatial, centré sur (0, 0) : un anneau d'acier de rayon 100.
+ * "built" = nombre de pièces installées. Une pièce qui manque est dessinée
+ * en pointillés bleus, comme sur un plan. "energy" (0 à 1) allume le tourbillon.
+ */
+function drawPortal(c, t, built, energy = 0) {
+  const ghost = (shape) => {
+    c.save();
+    c.setLineDash([6, 6]);
+    c.strokeStyle = 'rgba(158,231,255,0.5)';
+    c.lineWidth = 2;
+    shape();
+    c.stroke();
+    c.restore();
+  };
+
+  // socle et pilier
+  c.fillStyle = '#5A6488';
+  c.beginPath();
+  c.ellipse(0, 172, 92, 16, 0, 0, TAU);
+  c.fill();
+  c.fillStyle = '#8C97BC';
+  c.beginPath();
+  c.ellipse(0, 167, 92, 14, 0, 0, TAU);
+  c.fill();
+  c.fillRect(-8, 108, 16, 58);
+
+  // l'intérieur : sombre, ou un tourbillon d'énergie quand le portail est allumé
+  if (energy > 0) {
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, 96);
+    g.addColorStop(0, `rgba(255,255,255,${0.95 * energy})`);
+    g.addColorStop(0.3, `rgba(158,231,255,${0.8 * energy})`);
+    g.addColorStop(0.75, `rgba(140,80,255,${0.65 * energy})`);
+    g.addColorStop(1, 'rgba(60,20,160,0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(0, 0, 96, 0, TAU);
+    c.fill();
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round';
+    c.lineWidth = 5;
+    for (let i = 0; i < 6; i++) {
+      c.strokeStyle = `rgba(${i % 2 ? '195,139,255' : '127,216,255'},${0.6 * energy})`;
+      const a0 = -t * (2.4 + i * 0.35) + i * 1.25;
+      c.beginPath();
+      c.arc(0, 0, 14 + i * 14, a0, a0 + 3.4);
+      c.stroke();
+    }
+    c.restore();
+  } else {
+    c.fillStyle = 'rgba(10,8,40,0.6)';
+    c.beginPath();
+    c.arc(0, 0, 92, 0, TAU);
+    c.fill();
+  }
+
+  // panneaux solaires, en diagonale
+  [-3 * Math.PI / 4, -Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4].forEach((a, i) => {
+    c.save();
+    c.rotate(a);
+    if (i < built.solaire) {
+      c.fillStyle = '#8C97BC';
+      c.fillRect(104, -3, 30, 6);
+      c.fillStyle = '#2E5FB8';
+      c.strokeStyle = '#C9CED8';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.rect(134, -24, 30, 48);
+      c.fill();
+      c.stroke();
+      c.strokeStyle = 'rgba(158,231,255,0.6)';
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let k = 1; k < 4; k++) { c.moveTo(134, -24 + k * 12); c.lineTo(164, -24 + k * 12); }
+      c.moveTo(149, -24);
+      c.lineTo(149, 24);
+      c.stroke();
+    } else {
+      ghost(() => { c.beginPath(); c.rect(134, -24, 30, 48); });
+    }
+    c.restore();
+  });
+
+  // l'anneau d'acier, en 4 morceaux
+  for (let i = 0; i < 4; i++) {
+    const a0 = -Math.PI / 2 + (i * Math.PI) / 2 + 0.03, a1 = a0 + Math.PI / 2 - 0.06;
+    if (i < built.acier) {
+      c.lineCap = 'butt';
+      c.strokeStyle = '#5A6488';
+      c.lineWidth = 20;
+      c.beginPath();
+      c.arc(0, 0, 100, a0, a1);
+      c.stroke();
+      c.strokeStyle = '#C9D1E3';
+      c.lineWidth = 11;
+      c.beginPath();
+      c.arc(0, 0, 100, a0, a1);
+      c.stroke();
+      c.fillStyle = '#5A6488';
+      for (let k = 1; k < 5; k++) {
+        const a = a0 + ((a1 - a0) * k) / 5;
+        c.beginPath();
+        c.arc(Math.cos(a) * 100, Math.sin(a) * 100, 2.2, 0, TAU);
+        c.fill();
+      }
+    } else {
+      ghost(() => { c.beginPath(); c.arc(0, 0, 100, a0, a1); });
+    }
+  }
+
+  // piles atomiques, sur l'anneau (gauche, haut, droite)
+  [Math.PI, -Math.PI / 2, 0].forEach((a, i) => {
+    c.save();
+    c.translate(Math.cos(a) * 100, Math.sin(a) * 100);
+    c.rotate(a + Math.PI / 2);
+    if (i < built.pile) {
+      const glow = 0.6 + 0.4 * Math.sin(t * 4 + i);
+      c.fillStyle = `rgba(124,240,160,${0.35 * glow})`;
+      c.beginPath();
+      c.arc(0, 0, 24, 0, TAU);
+      c.fill();
+      c.fillStyle = '#3A4878';
+      c.beginPath();
+      c.roundRect(-12, -18, 24, 36, 6);
+      c.fill();
+      c.fillStyle = `rgba(124,240,160,${0.7 + 0.3 * glow})`;
+      c.beginPath();
+      c.roundRect(-8, -13, 16, 26, 4);
+      c.fill();
+      drawAtom(c, 6, '#1C3A2A');
+    } else {
+      ghost(() => { c.beginPath(); c.roundRect(-12, -18, 24, 36, 6); });
+    }
+    c.restore();
+  });
+
+  // ordinateurs quantiques, sur le socle
+  [-58, 58].forEach((x, i) => {
+    if (i < built.quantique) {
+      c.fillStyle = '#2E2A4D';
+      c.beginPath();
+      c.roundRect(x - 20, 120, 40, 42, 6);
+      c.fill();
+      c.fillStyle = '#1C2260';
+      c.beginPath();
+      c.roundRect(x - 15, 125, 30, 20, 3);
+      c.fill();
+      for (let k = 0; k < 6; k++) {
+        c.fillStyle = Math.sin(t * 6 + k * 1.7 + i * 3) > 0 ? '#9EE7FF' : '#C38BFF';
+        c.fillRect(x - 12 + (k % 3) * 9, 128 + Math.floor(k / 3) * 8, 6, 4);
+      }
+      c.fillStyle = Math.sin(t * 3 + i) > 0 ? '#7CF0A0' : '#FFC93C';
+      c.beginPath();
+      c.arc(x + 12, 154, 2.5, 0, TAU);
+      c.fill();
+    } else {
+      ghost(() => { c.beginPath(); c.roundRect(x - 20, 120, 40, 42, 6); });
+    }
+  });
 }
 
 function drawCrates() {
@@ -2096,7 +2296,7 @@ function shipColors(paintId, t) {
 }
 
 /** Dessine la fusée pointée vers la droite, centrée sur (0, 0). */
-function drawShipShape(c, paintId, accId, t, { thrust = false, turbo = false, crown = false } = {}) {
+function drawShipShape(c, paintId, accId, t, { thrust = false, turbo = false } = {}) {
   const col = shipColors(paintId, t);
   if (thrust || turbo) {
     const f = (turbo ? 26 : 14) + Math.sin(t * 28) * 4 + Math.random() * 4;
@@ -2236,26 +2436,6 @@ function drawShipShape(c, paintId, accId, t, { thrust = false, turbo = false, cr
       c.stroke();
     }
   }
-
-  if (crown) {
-    c.save();
-    c.translate(-2, -11);
-    c.fillStyle = '#FFD24A';
-    c.strokeStyle = '#C99212';
-    c.lineWidth = 1.2;
-    c.beginPath();
-    c.moveTo(-8, 0);
-    c.lineTo(-8, -9);
-    c.lineTo(-4, -4);
-    c.lineTo(0, -11);
-    c.lineTo(4, -4);
-    c.lineTo(8, -9);
-    c.lineTo(8, 0);
-    c.closePath();
-    c.fill();
-    c.stroke();
-    c.restore();
-  }
 }
 
 function drawShip(now) {
@@ -2306,7 +2486,7 @@ function drawShip(now) {
     ctx.arc(0, 0, 40, 0, TAU);
     ctx.fill();
   }
-  drawShipShape(ctx, game.paint, game.acc, now / 1000, { thrust: ship.thrust, turbo: ship.turbo > 0, crown: game.won });
+  drawShipShape(ctx, game.paint, game.acc, now / 1000, { thrust: ship.thrust, turbo: ship.turbo > 0, });
   ctx.restore();
 }
 
@@ -2374,7 +2554,8 @@ function compassTargets() {
     const c = crates.reduce((a, b) => (dist(a, ship) < dist(b, ship) ? a : b));
     list.push({ x: c.x, y: c.y, icon: '📦', color: '#C98A4B' });
   }
-  if (game.gold >= EARTH_PRICE && !game.won) list.push({ x: byId.terre.x, y: byId.terre.y, img: 'terre', color: '#4FA8F0' });
+  // le portail : quand il est fini, ou quand on a assez d'or pour le finir
+  if (portalDone() || game.gold >= portalLeft()) list.push({ ...SHOP_POS.nova, icon: '🌀', color: '#C38BFF' });
   return list;
 }
 
@@ -2493,6 +2674,14 @@ function drawMinimap() {
   }
   SHOPS.forEach((s) => {
     const p = SHOP_POS[s.id];
+    if (s.id === 'nova') {
+      mctx.strokeStyle = '#C38BFF';
+      mctx.lineWidth = 2 * dpr;
+      mctx.beginPath();
+      mctx.arc(p.x * k, p.y * k, 4 * dpr, 0, TAU);
+      mctx.stroke();
+      return;
+    }
     mctx.fillStyle = '#FFFFFF';
     mctx.fillRect(p.x * k - 2.5 * dpr, p.y * k - 2.5 * dpr, 5 * dpr, 5 * dpr);
   });
@@ -2533,7 +2722,6 @@ function draw(now) {
   bodies.forEach(drawBody);
   rocks.forEach(drawBody);
   drawWantedMines();
-  drawEarthSign();
   drawShops();
   drawLabels();
   drawCharacters();
@@ -2576,8 +2764,9 @@ function loop(now) {
 function renderUI() {
   if (!game) return;
   goldEl.textContent = String(game.gold);
-  goldBar.style.width = `${Math.min(100, (game.gold / EARTH_PRICE) * 100)}%`;
-  goldEl.parentElement.classList.toggle('rich', game.gold >= EARTH_PRICE);
+  $('portalSpent').textContent = String(portalSpent());
+  portalBar.style.width = `${(portalSpent() / PORTAL_TOTAL) * 100}%`;
+  portalItem.classList.toggle('ready', portalDone());
   cargoCountEl.textContent = `${game.cargo.length}/${capacity()}`;
   $('questCount').textContent = `${game.quests.length}/${maxQuests()}`;
   fireBtn.classList.toggle('locked', !weapon());   // sans arme, le bouton explique où en acheter une
@@ -2772,6 +2961,7 @@ function styleCard(kind, id, item) {
 }
 
 function openShop(shopId) {
+  if (shopId === 'nova') { openPortalShop(); return; }
   const s = SHOP_BY_ID[shopId];
   let body;
   if (shopId === 'stella') {
@@ -2834,27 +3024,72 @@ function buyStyle(kind, id, reopen) {
   reopen();
 }
 
-function openBuyEarth() {
-  openDialog(`
-    <div class="earth-buy">
-      <img src="${thumbs.terre}" alt="">
-      <p class="dlg-title">La Terre est à vendre !</p>
-      <p class="dlg-sub">Tu as <b>💰 ${game.gold}</b> pièces d'or. La planète Terre coûte <b>💰 ${EARTH_PRICE}</b>.<br>Veux-tu l'acheter et devenir… le roi de la Terre ?</p>
+function portalRow(id) {
+  const part = PORTAL_PARTS[id];
+  const have = game.portal[id];
+  const full = have >= part.count;
+  const poor = !full && game.gold < part.price;
+  const btn = full
+    ? '<span class="shop-max">✓ Installé</span>'
+    : `<button class="buy" data-act="part" data-arg="${id}" ${poor ? 'disabled' : ''}>💰 ${part.price}</button>`;
+  const dots = Array.from({ length: part.count }, (_, i) => `<i class="${i < have ? 'on' : ''}"></i>`).join('');
+  return `<li class="shop-row portal-row${full ? ' full' : ''}">
+    <span class="sr-icon">${part.icon}</span>
+    <span class="sr-text"><b>${escapeHtml(part.name)} <span class="part-dots" title="${have} sur ${part.count}">${dots} ${have}/${part.count}</span></b>
+      <small>${escapeHtml(part.fact)}</small>
+      ${poor ? `<small class="sr-poor">Il te manque ${part.price - game.gold} 💰</small>` : ''}</span>
+    ${btn}
+  </li>`;
+}
+
+function openPortalShop() {
+  const s = SHOP_BY_ID.nova;
+  const done = portalDone();
+  const pct = (portalSpent() / PORTAL_TOTAL) * 100;
+  const hello = done ? "Le portail est prêt ! Il ne reste plus qu'à l'allumer…" : s.hello;
+  const html = `
+    <div class="dlg-head">
+      <img class="dlg-face" src="${faces.nova}" alt="">
+      <div><p class="dlg-name">${s.icon} ${escapeHtml(s.name)}</p><p class="dlg-where">« ${escapeHtml(hello)} »</p></div>
+      <p class="dlg-gold">💰 ${game.gold}</p>
     </div>
+    <div class="portal-progress">
+      <p>🌀 Portail vers <b>Proxima du Centaure</b> : <b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰</p>
+      <span class="pp-bar"><i style="width:${pct}%"></i></span>
+    </div>
+    <ul class="shop-rows">${PORTAL_IDS.map(portalRow).join('')}</ul>
+    ${done ? '<p class="dlg-warn">⚠️ Le voyage est sans retour : ce sera la fin du niveau 1 !</p>' : ''}
     <div class="dlg-actions">
-      <button class="primary royal" data-act="buy">👑 Oui, j'achète la Terre !</button>
-      <button class="ghost-btn" data-act="close">Pas encore</button>
-    </div>`, {
-    buy: () => {
-      dialogId = null;
-      closeDialog();
-      game.gold -= EARTH_PRICE;
-      game.won = true;
-      saveGame();
-      startEnding();
-    },
+      ${done ? '<button class="primary royal" data-act="light">🌀 Allumer le portail !</button>' : ''}
+      <button class="${done ? 'ghost-btn' : 'primary'}" data-act="close">${done ? 'Pas encore' : 'Au revoir !'}</button>
+    </div>`;
+  openDialog(html, {
     close: closeDialog,
-  }, 'dlg-earth', 'terre');
+    part: (id) => {
+      const part = PORTAL_PARTS[id];
+      if (game.portal[id] >= part.count || game.gold < part.price) { sfx.nope(); return; }
+      game.gold -= part.price;
+      game.portal[id] += 1;
+      sfx.buy();
+      setTimeout(() => sfx.build(), 200);
+      if (portalDone()) say(LINES.portalReady, 4, 6000);
+      else say(pick(LINES.portalBuy), 2, 3000);
+      renderUI();
+      saveGame();
+      const scroll = dialogCard.scrollTop;
+      openPortalShop();
+      dialogCard.scrollTop = scroll;
+    },
+    light: lightPortal,
+  }, 'dlg-shop dlg-portal', 'nova');
+}
+
+function lightPortal() {
+  dialogId = null;
+  closeDialog();
+  game.finished = true;
+  saveGame();
+  startEnding();
 }
 
 /* ---------- La grande carte ---------- */
@@ -2893,7 +3128,10 @@ function renderMapSide() {
     return `<li><img src="${faces[c.id]}" alt=""><span><b>${escapeHtml(c.name)}</b> <small>(${escapeHtml(c.where)})</small><br>${status}</span></li>`;
   }).join('');
   const res = RESOURCE_IDS.map((r) => `<li class="ms-res"><span>${RESOURCES[r].icon}</span> ${escapeHtml(RESOURCES[r].name)} <small>→ ${escapeHtml(OBJECT_BY_ID[RESOURCES[r].source].name)}</small></li>`).join('');
+  const parts = PORTAL_IDS.map((id) => `${PORTAL_PARTS[id].icon} ${game.portal[id]}/${PORTAL_PARTS[id].count}`).join(' · ');
   $('mapSide').innerHTML = `
+    <p class="ms-head">🌀 Le portail (chantier de l'ingénieure Nova)</p>
+    <p class="ms-portal">${parts}<br><b>${portalSpent()}</b> / ${PORTAL_TOTAL} 💰 investis</p>
     <p class="ms-head">Les habitants</p><ul class="ms-list">${chars}</ul>
     <p class="ms-head">Où trouver les ressources</p><ul class="ms-list ms-grid">${res}</ul>
     <p class="ms-note">🟢 Zone calme : pas d'OVNI · 🔴 Zone des OVNI · Les planètes tournent : la carte change avec le temps !</p>`;
@@ -3023,10 +3261,6 @@ function drawBigMap() {
   });
   const bh = mapBody(byId.trounoir, R);
   label('⚠️ Danger', bh.x, bh.y - iconSize - 4, '#FF8A3C', fs * 0.85);
-  if (!game.won) {
-    const e = mapBody(byId.terre, R);
-    label(`À vendre 💰${EARTH_PRICE}`, e.x, e.y + iconSize + fs * 1.5, '#FFD24A', fs * 0.85);
-  }
 
   // marchands
   SHOPS.forEach((s) => {
@@ -3042,7 +3276,8 @@ function drawBigMap() {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(s.icon, p.x, p.y + 1);
-    label(s.who, p.x, p.y + 20, '#FFFFFF', fs * 0.8);
+    if (s.id === 'nova') label(`Portail ${portalPieces()}/${PORTAL_PIECES}`, p.x, p.y + 20, '#D9C2FF', fs * 0.8);
+    else label(s.who, p.x, p.y + 20, '#FFFFFF', fs * 0.8);
   });
 
   // habitants : leur visage au-dessus de chez eux
@@ -3087,7 +3322,7 @@ function drawBigMap() {
   c.translate(sp.x, sp.y);
   c.rotate(ship.angle);
   c.scale(0.8, 0.8);
-  drawShipShape(c, game.paint, game.acc, worldT, { crown: game.won });
+  drawShipShape(c, game.paint, game.acc, worldT, { });
   c.restore();
   c.strokeStyle = 'rgba(255,255,255,0.8)';
   c.lineWidth = 2;
@@ -3193,7 +3428,14 @@ $('startBtn').addEventListener('click', (e) => {
   e.currentTarget.blur();
   startGame();
 });
+function resetGame() {
+  clearSave();
+  game = null;
+  showStartScreen();
+}
+
 $('newGameBtn').addEventListener('click', () => {
+  if (game.finished) { resetGame(); return; }
   openDialog(`
     <p class="dlg-title">Recommencer à zéro ?</p>
     <p class="dlg-sub">Ton or, tes quêtes et les améliorations de ta fusée seront perdus.</p>
@@ -3214,8 +3456,13 @@ $('newGameBtn').addEventListener('click', () => {
   });
 });
 
-/* ---------- La fin : le roi de la Terre ! ---------- */
-const PARTY_ANIMALS = ['🐘', '🦒', '🐧', '🦁', '🐢', '🐙', '🦄', '🐸', '🐼', '🐨', '🦊', '🐰', '🐬', '🦋', '🐌', '🦖'];
+/* ---------- La fin : à travers le portail, jusqu'à Proxima du Centaure ----------
+   0 → 1,5 s   le portail s'allume
+   1,5 → 4 s   la fusée fonce dedans
+   4 → 5,8 s   flash, puis voyage à travers l'espace (traits d'étoiles)
+   5,8 s →     arrivée : Proxima du Centaure, sa planète Proxima b, et l'annonce du niveau 2 */
+const FULL_PORTAL = Object.fromEntries(PORTAL_IDS.map((id) => [id, PORTAL_PARTS[id].count]));
+const SHOW_TEXT_AT = 7.2;
 
 function sizeEndCanvas() {
   const r = endOverlay.getBoundingClientRect();
@@ -3227,168 +3474,306 @@ function startEnding() {
   state = 'ending';
   endT = 0;
   endFx = [];
+  endCues.clear();
+  endStars = Array.from({ length: 170 }, () => ({ x: Math.random(), y: Math.random(), s: rand(0.6, 1.9), p: rand(0, TAU), d: Math.random() }));
+  closeDialog();
+  closeMap();
+  hideFactCard();
+  bubble.classList.remove('show');
   endOverlay.hidden = false;
   endOverlay.classList.remove('show-text');
   sizeEndCanvas();
-  renderKingTitle();
   $('endStats').textContent = `${game.questsDone} quêtes réussies · ${game.delivered} ressources livrées · ${game.ufoKills} OVNI vaincus`;
-  setTimeout(() => sfx.royal(), 600);
-  setTimeout(() => {
-    endOverlay.classList.add('show-text');
-    launchConfetti();
-  }, 2600);
 }
 
-function renderKingTitle() {
-  $('endTitle').textContent = `👑 Vive ${kingTitle === 'Roi' ? 'le Roi' : 'la Reine'} de la Terre ! 👑`;
-  $('endSub').textContent = `Tu as acheté la planète Terre. Tu es maintenant ${kingTitle === 'Roi' ? 'son roi' : 'sa reine'}, et tous ses habitants font la fête !`;
-  document.querySelectorAll('.title-btn').forEach((b) => b.classList.toggle('active', b.dataset.title === kingTitle));
+/** Une seule fois par voyage (sons, texte…) */
+function cue(name, at, fn) {
+  if (endT >= at && !endCues.has(name)) {
+    endCues.add(name);
+    fn();
+  }
 }
 
-document.querySelectorAll('.title-btn').forEach((b) => {
-  b.addEventListener('click', () => { kingTitle = b.dataset.title; renderKingTitle(); });
-});
+/** Où sont les choses, selon la taille de l'écran */
+function endLayout() {
+  const W = endCanvas.width / dpr, H = endCanvas.height / dpr;
+  const m = Math.min(W, H);
+  return {
+    W, H, m,
+    portal: { x: W * 0.6, y: H * 0.47, k: m * 0.0026 },
+    star: { x: W * 0.2, y: H * 0.72, r: m * 0.2 },
+    planet: { x: W * 0.76, y: H * 0.74, r: m * 0.085 },
+    exit: { x: W * 0.47, y: H * 0.6 },
+  };
+}
+
+/** La fusée pendant l'animation : position, angle et taille (ou null si on ne la voit pas) */
+function endRocket(L, t) {
+  if (t >= 1.5 && t < 4) {
+    // virage puis plongeon dans le portail, de plus en plus vite
+    const u = (t - 1.5) / 2.5;
+    const e = u * u;
+    const P0 = { x: -0.08 * L.W, y: 0.85 * L.H }, P1 = { x: 0.22 * L.W, y: 0.25 * L.H }, P2 = L.portal;
+    const q = 1 - e;
+    const x = q * q * P0.x + 2 * q * e * P1.x + e * e * P2.x;
+    const y = q * q * P0.y + 2 * q * e * P1.y + e * e * P2.y;
+    const dx = 2 * q * (P1.x - P0.x) + 2 * e * (P2.x - P1.x);
+    const dy = 2 * q * (P1.y - P0.y) + 2 * e * (P2.y - P1.y);
+    const base = L.m / 320;
+    const size = e < 0.75 ? base : base * Math.max(0, (1 - e) / 0.25);
+    return { x, y, a: Math.atan2(dy, dx), s: size };
+  }
+  if (t >= 6.2) {
+    // sortie du petit portail, puis la fusée ralentit près de Proxima b et tourne autour
+    const u = Math.min(1, (t - 6.2) / 2.8);
+    const e = 1 - Math.pow(1 - u, 3);
+    const target = { x: L.planet.x - L.planet.r * 2.8, y: L.planet.y - L.planet.r * 1.9 };
+    const hover = u >= 1 ? (t - 9) : 0;
+    const x = L.exit.x + (target.x - L.exit.x) * e + Math.sin(hover * 0.9) * L.m * 0.02;
+    const y = L.exit.y + (target.y - L.exit.y) * e + Math.cos(hover * 1.3) * L.m * 0.012;
+    const size = (L.m / 560) * Math.min(1, u / 0.15);
+    const a = u < 1 ? Math.atan2(target.y - L.exit.y, target.x - L.exit.x) : Math.atan2(target.y - L.exit.y, target.x - L.exit.x) + Math.sin(hover * 0.9) * 0.2;
+    return { x, y, a, s: size };
+  }
+  return null;
+}
 
 function updateEnding(dt) {
   endT += dt;
-  if (endT > 2 && Math.random() < dt * 1.6) {
-    const W = endCanvas.width / dpr, H = endCanvas.height / dpr;
-    const x = rand(W * 0.1, W * 0.9), y = rand(H * 0.08, H * 0.45);
-    const color = pick(['#FFC93C', '#FF6F91', '#4FB8E8', '#7CF0A0', '#C38BFF', '#FFFFFF']);
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * TAU, s = rand(80, 200);
-      endFx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: rand(1, 1.6), color });
+  const t = endT;
+  cue('hum', 0.1, () => sfx.portal());
+  cue('warp', 3.9, () => sfx.warp());
+  cue('arrive', 6, () => sfx.fanfare());
+  cue('text', SHOW_TEXT_AT, () => {
+    endOverlay.classList.add('show-text');
+    launchConfetti();
+  });
+
+  const L = endLayout();
+  const r = endRocket(L, t);
+  if (r && r.s > 0.05) {
+    // traînée du réacteur
+    const flame = (PAINTS[game.paint] || PAINTS.classique).flame;
+    for (let i = 0; i < 2; i++) {
+      endFx.push({
+        x: r.x - Math.cos(r.a) * 24 * r.s, y: r.y - Math.sin(r.a) * 24 * r.s,
+        vx: -Math.cos(r.a) * 80 + rand(-25, 25), vy: -Math.sin(r.a) * 80 + rand(-25, 25),
+        life: 0, max: rand(0.3, 0.6), size: rand(2, 4) * Math.max(0.6, r.s), color: pick(flame),
+      });
     }
-    if (Math.random() < 0.5) sfx.firework();
+  }
+  // étincelles qui s'échappent du portail allumé
+  if (t < 4 && Math.random() < 0.6) {
+    const a = rand(0, TAU), d = 100 * L.portal.k;
+    endFx.push({ x: L.portal.x + Math.cos(a) * d, y: L.portal.y + Math.sin(a) * d, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60, life: 0, max: rand(0.4, 0.9), size: rand(1.5, 3), color: pick(['#9EE7FF', '#C38BFF', '#FFFFFF']) });
   }
   for (const p of endFx) {
     p.life += dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.vy += 60 * dt;
-    p.vx *= Math.pow(0.5, dt);
+    p.vx *= Math.pow(0.3, dt);
+    p.vy *= Math.pow(0.3, dt);
   }
   endFx = endFx.filter((p) => p.life < p.max);
+  if (endFx.length > 500) endFx.splice(0, endFx.length - 500);
 }
 
-function drawEnding() {
-  const W = endCanvas.width / dpr, H = endCanvas.height / dpr;
-  const c = ectx;
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const t = endT;
-  const g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1C2260');
-  g.addColorStop(1, '#3A2C84');
-  c.fillStyle = g;
-  c.fillRect(0, 0, W, H);
-  // étoiles
-  for (let i = 0; i < 90; i++) {
-    const x = (i * 197.3) % W, y = (i * 83.7) % H;
-    c.fillStyle = `rgba(255,255,255,${0.3 + 0.7 * Math.abs(Math.sin(t * 2 + i))})`;
-    c.fillRect(x, y, 2, 2);
-  }
+function drawEndRocket(c, r, t) {
+  if (!r || r.s <= 0.02) return;
+  c.save();
+  c.translate(r.x, r.y);
+  c.rotate(r.a);
+  c.scale(r.s, r.s);
+  drawShipShape(c, game.paint, game.acc, t, { thrust: true });
+  c.restore();
+}
 
-  // La Terre arrive en grossissant
-  const grow = Math.min(1, t / 2);
-  const ease = 1 - Math.pow(1 - grow, 3);
-  const ER = Math.min(W * 0.36, H * 0.34) * ease;
-  const ex = W / 2, ey = H - ER * 0.35;
-  if (ER > 1) {
-    const halo = c.createRadialGradient(ex, ey, ER * 0.9, ex, ey, ER * 1.5);
-    halo.addColorStop(0, 'rgba(120,200,255,0.45)');
-    halo.addColorStop(1, 'rgba(120,200,255,0)');
-    c.fillStyle = halo;
-    c.beginPath();
-    c.arc(ex, ey, ER * 1.5, 0, TAU);
-    c.fill();
-    c.save();
-    c.translate(ex, ey);
-    c.rotate(t * 0.15);
-    const art = arts.terre;
-    const s = ER * (art.half / 46);
-    c.drawImage(art.canvas, -s, -s, s * 2, s * 2);
-    c.restore();
-  }
-
-  if (t > 1.2) {
-    const k = Math.min(1, (t - 1.2) / 0.8);
-    // les animaux qui sautent de joie tout autour de la Terre
-    c.font = `${Math.round(ER * 0.2)}px sans-serif`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    PARTY_ANIMALS.forEach((a, i) => {
-      const ang = Math.PI + 0.25 + (i / (PARTY_ANIMALS.length - 1)) * (Math.PI - 0.5);
-      if (Math.abs(ang - Math.PI * 1.5) < 0.18) return; // la place du roi
-      const hop = Math.abs(Math.sin(t * 4 + i)) * ER * 0.12;
-      const d = ER * 1.08 + hop;
-      c.save();
-      c.globalAlpha = k;
-      c.translate(ex + Math.cos(ang) * d, ey + Math.sin(ang) * d);
-      c.rotate(ang + Math.PI / 2 + Math.sin(t * 3 + i) * 0.15);
-      c.fillText(a, 0, 0);
-      c.restore();
-    });
-    // les créatures étranges de l'espace dansent en rond
-    const crew = ['martin', 'mamie', 'lila', 'zinzin', 'gloubi', 'reine', 'gus', 'stella', 'boum'];
-    crew.forEach((id, i) => {
-      const ang = (i / crew.length) * TAU + t * 0.35;
-      const x = ex + Math.cos(ang) * Math.min(ER * 1.75, W * 0.42);
-      const y = ey - ER * 0.55 + Math.sin(ang) * ER * 0.5;
-      if (y > H - 20) return;
-      c.save();
-      c.globalAlpha = k;
-      c.translate(x, y + Math.sin(t * 5 + i) * 8);
-      c.rotate(Math.sin(t * 4 + i) * 0.2);
-      drawCharacter(c, id, Math.max(14, ER * 0.15), t);
-      c.restore();
-    });
-    // des OVNI devenus gentils font des loopings
-    for (let i = 0; i < 3; i++) {
-      const ang = t * 0.8 + i * 2.1;
-      const x = W / 2 + Math.cos(ang) * W * 0.4;
-      const y = H * 0.18 + Math.sin(ang * 2) * H * 0.06;
-      c.save();
-      c.globalAlpha = k;
-      c.translate(x, y);
-      c.rotate(Math.sin(ang * 2) * 0.3);
-      const s = 26;
-      c.drawImage(ufoArt.canvas, -s, -s, s * 2, s * 2);
-      c.restore();
-    }
-  }
-
-  // le roi (ou la reine) sur le dessus de la Terre, avec sa couronne
-  if (t > 0.8) {
-    const drop = Math.min(1, (t - 0.8) / 0.9);
-    const bounce = drop < 1 ? (1 - drop) * -H * 0.5 : Math.abs(Math.sin(t * 3)) * -8;
-    const ks = Math.max(22, ER * 0.3);
-    c.save();
-    c.translate(ex, ey - ER - ks * 1.05 + bounce);
-    drawCharacter(c, 'king', ks, t);
-    c.restore();
-    // sa fusée garée juste à côté
-    c.save();
-    c.translate(ex + ER * 0.62, ey - ER * 1.02 + Math.sin(t * 2) * 4);
-    c.rotate(-0.6);
-    c.scale(ER / 140, ER / 140);
-    drawShipShape(c, game.paint, game.acc, t, { crown: true });
-    c.restore();
-  }
-
+function drawEndParticles(c) {
   c.save();
   c.globalCompositeOperation = 'lighter';
   for (const p of endFx) {
     c.globalAlpha = 1 - p.life / p.max;
     c.fillStyle = p.color;
     c.beginPath();
-    c.arc(p.x, p.y, 3, 0, TAU);
+    c.arc(p.x, p.y, p.size, 0, TAU);
     c.fill();
   }
   c.restore();
 }
 
+function drawEnding() {
+  const L = endLayout();
+  const { W, H, m } = L;
+  const c = ectx;
+  const t = endT;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const r = endRocket(L, t);
+
+  if (t < 5.8) {
+    // --- 1 et 2 : notre système solaire, le portail s'allume et la fusée plonge dedans
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0B0F33');
+    g.addColorStop(1, '#05061A');
+    c.fillStyle = g;
+    c.fillRect(0, 0, W, H);
+    for (const st of endStars) {
+      c.fillStyle = `rgba(255,255,255,${0.3 + 0.6 * Math.abs(Math.sin(t * 1.5 + st.p))})`;
+      c.fillRect(st.x * W, st.y * H, st.s, st.s);
+    }
+    if (t < 4.6) {
+      c.save();
+      c.translate(L.portal.x, L.portal.y);
+      c.scale(L.portal.k, L.portal.k);
+      drawPortal(c, t, FULL_PORTAL, Math.min(1, t / 1.5));
+      c.restore();
+      drawEndParticles(c);
+      drawEndRocket(c, r, t);
+    }
+    // --- 3 : le voyage, des traits d'étoiles qui filent depuis le centre
+    if (t >= 4) {
+      const k = Math.min(1, (t - 4) / 0.4) * (t > 5.4 ? Math.max(0, (5.8 - t) / 0.4) : 1);
+      c.fillStyle = `rgba(8,6,40,${0.9 * Math.min(1, (t - 4) / 0.3)})`;
+      c.fillRect(0, 0, W, H);
+      c.save();
+      c.lineCap = 'round';
+      const cx = W / 2, cy = H / 2, R = Math.hypot(W, H) / 2;
+      for (const st of endStars) {
+        const d = ((st.d + (t - 4) * 1.3) % 1) * R;
+        const len = d * 0.35;
+        const ax = Math.cos(st.p), ay = Math.sin(st.p);
+        c.strokeStyle = `rgba(${st.s > 1.4 ? '195,139,255' : '200,235,255'},${0.8 * k})`;
+        c.lineWidth = st.s * (0.5 + d / R);
+        c.beginPath();
+        c.moveTo(cx + ax * d, cy + ay * d);
+        c.lineTo(cx + ax * (d + len), cy + ay * (d + len));
+        c.stroke();
+      }
+      c.restore();
+    }
+  } else {
+    // --- 4 : l'arrivée près de Proxima du Centaure
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#120A2E');
+    g.addColorStop(1, '#3A1230');
+    c.fillStyle = g;
+    c.fillRect(0, 0, W, H);
+    for (const st of endStars) {
+      c.fillStyle = `rgba(255,${210 + Math.round(st.d * 45)},${200 + Math.round(st.d * 55)},${0.3 + 0.6 * Math.abs(Math.sin(t * 1.2 + st.p))})`;
+      c.fillRect(st.x * W, st.y * H, st.s, st.s);
+    }
+    const fade = Math.min(1, (t - 5.8) / 0.8);
+    c.save();
+    c.globalAlpha = fade;
+
+    // Alpha du Centaure A et B : deux étoiles jaunes, plus loin
+    const ax = W < 700 ? 0.76 : 0.87;
+    [[ax, 0.36, 1], [ax + 0.03, 0.39, 0.75]].forEach(([x, y, k]) => {
+      const sx = x * W, sy = y * H, sr = m * 0.022 * k;
+      const hg = c.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
+      hg.addColorStop(0, 'rgba(255,250,220,1)');
+      hg.addColorStop(0.3, 'rgba(255,220,120,0.7)');
+      hg.addColorStop(1, 'rgba(255,200,80,0)');
+      c.fillStyle = hg;
+      c.beginPath();
+      c.arc(sx, sy, sr * 3, 0, TAU);
+      c.fill();
+    });
+
+    // Proxima du Centaure : une petite étoile rouge (une « naine rouge »)
+    const S = L.star;
+    const pulse = 1 + Math.sin(t * 2) * 0.03;
+    const corona = c.createRadialGradient(S.x, S.y, S.r * 0.6, S.x, S.y, S.r * 2.2 * pulse);
+    corona.addColorStop(0, 'rgba(255,110,60,0.55)');
+    corona.addColorStop(1, 'rgba(200,40,40,0)');
+    c.fillStyle = corona;
+    c.beginPath();
+    c.arc(S.x, S.y, S.r * 2.2 * pulse, 0, TAU);
+    c.fill();
+    const body = c.createRadialGradient(S.x - S.r * 0.3, S.y - S.r * 0.3, S.r * 0.1, S.x, S.y, S.r);
+    body.addColorStop(0, '#FFE2B8');
+    body.addColorStop(0.45, '#FF8A3C');
+    body.addColorStop(1, '#C2261E');
+    c.fillStyle = body;
+    c.beginPath();
+    c.arc(S.x, S.y, S.r, 0, TAU);
+    c.fill();
+    // petites taches qui bougent à sa surface
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.7 + t * 0.15, d = S.r * (0.25 + (i % 3) * 0.2);
+      c.fillStyle = 'rgba(150,20,20,0.12)';
+      c.beginPath();
+      c.arc(S.x + Math.cos(a) * d, S.y + Math.sin(a) * d, S.r * 0.09, 0, TAU);
+      c.fill();
+    }
+
+    // Proxima b : une planète rocheuse, qui montre toujours la même face à son étoile
+    const P = L.planet;
+    const pg = c.createRadialGradient(P.x - P.r * 0.5, P.y, P.r * 0.1, P.x, P.y, P.r);
+    pg.addColorStop(0, '#E8A07A');
+    pg.addColorStop(0.6, '#A4583C');
+    pg.addColorStop(1, '#4A2420');
+    c.fillStyle = pg;
+    c.beginPath();
+    c.arc(P.x, P.y, P.r, 0, TAU);
+    c.fill();
+    c.save();
+    c.beginPath();
+    c.arc(P.x, P.y, P.r, 0, TAU);
+    c.clip();
+    c.fillStyle = 'rgba(10,4,20,0.55)';
+    c.beginPath();
+    c.arc(P.x + P.r * 0.9, P.y, P.r * 1.1, 0, TAU);
+    c.fill();
+    c.restore();
+
+    // noms des astres
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    const name = (text, x, y, size) => {
+      c.font = `800 ${size}px "Baloo 2", sans-serif`;
+      c.lineWidth = 4;
+      c.strokeStyle = 'rgba(10,4,20,0.8)';
+      c.strokeText(text, x, y);
+      c.fillStyle = '#FFE9D6';
+      c.fillText(text, x, y);
+    };
+    const fs = clamp(m / 32, 12, 22);
+    name('Proxima du Centaure', S.x, Math.min(H - fs, S.y + S.r + fs * 1.1), fs);
+    name('Proxima b', P.x, Math.min(H - fs, P.y + P.r + fs), fs * 0.85);
+    name('Alpha du Centaure A et B', (ax + 0.015) * W, 0.36 * H + m * 0.09, fs * 0.7);
+
+    // le petit portail de sortie, qui s'ouvre puis se referme
+    const open = t < 8.6 ? Math.min(1, (t - 5.8) / 0.5) : Math.max(0, 1 - (t - 8.6) / 0.6);
+    if (open > 0) {
+      c.save();
+      c.translate(L.exit.x, L.exit.y);
+      const k = m * 0.0007 * open;
+      c.scale(k, k);
+      const eg = c.createRadialGradient(0, 0, 0, 0, 0, 100);
+      eg.addColorStop(0, 'rgba(255,255,255,0.95)');
+      eg.addColorStop(0.4, 'rgba(158,231,255,0.8)');
+      eg.addColorStop(1, 'rgba(140,80,255,0)');
+      c.fillStyle = eg;
+      c.beginPath();
+      c.arc(0, 0, 100, 0, TAU);
+      c.fill();
+      c.restore();
+    }
+    c.restore();
+    drawEndParticles(c);
+    drawEndRocket(c, r, t);
+  }
+
+  // éclair blanc au passage du portail
+  if (t > 3.9 && t < 4.7) {
+    c.fillStyle = `rgba(255,255,255,${Math.max(0, 1 - Math.abs(t - 4.05) / 0.6)})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
 function launchConfetti() {
-  const pieces = ['👑', '⭐', '🌍', '✨', '🎉', '💰', '🎊', '🚀'];
+  const pieces = ['⭐', '✨', '🌟', '🚀', '🌀', '🎉', '💫', '🪐'];
   for (let i = 0; i < 36; i++) {
     const span = document.createElement('span');
     span.className = 'confetti-piece';
@@ -3402,19 +3787,13 @@ function launchConfetti() {
   }
 }
 
-$('endContinue').addEventListener('click', () => {
-  // on continue à voler, avec une couronne sur la fusée
-  endOverlay.hidden = true;
-  state = 'playing';
-  say('Bip bip ! À vos ordres, Majesté ! On continue les livraisons ?', 4, 5000);
-  enterFullscreen();
-  renderUI();
+$('endReplay').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  startEnding();
 });
 $('endNew').addEventListener('click', () => {
   endOverlay.hidden = true;
-  clearSave();
-  game = null;
-  showStartScreen();
+  resetGame();
 });
 
 /* ---------- Démarrage ---------- */

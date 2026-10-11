@@ -5,8 +5,13 @@
 
 .game-header h1 { text-shadow: 3px 3px 0 var(--sky); }
 
-/* ---------- HUD : l'or et la Terre à acheter ---------- */
-.gold-item {
+/* ---------- HUD : l'or et le portail à construire ---------- */
+.gold-item #gold { font-weight: 800; color: #FFD24A; }
+.gold-item.bump { animation: goldBump .5s ease; }
+@keyframes goldBump {
+  40% { transform: scale(1.18); background: rgba(255, 210, 74, 0.35); }
+}
+.portal-item {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -14,7 +19,7 @@
   padding-bottom: .55rem;
   overflow: hidden;
 }
-.gold-item #gold { font-weight: 800; color: #FFD24A; }
+.portal-item #portalSpent { font-weight: 800; color: #D9C2FF; }
 .gold-goal { color: var(--muted); font-size: .85em; }
 .gold-bar {
   position: absolute;
@@ -30,14 +35,10 @@
   display: block;
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, #FFC93C, #FFE58A);
+  background: linear-gradient(90deg, #9B6BFF, #9EE7FF);
   transition: width .5s ease;
 }
-.gold-item.bump { animation: goldBump .5s ease; }
-@keyframes goldBump {
-  40% { transform: scale(1.18); background: rgba(255, 210, 74, 0.35); }
-}
-.gold-item.rich { box-shadow: 0 0 0 2px #FFD24A, 0 0 16px rgba(255, 210, 74, 0.7); }
+.portal-item.ready { box-shadow: 0 0 0 2px #C38BFF, 0 0 16px rgba(195, 139, 255, 0.8); }
 
 /* ---------- Mes quêtes ---------- */
 .quest-panel { width: 300px; }
@@ -214,6 +215,15 @@
 .start-goal { margin: .3rem 0 .8rem; font-size: 1.02rem; line-height: 1.45; }
 .start-card .how-to { text-align: left; }
 .save-note { margin: .6rem 0 0; font-size: .78rem; color: #8a84a6; }
+.start-done {
+  margin: .3rem 0 .8rem;
+  background: #FFF3C9;
+  border-radius: 14px;
+  padding: .6rem .8rem;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.ms-portal { margin: 0 0 .3rem; background: rgba(155, 107, 255, 0.18); border-radius: 12px; padding: .35rem .5rem; line-height: 1.5; }
 
 /* ---------- Fenêtres (quête, marchand, Terre) ---------- */
 .dlg-overlay {
@@ -368,9 +378,22 @@
 .style-card img { width: 90px; height: 72px; }
 .style-card .shop-max { color: #7CF0A0; font-size: .72rem; }
 
-.earth-buy { text-align: center; }
-.earth-buy img { width: 120px; height: 120px; animation: spinSlow 12s linear infinite; }
-@keyframes spinSlow { to { transform: rotate(360deg); } }
+/* chantier du portail */
+.portal-progress {
+  background: #1C2260;
+  color: var(--white);
+  border-radius: 14px;
+  padding: .45rem .7rem .55rem;
+  margin-bottom: .45rem;
+}
+.portal-progress p { margin: 0 0 .3rem; font-size: .9rem; }
+.pp-bar { display: block; height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.pp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #9B6BFF, #9EE7FF); border-radius: 6px; }
+.portal-row.full { background: #E3F7E9; }
+.part-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: .3rem; font-size: .75rem; color: #6a6486; }
+.part-dots i { width: 9px; height: 9px; border-radius: 50%; background: #D9D4E6; }
+.part-dots i.on { background: #9B6BFF; }
+.dlg-portal .sr-text small { font-size: .74rem; line-height: 1.3; }
 
 /* ---------- La grande carte ---------- */
 .map-overlay {
@@ -447,21 +470,25 @@
 }
 .end-sub { margin: .1rem 0; font-size: clamp(.9rem, 2.2vw, 1.15rem); }
 .end-stats { margin: .1rem 0 .4rem; color: var(--muted); font-size: .85rem; }
-.title-switch { display: inline-flex; gap: .3rem; background: rgba(255, 255, 255, 0.1); border-radius: 999px; padding: .2rem; }
-.title-btn {
-  border: none;
-  background: none;
-  color: var(--star-text);
+.end-sub { max-width: 760px; margin-left: auto; margin-right: auto; }
+.end-soon {
+  display: inline-block;
+  margin: .2rem 0 .2rem;
+  padding: .35rem 1.1rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FFC93C, #FF8A3C);
+  color: var(--ink);
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
-  font-size: .95rem;
-  border-radius: 999px;
-  padding: .2rem .9rem;
-  cursor: pointer;
+  font-size: clamp(.95rem, 2.4vw, 1.25rem);
+  box-shadow: 0 0 22px rgba(255, 170, 60, 0.6);
+  animation: soonPulse 1.6s ease-in-out infinite;
 }
-.title-btn.active { background: #FFD24A; color: var(--ink); }
+@keyframes soonPulse {
+  50% { transform: scale(1.06); box-shadow: 0 0 34px rgba(255, 170, 60, 0.9); }
+}
 .end-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
-#endContinue {
+#endReplay {
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
   font-size: 1rem;
@@ -499,7 +526,7 @@
   position: fixed;
   top: 10px;
   left: 10px;
-  z-index: 55;
+  z-index: 65;
   display: none;
   align-items: center;
   gap: .3rem;
@@ -517,8 +544,8 @@
 }
 .exit-btn:hover { transform: translateY(2px); box-shadow: 0 2px 0 #c94f6e, 0 4px 10px rgba(0, 0, 0, 0.35); }
 body.full .exit-btn, body.phone .exit-btn { display: inline-flex; }
-/* la question « Quitter ? » passe devant tout le reste */
-.quit-overlay { z-index: 58; }
+/* la question « Quitter ? » passe devant tout le reste (même la fin) */
+.quit-overlay { z-index: 66; }
 
 #fsBtn { display: inline-flex; align-items: center; justify-content: center; }
 body.phone #fsBtn { display: none; }
@@ -556,7 +583,7 @@ body.full .hud-btn {
   background: rgba(11, 15, 51, 0.72);
   backdrop-filter: blur(3px);
 }
-body.full .gold-item { padding-bottom: .4rem; }
+body.full .portal-item { padding-bottom: .4rem; }
 body.full .game-layout { display: block; padding: 0; max-width: none; }
 body.full .stage-col { max-width: none; }
 body.full .stage {
@@ -597,7 +624,7 @@ body.full .fact-card { bottom: 96px; }
 }
 
 /* ---------- Téléphone : le jeu occupe tout l'écran ---------- */
-body.phone .gold-item { padding-bottom: .1rem; }
+body.phone .portal-item { padding-bottom: .1rem; }
 body.phone .gold-goal { display: none; }
 body.phone .gold-bar { left: 6px; right: 6px; bottom: 2px; height: 3px; }
 body.phone .quest-panel.collapsed .q-face { width: 26px; height: 26px; }
@@ -645,6 +672,7 @@ body.phone .map-card { height: 100%; padding: .5rem; border-radius: 14px; }
 body.phone .start-goal { font-size: .9rem; margin-bottom: .5rem; }
 body.phone .start-card .order-title { font-size: 1.25rem; }
 body.phone .save-note { display: none; }
+body.phone .end-text { padding-top: calc(var(--top) + var(--hud-h) + 4px); }
 @media (orientation: landscape) {
   body.phone .map-body { flex-direction: row; overflow: hidden; }
   body.phone .map-canvas-wrap { flex: 1 1 auto; height: auto; }
