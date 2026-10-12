@@ -30,7 +30,15 @@ const EXTRACT_TIME = 0.55;         // s pour charger une ressource
 const CHAR_RANGE = 125;            // distance pour parler à un habitant
 const SHOP_RANGE = 135;
 const CRATE_LIFE = 16;             // s avant que les caisses perdues ne disparaissent
-const OFFER_DELAY = 8;             // s avant qu'un habitant propose une nouvelle quête
+/* Les quêtes des habitants (les « ! ») : peu nombreuses et espacées, pour ne pas
+   détourner de l'histoire. Un niveau peut changer ces réglages avec "offers". */
+const OFFERS = {
+  max: 2,          // au plus 2 « ! » en même temps
+  every: 70,       // s entre deux nouvelles commandes
+  first: 25,       // s avant la toute première commande d'un chapitre
+  rest: 120,       // s de repos pour un habitant qu'on vient de livrer
+};
+const offerRule = (k) => (LV.offers && LV.offers[k] != null ? LV.offers[k] : OFFERS[k]);
 const SLOW_SPEED = 140;            // vitesse sous laquelle on « s'arrête » pour parler
 
 /* ---------- OVNI et combats ---------- */
@@ -307,7 +315,8 @@ function freshLevelState() {
     worldT: 0,
     story: { chapter: 0, step: 0, got: {} },
     cargo: [],
-    quests: [], offers: {}, offerAt: {},
+    quests: [], offers: {}, offerAt: {}, nextOfferAt: null,
+    portalSeen: false,              // a-t-on déjà trouvé le chantier du portail de ce niveau ?
     portal: Object.fromEntries(PORTAL_IDS.map((id) => [id, 0])),
     ship: null, finished: false,
   };
@@ -679,7 +688,7 @@ function completeQuest(q) {
   const pos = charPos(q.char);
   game.quests = game.quests.filter((x) => x !== q);
   game.questsDone += 1;
-  game.offerAt[q.char] = worldT + OFFER_DELAY;
+  game.offerAt[q.char] = worldT + offerRule('rest');
   setTimeout(() => sfx.cash(), 250);
   addFloater(`+${q.reward} 💰`, pos.x, pos.y - 60, '#FFD24A', 30);
   burst(pos.x, pos.y, 40, ['#FFC93C', '#FF6F91', '#4FB8E8', '#58C97B', '#FFFFFF'], 280);
@@ -722,13 +731,8 @@ function finishChapter() {
   game.story.chapter += 1;
   game.story.step = 0;
   game.story.got = {};
-  // les nouveaux clients ont tout de suite une commande à proposer
-  customers().forEach((c) => {
-    if (!game.offers[c.id] && !game.quests.some((q) => q.char === c.id)) {
-      game.offers[c.id] = makeOffer(c.id);
-      game.offerAt[c.id] = 0;
-    }
-  });
+  // les nouveaux clients proposeront une première commande un peu plus tard
+  if (customers().length) game.nextOfferAt = Math.min(game.nextOfferAt ?? Infinity, worldT + offerRule('first'));
   // les OVNI se réveillent, ou deviennent plus nombreux
   for (let k = ufos.length; k < ufoTarget(); k++) spawnUfo(true);
   const b = byId[ch.host];
@@ -784,7 +788,18 @@ function startMission() {
   closeDialog();
   const sq = storyQuest();
   if (sq && dist(ship, charPos(sq.char)) < CHAR_RANGE) deliverTo(sq.char);
+  // le chapitre du portail commence : on montre où est le chantier
+  if (!sq && shopOpen('nova') && !game.portalSeen) showPortalOnMap();
   renderUI();
+}
+
+/** La carte s'ouvre sur le chantier du portail, et une flèche violette y mène ensuite */
+function showPortalOnMap() {
+  openMap();
+  const notice = $('mapNotice');
+  notice.textContent = "🌀 Le Chantier du Portail de l'ingénieure Nova est ici, tout au bord du système ! Suis la flèche violette pour y aller.";
+  notice.hidden = false;
+  say("Suis la flèche violette 🌀 : elle nous mène au Chantier du Portail !", 4, 7000);
 }
 
 /** Bâtiment terminé : ce qu'on a construit, un fait réel, et ce qui change */
@@ -857,12 +872,18 @@ function abandonQuest(q) {
   saveGame();
 }
 
+/** De temps en temps, un habitant libre propose une commande (jamais plus de OFFERS.max à la fois) */
 function updateOffers() {
-  customers().forEach((c) => {
-    if (!game.offers[c.id] && !game.quests.some((q) => q.char === c.id) && worldT >= (game.offerAt[c.id] ?? 0)) {
-      game.offers[c.id] = makeOffer(c.id);
-    }
-  });
+  if (game.nextOfferAt === undefined) game.nextOfferAt = worldT + offerRule('first');   // ancienne sauvegarde
+  if (worldT < (game.nextOfferAt ?? Infinity)) return;
+  const all = customers();
+  if (all.filter((c) => game.offers[c.id]).length >= offerRule('max')) return;
+  const free = all.filter((c) => !game.offers[c.id] && !game.quests.some((q) => q.char === c.id) && worldT >= (game.offerAt[c.id] ?? 0));
+  if (!free.length) return;
+  const c = pick(free);
+  game.offers[c.id] = makeOffer(c.id);
+  game.nextOfferAt = worldT + offerRule('every');
+  sayOnce('newOffer', `${c.name} a une commande pour toi ! Cherche le « ! » sur la carte 🗺️.`, 20, 1);
 }
 
 /* ---------- Nouvelle partie / reprise ---------- */
@@ -2880,7 +2901,8 @@ function compassTargets() {
     list.push({ x: c.x, y: c.y, icon: '📦', color: '#C98A4B' });
   }
   // le portail : quand il est fini, ou quand on a assez d'or pour le finir
-  if (shopOpen('nova') && (portalDone() || game.gold >= portalLeft())) list.push({ ...SHOP_POS.nova, icon: '🌀', color: '#C38BFF' });
+  // le portail : tant qu'on n'y est pas allé, puis quand il est fini ou qu'on a l'or pour le finir
+  if (shopOpen('nova') && (!game.portalSeen || portalDone() || game.gold >= portalLeft())) list.push({ ...SHOP_POS.nova, icon: '🌀', color: '#C38BFF' });
   return list;
 }
 
@@ -3001,10 +3023,12 @@ function drawMinimap() {
     if (!shopOpen(s.id)) return;
     const p = SHOP_POS[s.id];
     if (s.id === 'nova') {
+      // tant qu'on ne l'a pas trouvé, le chantier clignote sur la mini-carte
+      const pulse = game.portalSeen ? 0 : (3 + Math.sin(worldT * 5) * 2) * dpr;
       mctx.strokeStyle = '#C38BFF';
-      mctx.lineWidth = 2 * dpr;
+      mctx.lineWidth = (game.portalSeen ? 2 : 3) * dpr;
       mctx.beginPath();
-      mctx.arc(p.x * k, p.y * k, 4 * dpr, 0, TAU);
+      mctx.arc(p.x * k, p.y * k, 4 * dpr + pulse, 0, TAU);
       mctx.stroke();
       return;
     }
@@ -3409,6 +3433,7 @@ function portalRow(id) {
 }
 
 function openPortalShop() {
+  game.portalSeen = true;           // on a trouvé le chantier : plus besoin de la grande flèche
   const s = SHOP_BY_ID.nova;
   const done = portalDone();
   const pct = (portalSpent() / PORTAL_TOTAL) * 100;
@@ -3473,6 +3498,7 @@ function openMap() {
 
 function closeMap() {
   mapOverlay.hidden = true;
+  $('mapNotice').hidden = true;
 }
 
 $('mapBtn').addEventListener('click', (e) => {
@@ -3660,6 +3686,17 @@ function drawBigMap() {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(s.icon, p.x, p.y + 1);
+    if (s.id === 'nova' && !game.portalSeen) {
+      // un grand cercle violet pour qu'on ne puisse pas le rater
+      c.strokeStyle = '#C38BFF';
+      c.lineWidth = 4;
+      c.setLineDash([8, 6]);
+      c.beginPath();
+      c.arc(p.x, p.y, 30, 0, TAU);
+      c.stroke();
+      c.setLineDash([]);
+      label('🌀 Le portail se construit ici !', p.x, p.y - 42, '#E6D5FF', fs * 1.1);
+    }
     if (s.id === 'nova') label(`Portail ${portalPieces()}/${PORTAL_PIECES}`, p.x, p.y + 20, '#D9C2FF', fs * 0.8);
     else label(s.who, p.x, p.y + 20, '#FFFFFF', fs * 0.8);
   });
