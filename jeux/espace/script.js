@@ -1747,7 +1747,7 @@ stage.addEventListener('contextmenu', (e) => { if (phoneMQ.matches) e.preventDef
 
 /* ---------- Quitter le jeu ---------- */
 function goHome() {
-  window.location.href = '../../index.html';
+  window.location.href = '../../';
 }
 function openQuit() {
   if (state !== 'playing') { goHome(); return; }
