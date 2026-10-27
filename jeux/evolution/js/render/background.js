@@ -35,8 +35,8 @@ export function createBackground(palette, rng = Math.random) {
       const tile = Math.max(view.w, view.h) + 40;
       ctx.fillStyle = palette.specks;
       for (const l of layers) {
-        const offX = cam.rx * cam.zoom * l.depth;
-        const offY = cam.ry * cam.zoom * l.depth;
+        const offX = cam.rx * cam.rz * l.depth;
+        const offY = cam.ry * cam.rz * l.depth;
         ctx.globalAlpha = l.alpha;
         for (const s of l.specks) {
           const sx = mod(s.u * tile - offX + Math.sin(t * 0.4 + s.ph) * 6, tile) - 20;
@@ -61,7 +61,7 @@ export function createBackground(palette, rng = Math.random) {
       for (let x = x0; x <= x1; x += STEP) {
         for (let y = y0; y <= y1; y += STEP) {
           ctx.beginPath();
-          ctx.arc(x + ((y / STEP) % 2) * STEP / 2, y, 4, 0, TAU);
+          ctx.arc(x + ((y / STEP) % 2) * STEP / 2, y, 2.5, 0, TAU);
           ctx.fill();
         }
       }

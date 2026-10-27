@@ -6,7 +6,7 @@
 import { test, ok, eq, near } from './runner.js';
 import { advanceClock, STEP } from '../js/core/loop.js';
 import { steerBody, clampToArena, angleDiff, turnToward } from '../js/systems/movement.js';
-import { computeZoom, clampCenter, createCamera } from '../js/core/camera.js';
+import { computeZoom, clampCenter, createCamera, VIEW_RADII } from '../js/core/camera.js';
 import { keysToVector, joystickVector, JOY_RADIUS } from '../js/core/input.js';
 
 const WATER = { maxSpeed: 140, accel: 380, friction: 0.6 };
@@ -106,16 +106,40 @@ test('rotation : prend le chemin le plus court et reste lissée', () => {
 });
 
 /* ---------- Caméra ---------- */
-test('caméra : on voit au moins 1 600 × 900 unités en paysage', () => {
+test('caméra : 1 600 × 900 unités pour un joueur de rayon 32', () => {
+  near(computeZoom(1600, 900, 32), 1, 1e-9);
+});
+
+test('caméra : on voit 50 rayons de joueur de large en paysage', () => {
   for (const [w, h] of [[1920, 1080], [844, 390], [1280, 1024]]) {
-    const z = computeZoom(w, h);
-    ok(w / z >= 1600 - 1e-6 && h / z >= 900 - 1e-6, `${w}×${h}`);
-    ok(Math.abs(w / z - 1600) < 1e-6 || Math.abs(h / z - 900) < 1e-6, `${w}×${h} : trop dézoomé`);
+    for (const size of [10, 20, 28]) {
+      const z = computeZoom(w, h, size);
+      ok(w / z >= VIEW_RADII * size - 1e-6, `${w}×${h} taille ${size} : trop zoomé`);
+      ok(Math.abs(w / z - VIEW_RADII * size) < 1e-6 || Math.abs(h / z - VIEW_RADII * size * 9 / 16) < 1e-6,
+        `${w}×${h} taille ${size} : trop dézoomé`);
+    }
   }
 });
 
-test('caméra : 900 unités de large en portrait', () => {
-  near(390 / computeZoom(390, 844), 900, 1e-6);
+test('caméra : en portrait, 9/16 de la largeur paysage', () => {
+  near(390 / computeZoom(390, 844, 10), 50 * 10 * 9 / 16, 1e-6);
+});
+
+test('caméra : sur téléphone, la première cellule fait au moins 12 px', () => {
+  ok(computeZoom(844, 390, 10) * 10 >= 12, 'paysage');
+  ok(computeZoom(390, 844, 10) * 10 >= 12, 'portrait');
+});
+
+test('caméra : recule quand le joueur grandit, en douceur', () => {
+  near(computeZoom(1280, 720, 20), computeZoom(1280, 720, 10) / 2, 1e-9);
+  const cam = createCamera();
+  cam.resize({ w: 1280, h: 720, dpr: 1 });
+  cam.setSize(10, true);
+  const z10 = cam.zoom;
+  cam.setSize(20);
+  eq(cam.zoom, z10, 'pas de saut');
+  for (let i = 0; i < 300; i++) cam.follow(0, 0, STEP);
+  near(cam.zoom, z10 / 2, z10 * 0.01);
 });
 
 test('caméra : reste dans l’arène, centrée si l’arène est petite', () => {
@@ -126,11 +150,11 @@ test('caméra : reste dans l’arène, centrée si l’arène est petite', () =>
 
 test('caméra : suit la cible en douceur', () => {
   const cam = createCamera();
-  const view = { w: 1600, h: 900, dpr: 1 };
-  cam.resize(view);
+  cam.resize({ w: 1600, h: 900, dpr: 1 });
+  cam.setSize(32, true);
   cam.arena = { w: 4800, h: 2700 };
-  cam.snap(2400, 1350, view);
-  cam.follow(2500, 1350, view, STEP);
+  cam.snap(2400, 1350);
+  cam.follow(2500, 1350, STEP);
   ok(cam.x > 2400 && cam.x < 2500, `x = ${cam.x}`);
 });
 

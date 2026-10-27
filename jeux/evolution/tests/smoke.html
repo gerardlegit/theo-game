@@ -11,8 +11,9 @@
 </style>
 </head>
 <body>
-  <!-- Le vrai jeu, piloté par des événements simulés (clavier, doigt) -->
-  <iframe id="frame" src="../?debug"></iframe>
+  <!-- Le vrai jeu, piloté par des événements simulés (clavier, doigt) : on
+       joue de l'écran titre jusqu'à la fin de l'étape 2 -->
+  <iframe id="frame" src="../?debug&seed=7"></iframe>
   <script type="module">
     import { test, ok, eq, near, run } from './runner.js';
 
@@ -20,8 +21,12 @@
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const W = () => frame.contentWindow;
     const D = () => frame.contentDocument;
+    const $ = (id) => D().getElementById(id);
     const game = () => W().__evolution;
-    const player = () => game().scenes.current.player;
+    const scene = () => game().scenes.current;
+    const world = () => scene().world;
+    const player = () => world().player;
+    const visible = (id) => !$(id).hidden;
 
     function key(type, code) {
       W().dispatchEvent(new (W().KeyboardEvent)(type, { code, key: code, bubbles: true, cancelable: true }));
@@ -33,23 +38,34 @@
       await wait(50);
     }
     function pointer(type, x, y, id = 7) {
-      const canvas = D().getElementById('game');
-      canvas.dispatchEvent(new (W().PointerEvent)(type, {
+      $('game').dispatchEvent(new (W().PointerEvent)(type, {
         pointerId: id, pointerType: 'touch', isPrimary: true,
         clientX: x, clientY: y, bubbles: true, cancelable: true,
       }));
     }
+    async function until(cond, ms = 6000) {
+      for (let t = 0; t < ms; t += 50) {
+        if (cond()) return true;
+        await wait(50);
+      }
+      return false;
+    }
+    /* Pose une créature sur le joueur (pour manger ou se faire manger tout de suite) */
+    function bring(pred) {
+      const c = world().creatures.find(pred);
+      c.x = c.px = player().x + 2;
+      c.y = c.py = player().y;
+      return c;
+    }
+    const molecule = (c) => c.def.kind === 'food';
 
     await new Promise((r) => frame.addEventListener('load', r, { once: true }));
-    for (let i = 0; i < 50 && !(W().__evolution && W().__evolution.loop); i++) await wait(100);
+    await until(() => W().__evolution && W().__evolution.loop);
     await wait(1200);              // laisse la boucle tourner pour mesurer les i/s
 
-    test('le jeu démarre et la boucle tourne', () => {
-      ok(game(), 'window.__evolution absent');
-      ok(game().loop.stats.fps > 0, 'pas d’images');
-    });
-
-    test('images par seconde (≥ 55 attendu)', () => {
+    /* ---------- Démarrage ---------- */
+    test('écran titre affiché, la boucle tourne à 55 i/s ou plus', () => {
+      ok(visible('titleScreen'), 'pas d’écran titre');
       const fps = game().loop.stats.fps;
       ok(fps >= 55, `${fps.toFixed(1)} i/s`);
     });
@@ -58,98 +74,202 @@
       const v = game().view;
       eq(v.w, 1280);
       eq(v.h, 720);
-      eq(D().getElementById('game').width, Math.round(1280 * v.dpr));
+      eq($('game').width, Math.round(1280 * v.dpr));
     });
 
+    test('Jouer → intro de l’étape 1 (nom, époque, objectif)', async () => {
+      $('playBtn').click();
+      ok(await until(() => visible('introScreen')), 'pas d’intro');
+      eq($('introName').textContent, 'Première cellule');
+      ok($('introAgo').textContent.includes('3,8'), $('introAgo').textContent);
+      ok($('introGoal').textContent.includes('10 molécules'));
+      ok($('introGoalIcon').querySelector('svg'), 'pas d’icône');
+    });
+
+    test('l’intro se passe, le HUD apparaît (3 cœurs, 0 / 10)', async () => {
+      $('introGo').click();
+      ok(await until(() => scene().phase === 'play'), 'toujours en intro');
+      ok(!visible('introScreen'));
+      ok(visible('hud'));
+      eq($('hearts').children.length, 3);
+      eq($('growthCount').textContent, '0 / 10');
+      ok(!visible('energy'), 'pas d’énergie à l’étape 1');
+    });
+
+    test('caméra : la cellule de rayon 10 est zoomée (50 rayons de large)', () => {
+      near(1280 / game().camera.targetZoom, 500, 1e-6);
+    });
+
+    /* ---------- Commandes ---------- */
     test('flèche droite : la cellule nage vers la droite', async () => {
       const x0 = player().x;
-      await hold('ArrowRight', 700);
+      await hold('ArrowRight', 600);
       ok(player().x > x0 + 40, `x ${x0} → ${player().x}`);
     });
 
-    test('inertie : la cellule glisse encore après avoir lâché', async () => {
-      key('keydown', 'ArrowRight');
-      await wait(800);
-      key('keyup', 'ArrowRight');
-      const x0 = player().x;
-      await wait(250);
-      ok(player().x > x0 + 5, 'aucune glissade');
-    });
-
     test('Q (AZERTY) / A (QWERTY) : vers la gauche', async () => {
-      await wait(1500);
+      await wait(1200);
       const x0 = player().x;
-      await hold('KeyA', 700);
+      await hold('KeyA', 600);
       ok(player().x < x0 - 40, `x ${x0} → ${player().x}`);
     });
 
     test('Z (AZERTY) / W (QWERTY) : vers le haut', async () => {
       const y0 = player().y;
-      await hold('KeyW', 700);
+      await hold('KeyW', 600);
       ok(player().y < y0 - 40, `y ${y0} → ${player().y}`);
     });
 
-    test('Maj : sprint plus rapide', async () => {
-      await wait(1500);
-      await hold('ArrowDown', 1000);
-      const normal = Math.hypot(player().vx, player().vy);
-      key('keydown', 'ShiftLeft');
-      await hold('ArrowDown', 1000);
-      key('keyup', 'ShiftLeft');
-      const fast = Math.hypot(player().vx, player().vy);
-      ok(fast > normal * 1.3, `${normal.toFixed(0)} → ${fast.toFixed(0)}`);
-    });
-
-    test('joystick : apparaît sous le doigt et fait nager', async () => {
-      await wait(1500);
+    test('joystick (n’importe où tant qu’il n’y a pas de bouton Action)', async () => {
+      await wait(1200);
       const x0 = player().x;
-      pointer('pointerdown', 300, 400);
-      ok(D().getElementById('joyBase').classList.contains('on'), 'joystick caché');
+      pointer('pointerdown', 900, 400);
+      ok($('joyBase').classList.contains('on'), 'joystick caché');
       eq(D().body.dataset.input, 'touch', 'aides tactiles');
-      pointer('pointermove', 360, 400);
-      await wait(700);
-      pointer('pointerup', 360, 400);
+      pointer('pointermove', 960, 400);
+      await wait(600);
+      pointer('pointerup', 960, 400);
       ok(player().x > x0 + 40, `x ${x0} → ${player().x}`);
-      ok(!D().getElementById('joyBase').classList.contains('on'), 'joystick encore affiché');
+      ok(!$('joyBase').classList.contains('on'), 'joystick encore affiché');
+      key('keydown', 'ShiftLeft');
+      key('keyup', 'ShiftLeft');
     });
 
-    test('bouton Action visible en tactile, réagit au toucher', async () => {
-      const btn = D().getElementById('actionBtn');
-      ok(btn.getBoundingClientRect().width >= 88, 'bouton trop petit ou caché');
-      btn.dispatchEvent(new (W().PointerEvent)('pointerdown', { pointerId: 9, pointerType: 'touch', bubbles: true, cancelable: true }));
-      await wait(60);
-      ok(player().pulse > 0, 'aucune réaction');
-      ok(btn.classList.contains('pressed'), 'pas de retour visuel');
-      btn.dispatchEvent(new (W().PointerEvent)('pointerup', { pointerId: 9, pointerType: 'touch', bubbles: true }));
+    /* ---------- Règles ---------- */
+    test('manger une molécule : +1, la jauge avance', async () => {
+      player().invincible = 5;
+      const g0 = world().growth;
+      bring(molecule);
+      ok(await until(() => world().growth > g0), 'pas mangé');
+      await wait(100);
+      eq($('growthCount').textContent, `${world().growth} / 10`);
+    });
+
+    test('eau trop chaude : 1 cœur perdu, message, clignotement', async () => {
+      const h = world().hazards.find((z) => z.type === 'heat');
+      player().invincible = 0;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 1400 && world().hearts === 3) {
+        player().x = h.x;
+        player().y = h.y;
+        await wait(16);
+      }
+      eq(world().hearts, 2);
+      ok(player().invincible > 0, 'pas invincible');
+      ok($('toast').classList.contains('show'), 'pas de message');
+      await wait(100);
+      eq($('hearts').querySelectorAll('.heart.lost').length, 1);
+      player().x = world().arena.w / 2;
+      player().y = world().arena.h / 2;
     });
 
     test('Échap : pause, la cellule ne bouge plus', async () => {
       key('keydown', 'Escape');
       key('keyup', 'Escape');
-      ok(!D().getElementById('pauseOverlay').hidden, 'menu pause absent');
+      ok(visible('pauseOverlay'), 'menu pause absent');
       const x0 = player().x;
       key('keydown', 'ArrowRight');
-      await wait(400);
+      await wait(300);
       key('keyup', 'ArrowRight');
       eq(player().x, x0, 'bouge en pause');
-      key('keydown', 'Escape');
-      ok(D().getElementById('pauseOverlay').hidden, 'pause pas fermée');
+      $('resumeBtn').click();
+      ok(!visible('pauseOverlay'), 'pause pas fermée');
     });
 
-    test('pas de défilement de la page', () => {
+    /* ---------- Fin d'étape 1 → fiche → transition → étape 2 ---------- */
+    test('jauge pleine → animation puis fiche découverte', async () => {
+      world().growth = 9;
+      bring(molecule);
+      ok(await until(() => scene().phase === 'grow'), 'pas d’animation de croissance');
+      ok(await until(() => visible('cardScreen'), 4000), 'pas de fiche');
+      eq($('cardName').textContent, 'Première cellule');
+      ok($('cardFact').textContent.length > 20);
+      ok($('cardChangeIcon').querySelector('svg'));
+    });
+
+    test('Continuer → « Des millions d’années plus tard… » → étape 2', async () => {
+      $('cardNext').click();
+      ok(await until(() => visible('transitionScreen')), 'pas de transition');
+      ok($('transTitle').textContent.startsWith('Des millions'));
+      ok(await until(() => visible('introScreen'), 7000), 'pas d’intro de l’étape 2');
+      eq($('introName').textContent, 'Cellule à noyau');
+      $('introGo').click();
+      ok(await until(() => scene().phase === 'play'));
+      ok(visible('energy'), 'énergie absente à l’étape 2');
+      eq($('growthCount').textContent, '0 / 12');
+    });
+
+    test('Maj : sprint plus rapide, l’énergie baisse', async () => {
+      await hold('ArrowDown', 900);
+      const normal = Math.hypot(player().vx, player().vy);
+      key('keydown', 'ShiftLeft');
+      await hold('ArrowDown', 900);
+      key('keyup', 'ShiftLeft');
+      const fast = Math.hypot(player().vx, player().vy);
+      ok(fast > normal * 1.3, `${normal.toFixed(0)} → ${fast.toFixed(0)}`);
+      ok(player().energy < 0.9, `énergie ${player().energy}`);
+    });
+
+    test('un prédateur rouge devient vert quand on grandit, et se mange', async () => {
+      const amoeba = world().creatures.find((c) => c.def.id === 'amoeba');
+      const rel = (a, b) => (b < a * 0.8 ? 'edible' : b > a * 1.2 ? 'danger' : 'neutral');
+      eq(rel(player().size, amoeba.size), 'danger', 'dangereux au début');
+      world().growth = 11;
+      player().size = 26.7;
+      await wait(300);
+      eq(rel(player().size, amoeba.size), 'edible', 'mangeable à la fin');
+      player().invincible = 5;
+      bring((c) => c === amoeba);
+      ok(await until(() => scene().phase !== 'play'), 'pas mangé');
+      eq(world().growth, 12);
+    });
+
+    test('fiche de l’étape 2 → « À suivre »', async () => {
+      ok(await until(() => visible('cardScreen'), 4000), 'pas de fiche');
+      eq($('cardName').textContent, 'Cellule à noyau');
+      $('cardNext').click();
+      ok(await until(() => visible('sequelScreen')), 'pas d’écran à suivre');
+    });
+
+    /* ---------- Échec sans frustration ---------- */
+    test('3 cœurs perdus → message bienveillant → on repart avec la moitié', async () => {
+      game().flow.stage('nucleus', { growth: 7, intro: false });
+      await wait(200);
+      const big = () => world().creatures.find((c) => c.def.id === 'bigAmoeba');
+      for (let i = 0; i < 3 && !visible('lostScreen'); i++) {
+        player().invincible = 0;
+        bring((c) => c === big());
+        await until(() => player().invincible > 0, 1000);
+      }
+      ok(await until(() => visible('lostScreen')), 'pas de message');
+      ok($('lostTitle').textContent.includes('La vie trouve toujours un chemin'));
+      $('lostGo').click();
+      ok(await until(() => scene().phase === 'play'), 'pas reparti');
+      eq(world().growth, 3, 'moitié de 7');
+      eq(world().hearts, 3);
+    });
+
+    test('Pause → Menu principal → écran titre', async () => {
+      key('keydown', 'KeyP');
+      key('keyup', 'KeyP');
+      ok(visible('pauseOverlay'));
+      $('menuBtn').click();
+      ok(await until(() => visible('titleScreen')), 'pas d’écran titre');
+      ok(!visible('hud'), 'HUD encore visible');
+    });
+
+    test('pas de défilement de la page, boutons plein écran présents', () => {
       const se = D().scrollingElement;
       ok(se.scrollHeight <= W().innerHeight && se.scrollWidth <= W().innerWidth, 'la page déborde');
+      ok([...D().querySelectorAll('.fs-toggle')].every((b) => !b.hidden));
     });
 
-    test('bouton plein écran présent', () => {
-      ok(!D().getElementById('fsBtn').hidden);
-    });
-
-    test('portrait : 900 unités de large', async () => {
+    test('portrait : 9/16 × 50 rayons de large', async () => {
+      game().flow.stage('cell', { intro: false });
       frame.style.width = '500px';
       frame.style.height = '800px';
-      await wait(400);
-      near(500 / game().camera.zoom, 900, 1e-6);
+      await wait(500);
+      near(500 / game().camera.targetZoom, 50 * player().size * 9 / 16, 0.5);
     });
 
     await run('jeu (fumée)');

@@ -59,8 +59,15 @@ def run_page(port, page):
         f'http://127.0.0.1:{port}{page}',
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     got = arrived.wait(TIMEOUT)
-    # on ne ferme que cet Edge-là (jamais le navigateur de l'utilisateur)
+    # on ne ferme que cet Edge-là (jamais le navigateur de l'utilisateur) : Edge
+    # détache ses sous-processus, on les retrouve donc par leur dossier de profil
     subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    tag = os.path.basename(profile)
+    subprocess.run(['powershell', '-NoProfile', '-Command',
+                    "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+                    f"Where-Object {{ $_.CommandLine -like '*{tag}*' }} | "
+                    "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     proc.wait(10)
     shutil.rmtree(profile, ignore_errors=True)

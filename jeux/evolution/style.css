@@ -1,14 +1,14 @@
 /* ============================================================================
-   Évolution : le jeu occupe tout l'écran (canvas), avec par-dessus quelques
-   boutons, le joystick virtuel et les menus.
+   Évolution : le jeu occupe tout l'écran (canvas), avec par-dessus le HUD,
+   le joystick virtuel et les écrans (titre, intro, fiche, pause…).
    ============================================================================ */
 
 :root {
   --ink: #1F2A44;
   --cream: #FFF6E9;
   --yellow: #FFC93C;
-  --green: #58C97B;
-  --red: #E85757;
+  --green: #5BE37D;
+  --red: #FF5A5A;
   --sea: #1F7A72;
   --sea-deep: #0B3C4A;
   --panel: rgba(8, 44, 54, 0.9);
@@ -53,19 +53,75 @@ body {
   touch-action: none;
 }
 
-/* ---------- Boutons du haut ---------- */
+button:focus-visible,
+a:focus-visible {
+  outline: 4px solid var(--yellow);
+  outline-offset: 3px;
+}
+
+/* ---------- HUD ---------- */
 .hud {
   position: fixed;
   top: calc(10px + var(--safe-t));
+  left: calc(10px + var(--safe-l));
+  right: calc(10px + var(--safe-r));
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 10px;
+  pointer-events: none;
   z-index: 5;
 }
-.hud-right { right: calc(10px + var(--safe-r)); }
+.hud > * { pointer-events: auto; }
+.hud-left { display: grid; gap: 6px; min-width: 96px; }
+
+.hearts { display: flex; gap: 4px; }
+.heart svg { width: 30px; height: 30px; display: block; transition: transform .25s, opacity .25s, filter .25s; }
+.heart.lost svg { opacity: .35; filter: grayscale(1); transform: scale(.8); }
+
+.energy {
+  width: 96px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+.energy-fill { height: 100%; width: 100%; background: var(--yellow); }
+.energy.tired .energy-fill { background: #C9A04A; }
+
+.growth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  background: rgba(8, 44, 54, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+.growth.bump { animation: bump .3s; }
+@keyframes bump { 50% { transform: scale(1.08); } }
+.growth-icon svg { width: 30px; height: 30px; display: block; }
+.growth-bar {
+  width: clamp(90px, 22vw, 240px);
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.growth-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5BE37D, #B8F36B);
+  transition: width .3s;
+}
+.growth-count { font: 800 18px 'Baloo 2', sans-serif; min-width: 3.4em; text-align: right; }
 
 .hud-btn {
   width: 56px;
   height: 56px;
+  flex: none;
   display: grid;
   place-items: center;
   border: 3px solid rgba(255, 255, 255, 0.85);
@@ -86,21 +142,12 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.fs-btn .fs-close { display: none; }
-body.is-fullscreen .fs-btn .fs-open { display: none; }
-body.is-fullscreen .fs-btn .fs-close { display: inline; }
 
-button:focus-visible,
-a:focus-visible {
-  outline: 4px solid var(--yellow);
-  outline-offset: 3px;
-}
-
-/* ---------- Aide en bas d'écran ---------- */
-.hint {
+/* ---------- Messages ---------- */
+.hint,
+.toast {
   position: fixed;
   left: 50%;
-  bottom: calc(18px + var(--safe-b));
   transform: translateX(-50%);
   max-width: calc(100vw - 32px);
   margin: 0;
@@ -110,12 +157,15 @@ a:focus-visible {
   text-align: center;
   font-size: 18px;
   opacity: 0;
-  transition: opacity .6s;
+  transition: opacity .5s;
   pointer-events: none;
   z-index: 4;
 }
-.hint.show { opacity: 1; }
-body[data-input="touch"] .hint { bottom: auto; top: calc(80px + var(--safe-t)); }
+.hint { bottom: calc(18px + var(--safe-b)); }
+.toast { top: calc(84px + var(--safe-t)); border: 2px solid rgba(255, 255, 255, 0.6); }
+.hint.show,
+.toast.show { opacity: 1; }
+body[data-input="touch"] .hint { bottom: calc(140px + var(--safe-b)); }
 
 /* ---------- Joystick virtuel et bouton Action ---------- */
 .joy {
@@ -163,38 +213,41 @@ body[data-input="touch"] .hint { bottom: auto; top: calc(80px + var(--safe-t)); 
 /* les commandes tactiles n'apparaissent qu'après un premier toucher */
 body:not([data-input="touch"]) .action-btn { display: none; }
 
-/* ---------- Menus (pause…) ---------- */
+/* ---------- Écrans ---------- */
 .overlay {
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 16px;
-  background: rgba(4, 24, 30, 0.6);
+  padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+  background: rgba(4, 24, 30, 0.55);
   z-index: 10;
   touch-action: manipulation;
 }
 .card {
-  width: min(420px, 100%);
+  width: min(440px, 100%);
   max-height: calc(100dvh - 32px);
   overflow: auto;
-  padding: 1.4rem 1.4rem 1.6rem;
+  padding: 1.3rem 1.4rem 1.5rem;
   border-radius: 28px;
   border: 4px solid rgba(255, 255, 255, 0.85);
   background: var(--panel);
   text-align: center;
 }
 .card h2 {
-  margin: 0 0 1rem;
+  margin: 0 0 .6rem;
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
-  font-size: 2rem;
+  font-size: 1.9rem;
+  line-height: 1.1;
 }
+.card-text { margin: 0 0 1.1rem; line-height: 1.45; }
+.card > .big-btn { width: 100%; }
 .menu { display: grid; gap: 12px; }
 .big-btn {
   display: block;
   min-height: 56px;
-  padding: .7rem 1rem;
+  padding: .65rem 1rem;
   border: 0;
   border-radius: 18px;
   background: var(--yellow);
@@ -216,6 +269,119 @@ body:not([data-input="touch"]) .action-btn { display: none; }
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.12);
   line-height: 1.4;
+}
+
+/* Titre */
+.title-screen { background: transparent; }
+.title-box { width: min(440px, 100%); text-align: center; }
+.logo {
+  margin: 0;
+  font: 800 clamp(3rem, 12vw, 5.2rem) / 1 'Baloo 2', sans-serif;
+  color: #FFF3A0;
+  text-shadow: 0 4px 0 #1F7A72, 0 8px 18px rgba(0, 0, 0, 0.35);
+  letter-spacing: .02em;
+}
+.pitch {
+  margin: .6rem 0 1.3rem;
+  padding: .7rem 1rem;
+  border-radius: 18px;
+  background: rgba(8, 44, 54, 0.7);
+  line-height: 1.45;
+}
+
+/* Intro d'étape */
+.intro-screen { cursor: pointer; }
+.intro-ago { margin: 0 0 .2rem; color: #BDEFE0; }
+.intro-goal,
+.intro-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: .5rem 0;
+}
+.intro-goal { font: 700 1.35rem 'Baloo 2', sans-serif; }
+.goal-icon svg { width: 40px; height: 40px; display: block; }
+.intro-danger { margin-bottom: 1.1rem; color: #FFD0C8; }
+.danger-dot {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--red);
+  border: 2px solid #fff;
+  color: #fff;
+  font: 800 18px 'Baloo 2', sans-serif;
+}
+
+/* Fiche découverte */
+.fiche { text-align: left; }
+.fiche h2 { text-align: center; margin-bottom: .2rem; }
+.fiche-art { display: block; width: 160px; height: 110px; margin: 0 auto .3rem; }
+.fiche-example { margin: 0 0 .7rem; text-align: center; color: #BDEFE0; font-size: 16px; }
+.fiche-label { font: 700 1rem 'Baloo 2', sans-serif; color: var(--yellow); }
+.fiche-when { margin: 0 0 .6rem; }
+.fiche-fact {
+  padding: .6rem .8rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  margin-bottom: .6rem;
+}
+.fiche-fact p { margin: 0; line-height: 1.45; }
+.fiche-change { display: flex; gap: 12px; align-items: center; margin-bottom: 1rem; }
+.fiche-change p { margin: 0; line-height: 1.4; }
+.change-icon svg { width: 48px; height: 48px; display: block; }
+.fiche-actions { display: flex; gap: 10px; }
+.fiche-actions .big-btn { flex: 1; }
+
+/* Transition */
+.transition-screen { background: transparent; cursor: pointer; align-items: start; }
+.transition-box { margin-top: 8vh; text-align: center; max-width: 640px; }
+.trans-title {
+  margin: 0;
+  font: 800 clamp(1.8rem, 6vw, 2.8rem) / 1.1 'Baloo 2', sans-serif;
+  color: #FFF3A0;
+}
+.trans-ago { margin: .4rem 0 .8rem; font: 700 1.3rem 'Baloo 2', sans-serif; color: #BDEFE0; }
+.trans-text { margin: 0; line-height: 1.45; font-size: 1.15rem; }
+.skip-btn {
+  position: fixed;
+  right: calc(16px + var(--safe-r));
+  bottom: calc(16px + var(--safe-b));
+  min-height: 48px;
+  padding: .4rem 1rem;
+  border-radius: 16px;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  background: rgba(8, 44, 54, 0.6);
+  color: var(--cream);
+  font: 700 1.05rem 'Baloo 2', sans-serif;
+  cursor: pointer;
+}
+
+/* Petits écrans en paysage : on resserre */
+@media (max-height: 480px) {
+  .card { padding: .8rem 1rem 1rem; }
+  .card h2 { font-size: 1.5rem; }
+  /* fiche sur deux colonnes : la créature à gauche, le texte à droite */
+  .fiche {
+    width: min(760px, 100%);
+    display: grid;
+    grid-template-columns: minmax(180px, 0.8fr) 1.2fr;
+    gap: 14px;
+    align-items: center;
+  }
+  .fiche-art { width: 140px; height: 90px; }
+  .fiche-when { text-align: center; margin: 0; }
+  .fiche-fact { margin-bottom: .4rem; }
+  .fiche-change { margin-bottom: .6rem; }
+  .change-icon svg { width: 38px; height: 38px; }
+  .big-btn { min-height: 48px; padding: .45rem .9rem; }
+  .menu { gap: 8px; }
+  .logo { font-size: 2.6rem; }
+  .pitch { margin: .3rem 0 .7rem; padding: .5rem .8rem; }
+  .transition-box { margin-top: 2vh; }
 }
 
 /* ---------- Compteur d'images par seconde (?debug) ---------- */

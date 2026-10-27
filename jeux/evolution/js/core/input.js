@@ -108,6 +108,7 @@ export function createInput({ surface, joyBase, joyKnob, actionBtn, on = {} }) {
   /* ---------- Clavier ---------- */
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    setDevice('keyboard');
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (!e.repeat && on.pause) on.pause();
       e.preventDefault();
@@ -117,14 +118,14 @@ export function createInput({ surface, joyBase, joyKnob, actionBtn, on = {} }) {
       if (!e.repeat && on.fullscreen) on.fullscreen();
       return;
     }
-    if (!input.enabled) return;    // les menus utilisent le clavier normalement
     if (!GAME_CODES.has(e.code) && e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
-    e.preventDefault();
-    setDevice('keyboard');
+    // les menus utilisent le clavier normalement (Espace et Entrée cliquent les boutons),
+    // mais on retient quand même les directions : on nage dès la fermeture du menu
+    if (input.enabled) e.preventDefault();
     if (e.repeat) return;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') shift = true;
-    else if (e.code === 'Space') { spaceHeld = true; presses.action++; }
-    else if (e.code === 'Enter' || e.code === 'NumpadEnter') presses.confirm++;
+    else if (e.code === 'Space') { if (input.enabled) { spaceHeld = true; presses.action++; } }
+    else if (e.code === 'Enter' || e.code === 'NumpadEnter') { if (input.enabled) presses.confirm++; }
     else held.add(e.code);
   });
 
@@ -152,9 +153,13 @@ export function createInput({ surface, joyBase, joyKnob, actionBtn, on = {} }) {
     if (joyBase) joyBase.classList.remove('on');
   }
 
+  // n'importe quel toucher (même sur un bouton de menu) passe les aides en mode tactile
+  window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse') setDevice('touch');
+  }, true);
+
   surface.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse') return;
-    setDevice('touch');
     if (!input.enabled || joy.id !== null) return;
     // moitié gauche de l'écran, sauf s'il n'y a pas de bouton Action à cette étape
     if (input.actionAvailable && e.clientX > window.innerWidth / 2) return;
@@ -191,7 +196,6 @@ export function createInput({ surface, joyBase, joyKnob, actionBtn, on = {} }) {
 
   if (actionBtn) {
     actionBtn.addEventListener('pointerdown', (e) => {
-      setDevice(e.pointerType === 'mouse' ? input.device || 'keyboard' : 'touch');
       if (!input.enabled) return;
       actionPointer = e.pointerId;
       presses.action++;
