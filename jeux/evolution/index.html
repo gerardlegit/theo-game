@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B3C4A">
+<title>Jeu sur l'évolution des espèces pour enfants – Évolution | La Cabane à Jeux</title>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "LearningResource", "name": "Évolution", "url": "https://www.la-cabane.app/jeux/evolution/", "description": "Jeu gratuit pour enfants sur l'évolution : pars d'une minuscule cellule, mange, grandis et deviens poisson, reptile, oiseau ou singe !", "inLanguage": "fr", "isAccessibleForFree": true, "learningResourceType": "Jeu éducatif", "interactivityType": "active", "about": "Nature et animaux", "teaches": "l'évolution des êtres vivants et l'arbre de la vie", "audience": {"@type": "EducationalAudience", "educationalRole": "student"}, "image": "https://www.la-cabane.app/og-image.jpg", "isPartOf": {"@type": "WebSite", "@id": "https://www.la-cabane.app/#website", "name": "La Cabane à Jeux", "url": "https://www.la-cabane.app/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "La Cabane à Jeux", "item": "https://www.la-cabane.app/"}, {"@type": "ListItem", "position": 2, "name": "Évolution", "item": "https://www.la-cabane.app/jeux/evolution/"}]}]}</script>
+<meta name="description" content="Jeu gratuit pour enfants sur l'évolution : pars d'une minuscule cellule, mange, grandis et deviens poisson, reptile, oiseau ou singe !">
+<link rel="canonical" href="https://www.la-cabane.app/jeux/evolution/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Cabane à Jeux">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="https://www.la-cabane.app/jeux/evolution/">
+<meta property="og:title" content="Évolution — La Cabane à Jeux">
+<meta property="og:description" content="Jeu gratuit pour enfants sur l'évolution : pars d'une minuscule cellule, mange, grandis et deviens poisson, reptile, oiseau ou singe !">
+<meta property="og:image" content="https://www.la-cabane.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La Cabane à Jeux : une cabane dans un arbre, des jeux éducatifs pour apprendre en s'amusant">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <canvas id="game" aria-label="Évolution : ta cellule nage dans l’océan primitif"></canvas>
+
+  <div class="hud hud-right">
+    <button id="fsBtn" class="hud-btn fs-btn" aria-label="Plein écran">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="fs-open" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="fs-close" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+    </button>
+    <button id="pauseBtn" class="hud-btn" aria-label="Pause">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+    </button>
+  </div>
+
+  <p class="hint" id="hint" aria-live="polite"></p>
+
+  <!-- Commandes tactiles (cachées tant que l'écran n'a pas été touché) -->
+  <div class="joy" id="joyBase" aria-hidden="true"><div class="joy-knob" id="joyKnob"></div></div>
+  <button class="action-btn" id="actionBtn" aria-label="Action" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 6 13h5l-1 8 7-10h-5z"/></svg>
+  </button>
+
+  <!-- Pause -->
+  <div class="overlay" id="pauseOverlay" hidden>
+    <div class="card" role="dialog" aria-labelledby="pauseTitle">
+      <h2 id="pauseTitle">Pause</h2>
+      <div class="menu">
+        <button id="resumeBtn" class="big-btn">▶ Reprendre</button>
+        <button id="fsBtn2" class="big-btn ghost">Plein écran</button>
+        <a class="big-btn ghost" href="../../">🏠 Retour à la Cabane</a>
+      </div>
+      <p class="ios-tip" id="iosTip" hidden></p>
+    </div>
+  </div>
+
+  <p class="fps" id="fps" hidden></p>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

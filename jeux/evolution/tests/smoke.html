@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<title>Test du jeu – Évolution</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 0; }
+  iframe { display: block; border: 0; width: 1280px; height: 720px; }
+  section { margin: 1rem; }
+</style>
+</head>
+<body>
+  <!-- Le vrai jeu, piloté par des événements simulés (clavier, doigt) -->
+  <iframe id="frame" src="../?debug"></iframe>
+  <script type="module">
+    import { test, ok, eq, near, run } from './runner.js';
+
+    const frame = document.getElementById('frame');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const W = () => frame.contentWindow;
+    const D = () => frame.contentDocument;
+    const game = () => W().__evolution;
+    const player = () => game().scenes.current.player;
+
+    function key(type, code) {
+      W().dispatchEvent(new (W().KeyboardEvent)(type, { code, key: code, bubbles: true, cancelable: true }));
+    }
+    async function hold(code, ms) {
+      key('keydown', code);
+      await wait(ms);
+      key('keyup', code);
+      await wait(50);
+    }
+    function pointer(type, x, y, id = 7) {
+      const canvas = D().getElementById('game');
+      canvas.dispatchEvent(new (W().PointerEvent)(type, {
+        pointerId: id, pointerType: 'touch', isPrimary: true,
+        clientX: x, clientY: y, bubbles: true, cancelable: true,
+      }));
+    }
+
+    await new Promise((r) => frame.addEventListener('load', r, { once: true }));
+    for (let i = 0; i < 50 && !(W().__evolution && W().__evolution.loop); i++) await wait(100);
+    await wait(1200);              // laisse la boucle tourner pour mesurer les i/s
+
+    test('le jeu démarre et la boucle tourne', () => {
+      ok(game(), 'window.__evolution absent');
+      ok(game().loop.stats.fps > 0, 'pas d’images');
+    });
+
+    test('images par seconde (≥ 55 attendu)', () => {
+      const fps = game().loop.stats.fps;
+      ok(fps >= 55, `${fps.toFixed(1)} i/s`);
+    });
+
+    test('le canvas remplit la fenêtre', () => {
+      const v = game().view;
+      eq(v.w, 1280);
+      eq(v.h, 720);
+      eq(D().getElementById('game').width, Math.round(1280 * v.dpr));
+    });
+
+    test('flèche droite : la cellule nage vers la droite', async () => {
+      const x0 = player().x;
+      await hold('ArrowRight', 700);
+      ok(player().x > x0 + 40, `x ${x0} → ${player().x}`);
+    });
+
+    test('inertie : la cellule glisse encore après avoir lâché', async () => {
+      key('keydown', 'ArrowRight');
+      await wait(800);
+      key('keyup', 'ArrowRight');
+      const x0 = player().x;
+      await wait(250);
+      ok(player().x > x0 + 5, 'aucune glissade');
+    });
+
+    test('Q (AZERTY) / A (QWERTY) : vers la gauche', async () => {
+      await wait(1500);
+      const x0 = player().x;
+      await hold('KeyA', 700);
+      ok(player().x < x0 - 40, `x ${x0} → ${player().x}`);
+    });
+
+    test('Z (AZERTY) / W (QWERTY) : vers le haut', async () => {
+      const y0 = player().y;
+      await hold('KeyW', 700);
+      ok(player().y < y0 - 40, `y ${y0} → ${player().y}`);
+    });
+
+    test('Maj : sprint plus rapide', async () => {
+      await wait(1500);
+      await hold('ArrowDown', 1000);
+      const normal = Math.hypot(player().vx, player().vy);
+      key('keydown', 'ShiftLeft');
+      await hold('ArrowDown', 1000);
+      key('keyup', 'ShiftLeft');
+      const fast = Math.hypot(player().vx, player().vy);
+      ok(fast > normal * 1.3, `${normal.toFixed(0)} → ${fast.toFixed(0)}`);
+    });
+
+    test('joystick : apparaît sous le doigt et fait nager', async () => {
+      await wait(1500);
+      const x0 = player().x;
+      pointer('pointerdown', 300, 400);
+      ok(D().getElementById('joyBase').classList.contains('on'), 'joystick caché');
+      eq(D().body.dataset.input, 'touch', 'aides tactiles');
+      pointer('pointermove', 360, 400);
+      await wait(700);
+      pointer('pointerup', 360, 400);
+      ok(player().x > x0 + 40, `x ${x0} → ${player().x}`);
+      ok(!D().getElementById('joyBase').classList.contains('on'), 'joystick encore affiché');
+    });
+
+    test('bouton Action visible en tactile, réagit au toucher', async () => {
+      const btn = D().getElementById('actionBtn');
+      ok(btn.getBoundingClientRect().width >= 88, 'bouton trop petit ou caché');
+      btn.dispatchEvent(new (W().PointerEvent)('pointerdown', { pointerId: 9, pointerType: 'touch', bubbles: true, cancelable: true }));
+      await wait(60);
+      ok(player().pulse > 0, 'aucune réaction');
+      ok(btn.classList.contains('pressed'), 'pas de retour visuel');
+      btn.dispatchEvent(new (W().PointerEvent)('pointerup', { pointerId: 9, pointerType: 'touch', bubbles: true }));
+    });
+
+    test('Échap : pause, la cellule ne bouge plus', async () => {
+      key('keydown', 'Escape');
+      key('keyup', 'Escape');
+      ok(!D().getElementById('pauseOverlay').hidden, 'menu pause absent');
+      const x0 = player().x;
+      key('keydown', 'ArrowRight');
+      await wait(400);
+      key('keyup', 'ArrowRight');
+      eq(player().x, x0, 'bouge en pause');
+      key('keydown', 'Escape');
+      ok(D().getElementById('pauseOverlay').hidden, 'pause pas fermée');
+    });
+
+    test('pas de défilement de la page', () => {
+      const se = D().scrollingElement;
+      ok(se.scrollHeight <= W().innerHeight && se.scrollWidth <= W().innerWidth, 'la page déborde');
+    });
+
+    test('bouton plein écran présent', () => {
+      ok(!D().getElementById('fsBtn').hidden);
+    });
+
+    test('portrait : 900 unités de large', async () => {
+      frame.style.width = '500px';
+      frame.style.height = '800px';
+      await wait(400);
+      near(500 / game().camera.zoom, 900, 1e-6);
+    });
+
+    await run('jeu (fumée)');
+  </script>
+</body>
+</html>
