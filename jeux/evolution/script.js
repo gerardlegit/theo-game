@@ -10,9 +10,10 @@
 import { LEVELS } from './levels/index.js';
 import {
   drawCreature, drawPlayer, drawDecor, drawCover, drawDrop, drawSweat, drawAlert,
-  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, AMMO_SVG,
+  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, AMMO_SVG, PLAYER,
 } from './art.js';
 import { drawCloudShadows, SIDE } from './art-terre.js';
+import './art-dinos.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
@@ -20,6 +21,7 @@ import { sfx, isSoundOn, toggleSound } from './sound.js';
 const SAVE_KEY = 'evolution-save';
 const SAVE_VERSION = 1;
 const TAU = Math.PI * 2;
+const MAX_PIXELS = 3.6e6;          // pixels au plus dans une toile plein écran
 
 /* ---------- Typographie : espaces insécables avant ! ? : ; » et après « ---------- */
 // (sinon, sur un petit écran, un « ! » peut se retrouver tout seul en début de ligne)
@@ -374,7 +376,9 @@ function resize() {
   const rect = stage.getBoundingClientRect();
   cssW = Math.max(1, rect.width);
   cssH = Math.max(1, rect.height);
-  dpr = Math.min(2, window.devicePixelRatio || 1);
+  // sur un très grand écran, on limite le nombre de pixels (sinon le jeu rame et
+  // chaque toile prend des dizaines de Mo)
+  dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1, Math.sqrt(MAX_PIXELS / (cssW * cssH))));
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   if (player) zoom = targetZoom();
@@ -391,6 +395,11 @@ function sizeCanvas(c, host) {
   const r = host.getBoundingClientRect();
   c.width = Math.round(r.width * dpr);
   c.height = Math.round(r.height * dpr);
+}
+
+/** Une toile qui ne sert plus (intro, fin) : on rend sa mémoire */
+function freeCanvas(c) {
+  c.width = c.height = 1;
 }
 
 /* ---------- Construction du monde (décor) ---------- */
@@ -1500,7 +1509,14 @@ function timeTravel() {
   }, 3000);
 }
 
+/** Les couleurs du joueur changent à chaque chapitre (chapters[].skin) */
+const PLAYER_DEFAULT = { ...PLAYER };
+function applySkin() {
+  Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null }, CH.skin || {});
+}
+
 function setupChapter(keepPos) {
+  applySkin();
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   const x = keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
   const y = keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
@@ -2271,6 +2287,7 @@ function endIntro() {
   if (state !== 'intro') return;
   intro = null;
   introOverlay.hidden = true;
+  freeCanvas(introCanvas);
   flash = { a: 0.8, color: '255,255,255' };
   beginPlay();
 }
@@ -2353,6 +2370,7 @@ $('endChoices').addEventListener('click', (e) => {
 /** On passe au niveau suivant : on garde son ADN et ses statistiques, le reste repart à zéro */
 function goToLevel(i) {
   endOverlay.hidden = true;
+  freeCanvas(endCanvas);
   startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
@@ -2373,6 +2391,7 @@ $('endAgain').addEventListener('click', () => goToLevel(game.level));
 $('endReplay').addEventListener('click', () => {
   clearSave();
   endOverlay.hidden = true;
+  freeCanvas(endCanvas);
   game = null;
   showStartScreen();
 });

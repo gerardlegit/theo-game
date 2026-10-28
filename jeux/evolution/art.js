@@ -21,14 +21,15 @@ export const FORM_SPINE = { cellule: null, ver: 'ver', poisson: 'poisson' };   /
 const shadeCache = new Map();
 /** Éclaircit (k > 0) ou assombrit (k < 0) une couleur #RRGGBB */
 export function shade(hex, k) {
-  const key = hex + k;
-  let out = shadeCache.get(key);
+  let byK = shadeCache.get(hex);
+  if (!byK) { byK = new Map(); shadeCache.set(hex, byK); }
+  let out = byK.get(k);
   if (out) return out;
   const n = parseInt(hex.slice(1), 16);
   let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
   if (k < 0) { r *= 1 + k; g *= 1 + k; b *= 1 + k; } else { r += (255 - r) * k; g += (255 - g) * k; b += (255 - b) * k; }
   out = `rgb(${r | 0},${g | 0},${b | 0})`;
-  shadeCache.set(key, out);
+  byK.set(k, out);
   return out;
 }
 
@@ -1548,7 +1549,7 @@ export function speciesThumb(id, sp, size = 96) {
 
 /** Image du joueur avec une évolution donnée (pour la boutique d'évolutions) */
 export function playerThumb(form, parts, size = 96) {
-  const key = 'pl:' + form + Object.keys(parts).sort().join(',') + size;
+  const key = 'pl:' + form + PLAYER.body + Object.keys(parts).sort().join(',') + size;
   if (thumbCache.has(key)) return thumbCache.get(key);
   const c = document.createElement('canvas');
   c.width = c.height = size * 2;

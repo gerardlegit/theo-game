@@ -31,12 +31,14 @@
 //      flying (vole par-dessus le décor), cone (angle de vue : derrière lui,
 //      il ne te voit pas), pack (chasse en meute), stomp (pas qui font
 //      trembler), roar (rugit en te repérant), hurt (texte quand il blesse).
-//      Leur dessin ("look") est dans art.js ou art-terre.js (terre ferme).
+//      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
+//      ferme) ou art-dinos.js (dinosaures : trex, triceratops, stegosaure…).
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
 //      dry = on sèche moins vite, cones = voir les regards, radar).
 //   5. "chapters" : époque ("ago", en millions d'années), forme du joueur
-//      ("form" : cellule, ver, poisson, tetrapode, reptile, dino), tailles
+//      ("form" : cellule, ver, poisson, tetrapode, reptile, dino, grand-dino,
+//      tyran) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
 //      ("size"), ADN pour grandir ("growth"), espèces présentes, évolutions
 //      débloquées et missions (eat / evolve / grow). Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).
