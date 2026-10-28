@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B3B57">
+<title>Jeu sur l'évolution des espèces pour enfants – Évolution | La Cabane à Jeux</title>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "LearningResource", "name": "Évolution", "url": "https://www.la-cabane.app/jeux/evolution/", "description": "Jeu gratuit sur l'évolution : de la cellule au poisson géant, mange pour grandir, fais évoluer ton corps et ne te fais pas croquer !", "inLanguage": "fr", "isAccessibleForFree": true, "learningResourceType": "Jeu éducatif", "interactivityType": "active", "about": "Nature et animaux", "teaches": "l'évolution des êtres vivants dans l'océan, de la cellule aux poissons", "audience": {"@type": "EducationalAudience", "educationalRole": "student"}, "image": "https://www.la-cabane.app/og-image.jpg", "isPartOf": {"@type": "WebSite", "@id": "https://www.la-cabane.app/#website", "name": "La Cabane à Jeux", "url": "https://www.la-cabane.app/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "La Cabane à Jeux", "item": "https://www.la-cabane.app/"}, {"@type": "ListItem", "position": 2, "name": "Évolution", "item": "https://www.la-cabane.app/jeux/evolution/"}]}]}</script>
+<meta name="description" content="Jeu gratuit sur l'évolution : de la cellule au poisson géant, mange pour grandir, fais évoluer ton corps et ne te fais pas croquer !">
+<link rel="canonical" href="https://www.la-cabane.app/jeux/evolution/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Cabane à Jeux">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="https://www.la-cabane.app/jeux/evolution/">
+<meta property="og:title" content="Évolution — La Cabane à Jeux">
+<meta property="og:description" content="Jeu gratuit sur l'évolution : de la cellule au poisson géant, mange pour grandir, fais évoluer ton corps et ne te fais pas croquer !">
+<meta property="og:image" content="https://www.la-cabane.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La Cabane à Jeux : une cabane dans un arbre, des jeux éducatifs pour apprendre en s'amusant">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Même style que Mission Cosmos et Livraisons dans l'espace, en version océan -->
+<link rel="stylesheet" href="../espace/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../">← La Cabane</a>
+
+  <!-- Toujours visible, même par-dessus les fenêtres du jeu -->
+  <button id="quitBtn" class="exit-btn" aria-label="Quitter le jeu">🏠 <span class="btn-label">Quitter</span></button>
+
+  <header class="game-header">
+    <h1>🧬 Évolution</h1>
+    <p>De la cellule au roi des océans : mange, grandis, évolue… et ne te fais pas croquer !</p>
+  </header>
+
+  <div class="hud">
+    <div class="hud-item adn-item" id="adnItem" title="Ton ADN : il sert à évoluer">🧬 <span id="adn">0</span></div>
+    <div class="hud-item size-item" title="Ta taille : mange pour grandir">📏 <span class="btn-label">Taille</span>
+      <span class="gold-bar" aria-hidden="true"><i id="sizeBar"></i></span>
+    </div>
+    <div class="hud-item era-item" title="L'époque">⏳ <span id="era"></span></div>
+    <div class="hud-item shield-item" id="shieldItem" title="Ta carapace : les morsures qu'elle peut encaisser" hidden><span id="shields"></span></div>
+    <button id="evoBtn" class="hud-btn evo-btn" aria-label="Évoluer">🧬 <span class="btn-label">Évoluer</span></button>
+    <button id="soundBtn" class="hud-btn" aria-label="Couper ou remettre le son">🔊</button>
+    <button id="fsBtn" class="hud-btn desktop-only" aria-label="Plein écran" title="Plein écran">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path class="fs-in" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+        <path class="fs-out" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <section class="game-layout">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="seaCanvas"></canvas>
+
+        <div class="mission-panel" id="missionPanel">
+          <button class="mission-head" id="missionToggle" aria-expanded="true">
+            🎯 <span class="mission-head-text" id="missionTitle">Mes missions</span>
+          </button>
+          <ol class="mission-list" id="missionList"></ol>
+        </div>
+
+        <div class="photo-card fact-card" id="factCard" hidden>
+          <div class="pc-pic"><img id="fcImg" alt=""></div>
+          <div class="pc-body">
+            <p class="pc-tag"><span class="tag tag-new" id="fcTag"></span></p>
+            <p class="pc-name"><span id="fcName"></span> <small id="fcWhere"></small></p>
+            <p class="pc-fact" id="fcFact"></p>
+          </div>
+        </div>
+
+        <!-- Ammo, l'ammonite qui guide (son dessin est ajouté par art.js) -->
+        <div class="copilot" id="copilot">
+          <div class="bubble" id="bubble"></div>
+        </div>
+
+        <canvas class="minimap" id="minimap" aria-label="Radar : algues, proies et chasseurs autour de toi"></canvas>
+      </div>
+
+      <div class="touch-pad" id="touchPad" aria-label="Commandes tactiles">
+        <div class="dpad">
+          <button data-dir="up" class="dpad-up" aria-label="Haut">▲</button>
+          <button data-dir="left" class="dpad-left" aria-label="Gauche">◀</button>
+          <button data-dir="right" class="dpad-right" aria-label="Droite">▶</button>
+          <button data-dir="down" class="dpad-down" aria-label="Bas">▼</button>
+        </div>
+        <div class="pad-actions">
+          <button id="dashBtn" class="turbo-btn dash-btn">💨 Fonce <kbd class="desktop-only">Espace</kbd></button>
+        </div>
+      </div>
+
+      <p class="desk-help desktop-only">
+        <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> nager ·
+        <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer
+      </p>
+    </div>
+  </section>
+
+  <!-- Écran de départ -->
+  <div class="start-overlay" id="startOverlay" hidden>
+    <div class="order-card start-card">
+      <p class="order-title">🧬 Évolution</p>
+      <p class="start-level" id="startLevel"></p>
+      <p class="start-goal" id="startGoal"></p>
+      <p class="start-done" id="startDone" hidden></p>
+      <ul class="how-to" id="howTo">
+        <li><span class="keys"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keys"><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> pour nager, <kbd>Espace</kbd> : foncer</li>
+        <li class="phone-only">👆 Garde le doigt appuyé sur l'écran : tu nages vers lui</li>
+        <li>😋 Touche avec ta bouche ce qui est <b>plus petit</b> que toi : miam, ça te fait grandir !</li>
+        <li>😱 Ce qui est <b>plus gros</b> que toi te mange ! Un « ! » rouge : on t'a repéré, fuis !</li>
+        <li>🌿 Cache-toi dans les algues : les chasseurs ne te voient plus</li>
+        <li>🧬 Avec l'ADN que tu manges, fais évoluer ton corps : queue, yeux, mâchoires…</li>
+      </ul>
+      <div class="order-actions">
+        <button id="startBtn">🌊 Plonger !</button>
+        <button id="newGameBtn" class="ghost-btn" hidden>🆕 Nouvelle partie</button>
+        <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
+      </div>
+      <p class="save-note">💾 Ta partie est sauvegardée toute seule : tu peux revenir quand tu veux.</p>
+    </div>
+  </div>
+
+  <!-- Fenêtres : chapitre, évolutions… -->
+  <div class="dlg-overlay" id="dialog" hidden>
+    <div class="dlg-card" id="dialogCard" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- Des millions d'années plus tard… -->
+  <div class="time-overlay" id="timeOverlay" hidden>
+    <div class="time-box">
+      <div class="time-spiral" aria-hidden="true">⏳</div>
+      <p class="time-title">Des millions d'années plus tard…</p>
+      <p class="time-count" id="timeCount"></p>
+      <p class="time-sub">Génération après génération, tes descendants changent.</p>
+    </div>
+  </div>
+
+  <!-- La fin du niveau : le roi de l'océan, puis le grand choix -->
+  <div class="end-overlay" id="endOverlay" hidden>
+    <canvas id="endCanvas"></canvas>
+    <div class="end-text">
+      <p class="end-title" id="endTitle"></p>
+      <p class="end-sub" id="endSub"></p>
+      <p class="end-stats" id="endStats"></p>
+      <div class="end-choices" id="endChoices"></div>
+      <div class="end-result" id="endResult" hidden>
+        <p class="end-result-icon" id="endResultIcon"></p>
+        <p class="end-soon" id="endSoon"></p>
+        <p class="end-fact" id="endFact"></p>
+        <div class="end-actions">
+          <button id="endNext" class="royal-btn" hidden>Niveau suivant ▶</button>
+          <button id="endReplay">🔁 Rejouer depuis la cellule</button>
+          <a class="ghost-btn quit-link" href="../../">🏠 La Cabane</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- L'animation de départ : volcans, soupe primitive, naissance de la cellule (intro.js) -->
+  <div class="intro-overlay" id="introOverlay" hidden>
+    <canvas id="introCanvas"></canvas>
+    <button id="introSkip" class="intro-skip">Passer ⏭</button>
+  </div>
+
+  <!-- Quitter le jeu -->
+  <div class="quit-overlay" id="quitOverlay" hidden>
+    <div class="quit-card" role="dialog" aria-labelledby="quitTitle">
+      <p class="quit-title" id="quitTitle">Quitter le jeu ?</p>
+      <p class="quit-sub">Pas de panique : ta partie est sauvegardée 💾</p>
+      <div class="quit-actions">
+        <button id="quitYes">🏠 Retour à la Cabane</button>
+        <button id="quitNo" class="ghost-btn">Non, je continue 🌊</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

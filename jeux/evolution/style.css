@@ -1,0 +1,555 @@
+/* ============================================================================
+   Évolution — ce fichier complète ../espace/style.css (même HUD, même scène,
+   même guide que Mission Cosmos et Livraisons dans l'espace), en version océan.
+   ============================================================================ */
+
+:root {
+  --night: #062A40;
+  --night-2: #0D4A63;
+  --panel: rgba(5, 36, 52, 0.82);
+  --muted: #A6D8D8;
+  --star-text: #F0FFFB;
+  --sea: #4FD1C5;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(79, 209, 197, 0.3), transparent 55%),
+    radial-gradient(ellipse at 90% 30%, rgba(79, 184, 232, 0.2), transparent 50%),
+    linear-gradient(180deg, var(--night-2) 0%, var(--night) 60%);
+  background-attachment: fixed;
+}
+.game-header h1 { text-shadow: 3px 3px 0 var(--green); }
+.stage { background: #0B3B57; }
+#seaCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* ---------- HUD ---------- */
+.adn-item #adn { font-weight: 800; color: #FFE58A; }
+.adn-item.bump { animation: hudBump .5s ease; }
+@keyframes hudBump {
+  40% { transform: scale(1.18); background: rgba(255, 229, 138, 0.35); }
+}
+.size-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  min-width: 120px;
+  padding-bottom: .55rem;
+  overflow: hidden;
+}
+.gold-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  height: 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.gold-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #58C97B, #B8F36B);
+  transition: width .4s ease;
+}
+.era-item #era { font-weight: 700; color: #BDF5EC; }
+.shield-item { letter-spacing: -.1em; }
+.evo-btn { font-weight: 800; }
+.evo-btn.ready {
+  background: linear-gradient(180deg, #FFD24A, #F2A93B) !important;
+  color: var(--ink);
+  border-color: #FFE58A;
+  animation: evoReady 1.4s ease-in-out infinite;
+}
+@keyframes evoReady {
+  50% { transform: scale(1.08); box-shadow: 0 0 18px rgba(255, 210, 74, 0.8); }
+}
+
+/* ---------- Missions ---------- */
+.mission-panel { width: 270px; }
+.mission-panel .m-thumb { width: 40px; height: 40px; background: rgba(79, 209, 197, 0.18); }
+.mission-panel .m-thumb img { transform: scale(1.1); }
+.m-item.revenge:not(.done) { border: 1px solid rgba(255, 111, 145, 0.55); }
+
+/* ---------- Ammo, le guide ---------- */
+.ammo { width: 74px; height: 74px; }
+.ammo-tent { transform-box: fill-box; transform-origin: top center; animation: tentacles 1.6s ease-in-out infinite; }
+@keyframes tentacles {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(5deg); }
+}
+.bubble { max-width: 360px; }
+
+/* ---------- Fiche « Le savais-tu ? » ---------- */
+.fact-card { top: auto; bottom: 10px; right: 180px; width: min(400px, 52%); cursor: pointer; }
+.fact-card.pop { animation: factIn .45s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes factIn {
+  from { transform: translateY(30px) scale(.9); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.fact-card .pc-pic { background: radial-gradient(circle at 45% 40%, #2C8C9A, #0B3B57); }
+.fact-card .pc-pic img { transform: scale(1.05); }
+
+/* ---------- Bouton Fonce (se remplit pendant la recharge) ---------- */
+.dash-btn { background: var(--sky); color: var(--white); box-shadow: 0 5px 0 #2f8fb8; }
+.dash-btn.charging {
+  background: linear-gradient(90deg, var(--sky) var(--charge, 0%), #2E5A78 var(--charge, 0%));
+  box-shadow: 0 5px 0 #1F3F57;
+}
+.pad-actions { display: flex; gap: .6rem; align-items: center; }
+.desk-help {
+  text-align: center;
+  color: var(--muted);
+  font-size: .82rem;
+  margin: .7rem 0 0;
+}
+.desk-help kbd { color: var(--ink); }
+@media (pointer: coarse) { .desk-help { display: none; } }
+
+/* ---------- Écran de départ ---------- */
+.start-overlay { background: rgba(4, 30, 46, 0.6); }
+.start-card { text-align: center; }
+.start-card .order-title { font-size: 1.8rem; color: var(--ink); }
+.start-goal { margin: .3rem 0 .8rem; font-size: 1.02rem; line-height: 1.5; }
+.start-card .how-to { text-align: left; background: rgba(79, 209, 197, 0.14); }
+.save-note { margin: .6rem 0 0; font-size: .78rem; color: #8a84a6; }
+.start-level { margin: 0; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #1F9C8E; }
+.start-done {
+  margin: .3rem 0 .8rem;
+  background: #FFF3C9;
+  border-radius: 14px;
+  padding: .6rem .8rem;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+/* ---------- Fenêtres ---------- */
+.dlg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(4, 30, 46, 0.6);
+  overflow-y: auto;
+}
+.dlg-card {
+  position: relative;
+  margin: auto 0;
+  background: #FFFCF3;
+  color: var(--ink);
+  border-radius: 22px;
+  padding: 1rem 1.2rem .9rem;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 14px 0 rgba(0, 0, 0, 0.25);
+  animation: orderIn .35s cubic-bezier(.2, 1.3, .4, 1);
+}
+.dlg-card.dlg-wide { max-width: 760px; }
+.dlg-head { display: flex; align-items: center; gap: .7rem; margin-bottom: .5rem; }
+.dlg-face {
+  flex: 0 0 auto;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #2C8C9A, #0B3B57);
+  box-shadow: 0 0 0 4px #FFC93C;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.dlg-face .ammo { width: 64px; height: 64px; animation: none; filter: none; }
+.dlg-name { margin: 0; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.35rem; line-height: 1.1; color: #1F9C8E; }
+.dlg-chapter { margin: 0; font-size: .8rem; color: #6a6486; font-weight: 700; }
+.dlg-say {
+  margin: 0 0 .6rem;
+  background: #E3F6F3;
+  border-radius: 14px;
+  padding: .55rem .75rem;
+  font-size: .98rem;
+  line-height: 1.4;
+}
+.dlg-title { margin: 0 0 .3rem; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1F9C8E; text-align: center; }
+.dlg-sub { margin: .2rem 0 .4rem; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: .98rem; }
+.dlg-mission {
+  margin: 0 0 .4rem;
+  background: #FFF3C9;
+  border-radius: 12px;
+  padding: .45rem .7rem;
+  font-size: .98rem;
+}
+.dlg-unlocks { margin: .4rem 0 0; font-size: .88rem; color: #4a4568; }
+.chip {
+  display: inline-block;
+  background: #E3F6F3;
+  border: 1px solid #9ED9CF;
+  border-radius: 999px;
+  padding: 0 .55rem;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  color: #1F7A70;
+}
+.mission-rows { list-style: none; margin: 0 0 .4rem; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.mission-rows li {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  background: #0B3B57;
+  color: var(--white);
+  border-radius: 12px;
+  padding: .25rem .6rem .25rem .3rem;
+  font-weight: 700;
+}
+.mission-rows img { width: 42px; height: 42px; flex: 0 0 auto; }
+.mission-rows small { color: #FF9DBB; }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; align-items: center; margin-top: .7rem; }
+.dlg-card button.primary,
+.dlg-card button.danger,
+.dlg-card button.royal {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  border: none;
+  border-radius: 999px;
+  padding: .5rem 1.4rem;
+  cursor: pointer;
+  color: var(--white);
+  background: var(--green);
+  box-shadow: 0 5px 0 #3a9c58;
+}
+.dlg-card button.danger { background: var(--red); box-shadow: 0 5px 0 #a83a3a; }
+.dlg-card button.royal { background: linear-gradient(180deg, #FFD24A, #F2A93B); color: var(--ink); box-shadow: 0 5px 0 #C99212; font-size: 1.2rem; }
+
+/* La boutique d'évolutions (sur deux colonnes quand il y a la place) */
+.shop-rows { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: .35rem; }
+@media (min-width: 640px) {
+  .dlg-wide .shop-rows { grid-template-columns: 1fr 1fr; }
+}
+.evo-row {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  background: #E3F6F3;
+  border-radius: 14px;
+  padding: .3rem .55rem .3rem .3rem;
+}
+.evo-row img { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 12px; background: radial-gradient(circle at 45% 40%, #2C8C9A, #0B3B57); }
+.evo-row.owned { background: #DDF5E3; }
+.evo-row.locked { opacity: .55; }
+.evo-row.locked img { filter: grayscale(1) brightness(.8); }
+.sr-text { flex: 1; display: flex; flex-direction: column; line-height: 1.25; font-size: .95rem; }
+.sr-text b { font-family: 'Baloo 2', sans-serif; font-size: 1.05rem; }
+.sr-text small { color: #6a6486; font-size: .8rem; }
+.sr-text .sr-poor { color: var(--red); font-weight: 700; }
+.dlg-card button.buy {
+  flex: 0 0 auto;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  border: none;
+  border-radius: 999px;
+  padding: .4rem .9rem;
+  background: #FFC93C;
+  color: var(--ink);
+  box-shadow: 0 4px 0 #d9a21e;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dlg-card button.buy:disabled { background: #E2DEEA; color: #9a95aa; box-shadow: 0 4px 0 #c9c4d4; cursor: not-allowed; }
+.shop-max { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: .9rem; color: var(--green); white-space: nowrap; }
+
+/* ---------- Des millions d'années plus tard… ---------- */
+.time-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 45%, rgba(20, 80, 110, 0.92), rgba(2, 16, 30, 0.97));
+  text-align: center;
+  padding: 1rem;
+}
+.time-overlay.go { animation: timeFade 3s ease both; }
+@keyframes timeFade {
+  0% { opacity: 0; }
+  12%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.time-spiral { font-size: 4rem; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.time-title {
+  margin: .4rem 0 .2rem;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.6rem, 5vw, 2.8rem);
+  color: #FFE58A;
+  text-shadow: 3px 3px 0 #1F9C8E;
+}
+.time-count { margin: 0; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: clamp(1.2rem, 3.5vw, 1.9rem); color: #BDF5EC; font-variant-numeric: tabular-nums; }
+.time-sub { margin: .4rem 0 0; color: var(--muted); }
+
+/* ---------- La fin ---------- */
+.end-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0B3B57;
+}
+#endCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.end-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem 0;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity .8s ease, transform .8s cubic-bezier(.2, 1.4, .4, 1);
+  pointer-events: none;
+}
+.end-overlay.show-text .end-text { opacity: 1; transform: none; pointer-events: auto; }
+.end-title {
+  margin: 0;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.7rem, 5vw, 3rem);
+  color: #FFD24A;
+  text-shadow: 3px 3px 0 #1F9C8E, 0 0 30px rgba(255, 210, 74, 0.6);
+}
+.end-sub { margin: .1rem auto; max-width: 760px; font-size: clamp(.95rem, 2.2vw, 1.15rem); }
+.end-stats { margin: .1rem 0 .5rem; color: var(--muted); font-size: .85rem; }
+.end-choices { display: flex; justify-content: center; gap: .8rem; flex-wrap: wrap; }
+.choice-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .15rem;
+  width: min(280px, 44vw);
+  padding: .7rem .8rem .8rem;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-radius: 20px;
+  background: rgba(255, 252, 243, 0.95);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.25);
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  transition: transform .15s ease;
+}
+.choice-card:hover, .choice-card:focus-visible { transform: translateY(-4px) scale(1.03); border-color: #FFD24A; outline: none; }
+.choice-icon { font-size: 2.6rem; line-height: 1; }
+.choice-title { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.25rem; color: #1F9C8E; }
+.choice-text { font-size: .9rem; line-height: 1.35; }
+.end-overlay.chosen .end-choices { display: none; }
+.end-result-icon { margin: 0; font-size: 3.4rem; line-height: 1.1; }
+.end-soon {
+  display: inline-block;
+  margin: .2rem 0;
+  padding: .35rem 1.1rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FFC93C, #FF8A3C);
+  color: var(--ink);
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
+  box-shadow: 0 0 22px rgba(255, 170, 60, 0.6);
+  animation: soonPulse 1.6s ease-in-out infinite;
+}
+@keyframes soonPulse {
+  50% { transform: scale(1.06); box-shadow: 0 0 34px rgba(255, 170, 60, 0.9); }
+}
+.end-fact { margin: .4rem auto; max-width: 620px; background: rgba(5, 36, 52, 0.75); border-radius: 14px; padding: .45rem .8rem; font-size: .92rem; }
+.end-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+#endReplay, .royal-btn {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  border: none;
+  border-radius: 999px;
+  padding: .5rem 1.3rem;
+  background: var(--green);
+  color: var(--white);
+  box-shadow: 0 5px 0 #3a9c58;
+  cursor: pointer;
+}
+.royal-btn { background: linear-gradient(180deg, #FFD24A, #F2A93B); color: var(--ink); box-shadow: 0 5px 0 #C99212; }
+.end-actions .ghost-btn { color: #D8F5F0; }
+.end-actions .ghost-btn:hover { color: var(--white); }
+.confetti-layer { z-index: 70; }
+
+/* ---------- L'animation de départ ---------- */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #05101A;
+}
+#introCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.intro-skip {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  padding: .4rem 1.1rem;
+  background: rgba(5, 36, 52, 0.55);
+  color: var(--white);
+  cursor: pointer;
+}
+.intro-skip:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* ---------- Bouton Quitter : toujours visible ---------- */
+.exit-btn {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 65;
+  display: none;
+  align-items: center;
+  gap: .3rem;
+  height: 40px;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--white);
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 4px 0 #c94f6e, 0 6px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.exit-btn:hover { transform: translateY(2px); box-shadow: 0 2px 0 #c94f6e, 0 4px 10px rgba(0, 0, 0, 0.35); }
+body.full .exit-btn, body.phone .exit-btn { display: inline-flex; }
+.quit-overlay { z-index: 66; }
+#fsBtn { display: inline-flex; align-items: center; justify-content: center; }
+body.phone #fsBtn { display: none; }
+#fsBtn .fs-out { display: none; }
+#fsBtn.on .fs-in { display: none; }
+#fsBtn.on .fs-out { display: inline; }
+
+/* ---------- Ordinateur : le jeu occupe toute la fenêtre ---------- */
+body.full {
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+body.full .back-link,
+body.full .game-header,
+body.full .desk-help { display: none; }
+body.full .hud {
+  position: fixed;
+  top: 10px;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  margin: 0;
+  padding: 0 130px;
+  max-width: none;
+  pointer-events: none;
+}
+body.full .hud > * { pointer-events: auto; }
+body.full .hud-item,
+body.full .hud-btn {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(5, 36, 52, 0.72);
+  backdrop-filter: blur(3px);
+}
+body.full .size-item { padding-bottom: .4rem; }
+body.full .game-layout { display: block; padding: 0; max-width: none; }
+body.full .stage-col { max-width: none; }
+body.full .stage {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.full .mission-panel { top: 62px; max-height: calc(100% - 200px); }
+body.full .touch-pad {
+  display: flex;
+  position: fixed;
+  right: 186px;
+  bottom: 18px;
+  z-index: 11;
+  margin: 0;
+  padding: 0;
+}
+body.full .dpad { display: none; }
+body.full .dash-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .65rem 1.2rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin: 0;
+  border-radius: 999px;
+}
+body.full .pad-actions kbd { font-size: .7rem; padding: 0 .35em; color: var(--ink); }
+body.full .fact-card { bottom: 96px; }
+@media (max-width: 700px) {
+  body.full .touch-pad { right: 112px; bottom: 10px; }
+  body.full .dash-btn { padding: .5rem .8rem; font-size: .95rem; }
+  body.full .pad-actions kbd { display: none; }
+  .mission-panel { width: 220px; }
+  .fact-card { right: 110px; bottom: 70px; width: min(300px, 70%); }
+}
+
+/* ---------- Téléphone : le jeu occupe tout l'écran ---------- */
+body.phone .size-item { min-width: 64px; padding-bottom: .1rem; }
+body.phone .gold-bar { left: 6px; right: 6px; bottom: 3px; height: 3px; }
+body.phone .mission-panel:not(.collapsed) { width: min(270px, 74vw); }
+body.phone .mission-panel .m-thumb { width: 30px; height: 30px; }
+/* la fiche s'affiche sous le bandeau des missions (en bas, il y a Ammo et le bouton Fonce) */
+body.phone .fact-card {
+  top: calc(var(--under-hud) + 64px);
+  bottom: auto;
+  left: max(6px, env(safe-area-inset-left));
+  right: auto;
+  width: min(300px, 70vw);
+}
+body.phone .fact-card .pc-pic { width: 52px; height: 52px; }
+body.phone .dash-btn { padding: .8rem 1.1rem; font-size: 1rem; opacity: .92; border-radius: 999px; }
+body.phone .copilot { max-width: calc(100% - 150px); }
+body.phone .ammo { width: 44px; height: 44px; }
+body.phone .exit-btn {
+  top: var(--top);
+  left: max(6px, env(safe-area-inset-left));
+  height: var(--hud-h);
+  padding: 0 .6rem;
+  font-size: .9rem;
+  box-shadow: none;
+}
+body.phone .dlg-overlay { padding: .5rem; }
+body.phone .dlg-card { padding: .7rem .8rem .7rem; border-radius: 16px; }
+body.phone .dlg-face { width: 56px; height: 56px; }
+body.phone .dlg-face .ammo { width: 48px; height: 48px; }
+body.phone .dlg-name { font-size: 1.15rem; }
+body.phone .dlg-say { font-size: .88rem; }
+body.phone .evo-row img { width: 46px; height: 46px; }
+body.phone .start-goal { font-size: .9rem; margin-bottom: .5rem; }
+body.phone .start-card .order-title { font-size: 1.3rem; }
+body.phone .save-note { display: none; }
+body.phone .end-text { padding-top: calc(var(--top) + var(--hud-h) + 4px); }
+body.phone .choice-card { width: min(240px, 44vw); padding: .5rem; }
+body.phone .choice-icon { font-size: 2rem; }
+body.phone .choice-text { font-size: .78rem; }
