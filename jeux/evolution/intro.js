@@ -1,5 +1,5 @@
 // ============================================================================
-// L'animation de départ (environ 16 s, on peut la passer) :
+// Les animations de départ (on peut les passer). Niveau 1, environ 16 s :
 //   0 → 4 s     la Terre il y a 4 milliards d'années : volcans, éclairs, océan
 //   4 → 8 s     on plonge : des molécules flottent dans la soupe primitive
 //   8 → 12 s    elles s'assemblent, une enveloppe se forme… une cellule naît : toi !
@@ -294,3 +294,163 @@ function roundRect(ctx, x, y, w, h, r) {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const ease = (k) => k * k * (3 - 2 * k);
+
+/* ============================================================================
+   L'animation du niveau 2 (environ 14 s) : vue du ciel, un rivage.
+   0 → 4,5 s   un poisson aux nageoires musclées nage vers la rive
+   4,5 → 9 s   il se hisse hors de l'eau et rampe sur la terre
+   9 → 14 s    le sol tremble, une ombre immense passe… seuls les malins survivront
+   drawHero(ctx, x, y, r, angle, t, walk) dessine le joueur en tétrapode.
+   ============================================================================ */
+const LAND_DURATION = 14;
+const LAND_CAPTIONS = [
+  [0.3, 4.5, "Il y a 375 millions d'années, la terre ferme est encore presque vide d'animaux…"],
+  [4.7, 9, "Un poisson aux nageoires musclées se hisse hors de l'eau. Tes descendants vont conquérir la terre !"],
+  [9.2, 14, "Mais sur la terre, tout est dangereux. Seuls les plus malins survivront !"],
+];
+
+export function createLandIntro({ sfx, drawHero }) {
+  let t = 0;
+  const cues = new Set();
+  const prints = [];
+  const plants = Array.from({ length: 26 }, () => ({ x: 0.5 + Math.random() * 0.55, y: Math.random(), r: 0.025 + Math.random() * 0.04, a: Math.random() * TAU }));
+  const bugs = Array.from({ length: 6 }, () => ({ x: 0.55 + Math.random() * 0.4, y: Math.random(), a: Math.random() * TAU }));
+
+  function cue(name, at, fn) {
+    if (t >= at && !cues.has(name)) { cues.add(name); fn(); }
+  }
+
+  const intro = {
+    done: false,
+    update(dt) {
+      t += dt;
+      cue('splash', 3.6, () => sfx.splash());
+      cue('s1', 9.6, () => sfx.stomp(0.4));
+      cue('s2', 10.6, () => sfx.stomp(0.7));
+      cue('s3', 11.6, () => sfx.stomp(1));
+      cue('roar', 12.3, () => sfx.roar(1));
+      if (t >= LAND_DURATION) intro.done = true;
+    },
+    draw(ctx, w, h) {
+      const m = Math.min(w, h);
+      const shake = t > 9.6 && t < 12.6 ? Math.max(0, Math.sin((t - 9.6) * Math.PI)) * 6 * Math.min(1, (t - 9.4) / 2) : 0;
+      ctx.save();
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+      // l'eau à gauche, une plage, puis la terre
+      const shore = w * 0.42;
+      const g = ctx.createLinearGradient(0, 0, shore, 0);
+      g.addColorStop(0, '#1F6F8B');
+      g.addColorStop(1, '#4FB0C0');
+      ctx.fillStyle = g;
+      ctx.fillRect(-10, -10, shore + 40, h + 20);
+      ctx.fillStyle = '#D9C38F';
+      ctx.beginPath();
+      ctx.moveTo(shore - 20, -10);
+      for (let y = 0; y <= h + 20; y += 20) ctx.lineTo(shore + Math.sin(y * 0.03) * 14, y);
+      ctx.lineTo(shore + 70, h + 10);
+      ctx.lineTo(shore + 70, -10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#7C8A55';
+      ctx.fillRect(shore + 60, -10, w, h + 20);
+      // vagues qui viennent mourir sur la plage
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 4; i++) {
+        const k = (t * 0.25 + i / 4) % 1;
+        const x = shore - 120 + k * 110;
+        ctx.globalAlpha = 1 - k;
+        ctx.beginPath();
+        for (let y = 0; y <= h; y += 16) ctx.lineTo(x + Math.sin(y * 0.04 + i) * 8, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // fougères et prêles sur la terre
+      for (const p of plants) {
+        const x = p.x * w, y = p.y * h, r = p.r * m;
+        if (x < shore + 80) continue;
+        ctx.strokeStyle = '#3E8E41';
+        ctx.lineWidth = Math.max(2, r * 0.12);
+        ctx.lineCap = 'round';
+        for (let k = 0; k < 7; k++) {
+          const a = p.a + (k / 7) * TAU + Math.sin(t + k) * 0.05;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+          ctx.stroke();
+        }
+      }
+      for (const b of bugs) {
+        b.a += 0.03;
+        const x = b.x * w + Math.cos(b.a * 3) * 20, y = b.y * h + Math.sin(b.a * 2) * 20;
+        ctx.fillStyle = '#4A3A20';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 5, 3, b.a, 0, TAU);
+        ctx.fill();
+      }
+      // le héros : il nage, puis il rampe en laissant des traces
+      const r = m * 0.05;
+      const k1 = Math.min(1, t / 4.5), k2 = clamp01((t - 4.5) / 4.5);
+      let x = w * 0.08 + (shore - w * 0.08 - r) * ease(k1) + (w * 0.2) * ease(k2);
+      const y = h * 0.58 + Math.sin(t * 1.5) * h * 0.02;
+      if (t > 9.6) x += Math.sin(t * 50) * 2;
+      if (t > 4.5 && t < 9 && Math.floor(t * 4) !== Math.floor((t - 0.016) * 4)) prints.push({ x: x - r, y: y + (prints.length % 2 ? r * 0.4 : -r * 0.4) });
+      ctx.fillStyle = 'rgba(80, 60, 30, 0.35)';
+      for (const p of prints) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * 0.12, 0, TAU);
+        ctx.fill();
+      }
+      drawHero(ctx, x, y, r, -0.05, t, t > 4.5 && t < 9 ? t * 3 : t * 1.5);
+      // une ombre immense passe…
+      if (t > 10.2) {
+        const k = clamp01((t - 10.2) / 3.5);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.45 * Math.sin(k * Math.PI)})`;
+        ctx.beginPath();
+        ctx.ellipse(w * (1.3 - k * 1.4), h * 0.45, m * 0.55, m * 0.3, -0.3, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      // le ciel s'assombrit
+      if (t > 9) {
+        const v = ctx.createRadialGradient(w / 2, h / 2, m * 0.2, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+        v.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        v.addColorStop(1, `rgba(0, 0, 0, ${0.6 * clamp01((t - 9) / 2)})`);
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, w, h);
+      }
+      drawLandCaption(ctx, w, h, t);
+      if (t > LAND_DURATION - 0.6) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${(t - (LAND_DURATION - 0.6)) / 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    },
+  };
+  return intro;
+}
+
+function drawLandCaption(ctx, w, h, t) {
+  const cap = LAND_CAPTIONS.find(([a, b]) => t >= a && t < b);
+  if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
+/** Une bulle de texte en haut de l'écran (aussi utilisée par la fin du niveau 2) */
+export function drawCaptionBox(ctx, w, h, text, alpha) {
+  const fs = Math.max(15, Math.min(24, w / 38));
+  ctx.font = `700 ${fs}px 'Baloo 2', sans-serif`;
+  const maxW = Math.min(w - 40, 760);
+  const lines = wrap(ctx, text, maxW - 40);
+  const lh = fs * 1.3;
+  const bw = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 44);
+  const bh = lines.length * lh + 24;
+  const x = (w - bw) / 2, y = Math.max(16, h * 0.06);
+  ctx.globalAlpha = Math.max(0, alpha);
+  ctx.fillStyle = 'rgba(255, 252, 243, 0.94)';
+  roundRect(ctx, x, y, bw, bh, 16);
+  ctx.fill();
+  ctx.fillStyle = '#2E2A4D';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  lines.forEach((l, i) => ctx.fillText(l, w / 2, y + 12 + i * lh));
+  ctx.globalAlpha = 1;
+}

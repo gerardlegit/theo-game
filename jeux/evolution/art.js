@@ -7,7 +7,15 @@
 // ============================================================================
 
 const TAU = Math.PI * 2;
-const INK = '#1E2A3A';
+export const INK = '#1E2A3A';
+
+/* ---------- Registres : d'autres fichiers (art-terre.js…) y ajoutent leurs dessins ---------- */
+export const LOOKS = {};           // look d'une espèce → fonction (ctx, c, t)
+export const FORMS = {};           // forme du joueur → fonction (ctx, p, parts, t, mood)
+export const DECORS = {};          // type de décor posé au sol → fonction (ctx, d, t)
+export const COVERS = {};          // type de cachette dessinée par-dessus les créatures → fonction (ctx, d, t)
+export const FRAMES = {};          // cadrage des vignettes : look ou forme → { r, x, y } (en part de la taille)
+export const FORM_SPINE = { cellule: null, ver: 'ver', poisson: 'poisson' };   // forme du joueur → colonne
 
 /* ---------- Couleurs ---------- */
 const shadeCache = new Map();
@@ -24,10 +32,10 @@ export function shade(hex, k) {
   return out;
 }
 
-const mix = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+export const mix = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
 
 /* Hasard reproductible (pour que le décor soit toujours dessiné pareil) */
-function seeded(seed) {
+export function seeded(seed) {
   let s = seed | 0;
   return () => {
     s = (s + 0x6D2B79F5) | 0;
@@ -40,7 +48,7 @@ function seeded(seed) {
 /* ---------- Corps allongés ---------- */
 /** Contour lisse autour d'une colonne de points (de la tête à la queue).
     widths[i] = demi-largeur au point i ; nose = avancée du museau. */
-function spineShape(pts, widths, nose = 0.9) {
+export function spineShape(pts, widths, nose = 0.9) {
   const n = pts.length;
   const L = [], R = [];
   for (let i = 0; i < n; i++) {
@@ -60,7 +68,7 @@ function spineShape(pts, widths, nose = 0.9) {
   return [front, ...L, back, ...R.reverse()];
 }
 
-function smoothClosed(ctx, poly) {
+export function smoothClosed(ctx, poly) {
   const n = poly.length;
   ctx.beginPath();
   const m0 = mix(poly[n - 1], poly[0], 0.5);
@@ -74,7 +82,7 @@ function smoothClosed(ctx, poly) {
 }
 
 /** Direction (unitaire) du segment i de la colonne, vers la tête */
-function segDir(pts, i) {
+export function segDir(pts, i) {
   const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
   const dx = a.x - b.x, dy = a.y - b.y;
   const d = Math.hypot(dx, dy) || 1;
@@ -82,7 +90,7 @@ function segDir(pts, i) {
 }
 
 /* ---------- Ombre, yeux, bouche ---------- */
-function shadow(ctx, x, y, rx, ry, a = 0) {
+export function shadow(ctx, x, y, rx, ry, a = 0) {
   ctx.fillStyle = 'rgba(0, 25, 35, 0.2)';
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, a, 0, TAU);
@@ -93,7 +101,7 @@ function shadow(ctx, x, y, rx, ry, a = 0) {
  * Un œil vu de dessus. mood : 'calm' | 'angry' | 'scared' | 'happy'.
  * (lx, ly) = direction du regard ; blink : 0 ouvert → 1 fermé
  */
-function eye(ctx, x, y, r, lx, ly, mood, blink, side, iris = INK) {
+export function eye(ctx, x, y, r, lx, ly, mood, blink, side, iris = INK) {
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = INK;
   ctx.lineWidth = Math.max(0.8, r * 0.22);
@@ -129,7 +137,7 @@ function eye(ctx, x, y, r, lx, ly, mood, blink, side, iris = INK) {
 }
 
 /** Deux yeux sur la tête : fwd = avancée, spread = écart, r = rayon (tout en × size) */
-function eyes(ctx, x, y, ang, size, fwd, spread, r, mood, blink, iris) {
+export function eyes(ctx, x, y, ang, size, fwd, spread, r, mood, blink, iris) {
   const fx = Math.cos(ang), fy = Math.sin(ang);
   for (const side of [-1, 1]) {
     const ex = x + fx * size * fwd - fy * size * spread * side;
@@ -170,7 +178,7 @@ export function drawAlert(ctx, x, y, s, mark, pop = 1) {
 }
 
 /** Bouche ouverte au bout du museau, avec ou sans dents */
-function mouth(ctx, x, y, ang, w, open, teeth, color = '#5A1F2E') {
+export function mouth(ctx, x, y, ang, w, open, teeth, color = '#5A1F2E') {
   if (open <= 0.05) return;
   ctx.save();
   ctx.translate(x, y);
@@ -213,6 +221,7 @@ function mouth(ctx, x, y, ang, w, open, teeth, color = '#5A1F2E') {
 
 /** Dessine une créature. c : { sp, x, y, angle, size, spine, t, mood, mouth, blink, seed } */
 export function drawCreature(ctx, c, t) {
+  if (LOOKS[c.sp.look]) return LOOKS[c.sp.look](ctx, c, t);
   switch (c.sp.look) {
     case 'molecule': return drawMolecule(ctx, c, t);
     case 'bacterie': return drawBacterie(ctx, c, t);
@@ -702,7 +711,7 @@ function drawAnomalocaris(ctx, c, t) {
 }
 
 /** Les poissons : sans mâchoire, osseux, requins, Dunkleosteus… et le joueur */
-function drawFish(ctx, c, t, col, f, extra = {}) {
+export function drawFish(ctx, c, t, col, f, extra = {}) {
   const pts = c.spine;
   const r = c.size;
   const n = pts.length;
@@ -1007,7 +1016,7 @@ function drawNautiloide(ctx, c, t) {
 /* ============================================================================
    Le joueur
    ============================================================================ */
-const PLAYER = { body: '#6EE0B0', belly: '#B9F5DA', dark: '#1F6B5A', cheek: 'rgba(255, 120, 150, 0.55)' };
+export const PLAYER = { body: '#6EE0B0', belly: '#B9F5DA', dark: '#1F6B5A', cheek: 'rgba(255, 120, 150, 0.55)' };
 
 /**
  * p : { x, y, angle, size, spine, mouth, mood, blink, speed (0..1) }
@@ -1025,7 +1034,8 @@ export function drawPlayer(ctx, p, form, parts, t) {
   ctx.fill();
 
   const mood = p.mood || 'happy';
-  if (form === 'cellule') drawPlayerCell(ctx, p, parts, t, mood);
+  if (FORMS[form]) FORMS[form](ctx, p, parts, t, mood);
+  else if (form === 'cellule') drawPlayerCell(ctx, p, parts, t, mood);
   else if (form === 'ver') drawPlayerWorm(ctx, p, parts, t, mood);
   else drawPlayerFish(ctx, p, parts, t, mood);
 }
@@ -1143,7 +1153,7 @@ function faceFront(ctx, p, r, parts, mood, fwd, spread) {
   }
 }
 
-function smallEyeSpots(ctx, x, y, ang, r, fwd, spread) {
+export function smallEyeSpots(ctx, x, y, ang, r, fwd, spread) {
   const fx = Math.cos(ang), fy = Math.sin(ang);
   ctx.fillStyle = INK;
   for (const s of [-1, 1]) {
@@ -1153,7 +1163,7 @@ function smallEyeSpots(ctx, x, y, ang, r, fwd, spread) {
   }
 }
 
-function cheeks(ctx, x, y, ang, r, fwd, spread) {
+export function cheeks(ctx, x, y, ang, r, fwd, spread) {
   const fx = Math.cos(ang), fy = Math.sin(ang);
   ctx.fillStyle = PLAYER.cheek;
   for (const s of [-1, 1]) {
@@ -1201,6 +1211,7 @@ export function drawDrop(ctx, d, t) {
    Le décor du fond marin
    ============================================================================ */
 export function drawDecor(ctx, d, t) {
+  if (DECORS[d.type]) return DECORS[d.type](ctx, d, t);
   switch (d.type) {
     case 'rocher': return drawRock(ctx, d);
     case 'stromatolithe': return drawStromatolite(ctx, d);
@@ -1385,6 +1396,12 @@ function drawAlgaeBase(ctx, d) {
   ctx.fill();
 }
 
+/* Ce qui se dessine par-dessus les créatures : les cachettes (algues, fougères…) */
+export function drawCover(ctx, d, t) {
+  if (COVERS[d.type]) return COVERS[d.type](ctx, d, t);
+  return drawAlgaeFronds(ctx, d, t);
+}
+
 /* …et les longues lanières qui ondulent par-dessus les créatures (on s'y cache) */
 export function drawAlgaeFronds(ctx, d, t) {
   if (!d.fronds) {
@@ -1514,10 +1531,11 @@ export function speciesThumb(id, sp, size = 96) {
   const g = c.getContext('2d');
   g.scale(2, 2);
   const long = ['ver', 'priapule', 'opabinia', 'anomalocaris', 'poisson', 'eurypteride'].includes(sp.look);
-  const r = sp.look === 'nautiloide' ? size * 0.13 : long ? size * 0.2 : size * 0.3;
+  const fr = FRAMES[sp.look];
+  const r = fr ? size * fr.r : sp.look === 'nautiloide' ? size * 0.13 : long ? size * 0.2 : size * 0.3;
   const angle = -0.35;
-  const cx = sp.look === 'nautiloide' ? size * 0.72 : long ? size * 0.66 : size / 2;
-  const cy = sp.look === 'nautiloide' ? size * 0.4 : long ? size * 0.4 : size / 2;
+  const cx = fr ? size * fr.x : sp.look === 'nautiloide' ? size * 0.72 : long ? size * 0.66 : size / 2;
+  const cy = fr ? size * fr.y : sp.look === 'nautiloide' ? size * 0.4 : long ? size * 0.4 : size / 2;
   const fake = {
     sp, x: cx, y: cy, angle, size: r, seed: 1, mood: sp.kind === 'hunter' ? 'angry' : 'calm', mouth: sp.kind === 'hunter' ? 0.6 : 0, blink: 0,
     spine: makeSpine(cx, cy, angle, r, sp.look),
@@ -1536,10 +1554,12 @@ export function playerThumb(form, parts, size = 96) {
   c.width = c.height = size * 2;
   const g = c.getContext('2d');
   g.scale(2, 2);
-  const r = form === 'cellule' ? size * 0.26 : size * 0.2;
+  const fr = FRAMES[form];
+  const r = fr ? size * fr.r : form === 'cellule' ? size * 0.26 : size * 0.2;
   const angle = -0.35;
-  const cx = form === 'cellule' ? size * 0.55 : size * 0.64, cy = form === 'cellule' ? size * 0.5 : size * 0.42;
-  const p = { x: cx, y: cy, angle, size: r, mouth: 0, mood: 'happy', blink: 0, speed: 0.3, spine: makeSpine(cx, cy, angle, r, form === 'ver' ? 'ver' : 'poisson') };
+  const cx = fr ? size * fr.x : form === 'cellule' ? size * 0.55 : size * 0.64;
+  const cy = fr ? size * fr.y : form === 'cellule' ? size * 0.5 : size * 0.42;
+  const p = { x: cx, y: cy, angle, size: r, mouth: 0, mood: 'happy', blink: 0, speed: 0.3, walk: 0.4, spine: makeSpine(cx, cy, angle, r, FORM_SPINE[form]) };
   drawPlayer(g, p, form, parts, 0.5);
   const url = c.toDataURL();
   thumbCache.set(key, url);

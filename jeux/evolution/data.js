@@ -37,6 +37,29 @@ export const LINES = {
   canEvolve: "Tu as assez d'ADN pour évoluer ! Appuie sur 🧬 Évoluer.",
   revenge: "Avant, c'est lui qui te croquait… Maintenant, c'est ton tour !",
   bigger: "Tu as grandi ! Ce qui te faisait peur devient… ton repas.",
+  /* sur la terre ferme (niveau 2) */
+  mud: "Beurk, de la boue ! Ça colle, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",
+  dry: [
+    "Ta peau sèche ! Vite, trouve une mare 💧",
+    "Attention, tu te dessèches ! Plonge dans l'eau !",
+  ],
+  dried: [
+    "Oh non, tu t'es desséché… Tes descendants repartent d'une mare.",
+    "Trop longtemps loin de l'eau ! Pense à te mouiller plus souvent.",
+  ],
+  noise: "Chut ! Quand tu cours, ça fait du bruit : les chasseurs t'ont entendu…",
+  roar: [
+    "Il rugit ! Il t'a vu ! Cours, cache-toi !",
+    "ROAR ! Ne reste pas là !",
+  ],
+  stomp: [
+    "Boum… boum… Tu sens le sol trembler ? Quelque chose d'énorme approche…",
+    "Ces pas… c'est un géant. Fais-toi tout petit.",
+  ],
+  pack: "Une meute ! Ils chassent ensemble… Fuis vers une cachette !",
+  defender: "Il baisse la tête… Il va charger ! Écarte-toi !",
+  horned: "Aïe ! Les herbivores savent se défendre, eux aussi !",
+  crushed: "Écrasé ! Ne passe jamais sous les pattes d'un géant…",
   idle: [
     "Tu dors ? Les chasseurs, eux, ne dorment jamais…",
     "Bouge un peu, il y a plein de choses à manger !",
@@ -46,5 +69,6 @@ export const LINES = {
     "Évoluer, ça prend des millions d'années. Heureusement, ici, ça va plus vite !",
     "Chaque fois que tu évolues, ce sont tes descendants qui changent, génération après génération.",
     "La vie est apparue dans l'eau. Les animaux de la terre sont venus bien plus tard !",
+    "Sur la terre, les plus malins survivent : ceux qui se cachent, qui observent, qui ne courent pas pour rien.",
   ],
 };

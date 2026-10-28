@@ -1,23 +1,37 @@
 // ============================================================================
 // Évolution — le moteur du jeu. Le joueur est un être vivant qui nage dans
-// l'océan : il mange ce qui est plus petit que lui pour grandir et gagner de
-// l'ADN, évite de se faire croquer par plus gros, et fait évoluer son corps.
+// l'océan, puis marche sur la terre ferme : il mange ce qui est plus petit que
+// lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
+// gros, et fait évoluer son corps.
 // Tout ce qui décrit un niveau (espèces, évolutions, chapitres, missions) est
 // dans levels/ : ce fichier ne connaît aucune espèce par son nom.
 // ============================================================================
 
 import { LEVELS } from './levels/index.js';
 import {
-  drawCreature, drawPlayer, drawDecor, drawAlgaeFronds, drawDrop, drawSweat, drawAlert,
-  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, AMMO_SVG,
+  drawCreature, drawPlayer, drawDecor, drawCover, drawDrop, drawSweat, drawAlert,
+  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, AMMO_SVG,
 } from './art.js';
+import { drawCloudShadows, SIDE } from './art-terre.js';
 import { LINES } from './data.js';
-import { createIntro } from './intro.js';
+import { createIntro, createLandIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 const SAVE_KEY = 'evolution-save';
 const SAVE_VERSION = 1;
 const TAU = Math.PI * 2;
+
+/* ---------- Typographie : espaces insécables avant ! ? : ; » et après « ---------- */
+// (sinon, sur un petit écran, un « ! » peut se retrouver tout seul en début de ligne)
+function fixTypo(o) {
+  for (const k of Object.keys(o)) {
+    const v = o[k];
+    if (typeof v === 'string') o[k] = v.replace(/ ([!?:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+    else if (v && typeof v === 'object') fixTypo(v);
+  }
+}
+fixTypo(LEVELS);
+fixTypo(LINES);
 
 /* ---------- Réglages de la nage ---------- */
 const DRAG = 3;                    // l'eau freine : sans nager, on s'arrête en ~1 s
@@ -43,7 +57,7 @@ const ALERT_TIME = 0.55;           // ils s'arrêtent un instant (« ! ») avant
 const CHASE_TIME = 6;
 const LUNGE_TIME = 0.7;            // l'élan du début de la poursuite
 const LUNGE = 1.35;
-const MAX_CHASERS = 2;
+const MAX_CHASERS = 2;              // (un niveau peut en mettre plus : world.maxChasers)
 const GIVE_UP_REST = 3;
 const FULL_REST = 6;               // après avoir mangé le joueur, il digère
 
@@ -73,6 +87,8 @@ const adnItem = $('adnItem');
 const sizeBar = $('sizeBar');
 const eraEl = $('era');
 const shieldItem = $('shieldItem');
+const waterItem = $('waterItem');
+const waterBar = $('waterBar');
 const shieldsEl = $('shields');
 const evoBtn = $('evoBtn');
 const soundBtn = $('soundBtn');
@@ -111,7 +127,10 @@ let drops = [];
 let particles = [];
 let floaters = [];
 let decor = [];                    // ce qui est posé au fond (rochers, éponges…)
-let algae = [];                    // les forêts d'algues (cachettes)
+let hides = [];                    // les cachettes (algues, fougères)
+let covers = [];                   // ce qui se dessine par-dessus les créatures (cachettes, feuillages)
+let zones = [];                    // les mares et la boue
+let clouds = [];                   // (sur la terre) les ombres des nuages
 let motes = [];                    // particules en suspension dans l'eau
 let floorTile = null;
 let caustics = null;
@@ -137,6 +156,8 @@ let thumbImgs = {};
 let intro = null;
 let endT = 0;
 let endFx = [];
+let endDecor = [];
+const endCues = new Set();
 let wasChased = false;
 let missionsShown = '';
 let clock = 0;                     // temps de jeu (pour les petits délais de l'histoire)
@@ -250,7 +271,7 @@ function clearSave() {
 
 /* ---------- Les effets des évolutions ---------- */
 function recalc() {
-  const s = { speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false };
+  const s = { speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
     if (!e) continue;
@@ -261,14 +282,18 @@ function recalc() {
     if (e.shield) s.shield = Math.max(s.shield, e.shield);
     if (e.armored) s.armored = true;
     if (e.dash) s.dash = true;
+    if (e.dry !== undefined) s.dry = Math.min(s.dry, e.dry);
+    if (e.cones) s.cones = true;
+    if (e.radar) s.radar = true;
   }
   stats = s;
 }
 
 const growthK = () => clamp(game.earned / CH.growth, 0, 1);
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
-const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed;
-const visionR = () => (140 + player.size * 9) * stats.vision;
+const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1);
+const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1);
+const drying = () => !!CH.dry && stats.dry > 0;
 
 /* Qui peut manger qui ? */
 function canEat(c) {
@@ -276,6 +301,66 @@ function canEat(c) {
 }
 function isDanger(c) {
   return (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c);
+}
+/* Tout ce qui peut faire mal : chasseurs, méduses, herbivores qui chargent, géants qui écrasent */
+function isThreat(c) {
+  return isDanger(c) || ((c.sp.kind === 'defender' || c.sp.kind === 'giant') && !canEat(c));
+}
+
+/** Où est la gueule d'un animal (ou du joueur) */
+function mouthPoint(e, k = 0.8) {
+  if (e.side) return { x: e.x + e.face * e.size * e.side[0], y: e.y + e.size * e.side[1] };
+  return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
+}
+
+/** Distance entre la gueule et un point. De profil, on mange aussi avec l'avant du
+    corps, dans la direction où l'on avance (sinon impossible d'attraper ce qui est
+    juste au-dessus ou en dessous). */
+function mouthDist(e, x, y) {
+  const m = mouthPoint(e);
+  let d = Math.hypot(m.x - x, m.y - y);
+  if (e.side) {
+    const fx = e.x + Math.cos(e.angle) * e.size * 0.8, fy = e.y + Math.sin(e.angle) * e.size * 0.8;
+    d = Math.min(d, Math.hypot(fx - x, fy - y));
+  }
+  return d;
+}
+
+/** Le bout de la queue (pointes du stégosaure, massue de l'ankylosaure) */
+function tailPoint(c) {
+  if (c.side) return { x: c.x - c.face * c.size * 2.2, y: c.y };
+  return c.spine ? c.spine[c.spine.length - 1] : c;
+}
+
+/** De profil, on regarde à droite ou à gauche (on ne se retourne pas pour un rien) */
+function updateFace(e) {
+  if (!e.side) return;
+  const cx = Math.cos(e.angle);
+  if (cx > 0.25) e.face = 1; else if (cx < -0.25) e.face = -1;
+}
+
+/** Petit écart d'angle (de -π à π) */
+function angleDiff(a, b) {
+  return ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
+}
+
+/** Dans quelle zone est ce point : 'water' (mare), 'mud' (boue) ou null ? */
+function zoneAt(x, y) {
+  for (const z of zones) {
+    const dx = x - z.x, dy = y - z.y;
+    if (dx * dx + dy * dy < z.r * z.r * 0.72) return z.zone;
+  }
+  return null;
+}
+
+function nearestZone(x, y, kind) {
+  let best = null, bd = Infinity;
+  for (const z of zones) {
+    if (z.zone !== kind) continue;
+    const d = Math.hypot(z.x - x, z.y - y);
+    if (d < bd) { bd = d; best = z; }
+  }
+  return best;
 }
 
 /* ---------- Taille de l'écran ---------- */
@@ -313,28 +398,37 @@ function buildWorld() {
   const W = LV.world;
   const rnd = mulberry32(1234 + game.level * 77);
   decor = [];
-  algae = [];
+  hides = [];
+  covers = [];
+  zones = [];
   for (const d of W.decor) {
     for (let i = 0; i < d.count; i++) {
       let x = 0, y = 0;
-      if (d.type === 'algues' && i === 0) {
-        // la première forêt d'algues est juste au point de départ : on commence caché
+      if (d.atStart && i === 0) {
+        // le premier est juste au point de départ (on commence caché, ou dans l'eau)
         x = W.start.x; y = W.start.y;
       } else {
         x = 150 + rnd() * (W.w - 300);
         y = 150 + rnd() * (W.h - 300);
       }
-      const item = { type: d.type, x, y, r: d.r[0] + rnd() * (d.r[1] - d.r[0]), seed: Math.floor(rnd() * 1e6), from: d.from || 1, to: d.to || 99 };
-      if (d.type === 'algues') algae.push(item); else decor.push(item);
+      const item = {
+        type: d.type, x, y, r: d.r[0] + rnd() * (d.r[1] - d.r[0]), seed: Math.floor(rnd() * 1e6),
+        from: d.from || 1, to: d.to || 99, zone: d.zone || null, hide: !!d.hide, canopy: !!d.canopy,
+      };
+      if (d.atStart && i === 0) item.r = Math.max(item.r, 220);
+      if (item.zone) zones.push(item);
+      else decor.push(item);
+      if (item.hide) hides.push(item);
+      if (item.hide || item.canopy) covers.push(item);
     }
   }
-  if (algae[0]) algae[0].r = 220;
+  clouds = W.ground === 'land' ? Array.from({ length: 16 }, () => ({ x: rnd() * W.w - 2000, y: rnd() * W.h - 800, r: 300 + rnd() * 500 })) : [];
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
 
 /* ---------- Le joueur ---------- */
 function formLook() {
-  return CH.form === 'cellule' ? null : CH.form === 'ver' ? 'ver' : 'poisson';
+  return FORM_SPINE[CH.form] || null;
 }
 
 function placePlayer(x, y) {
@@ -344,6 +438,8 @@ function placePlayer(x, y) {
     spine: null, mouth: 0, blink: 0, mood: 'happy', speed: 0,
     dash: 0, charge: 1, shield: stats.shield, shieldT: 0,
     invul: 1.5, hidden: false, dead: false, deadT: 0, squash: 0,
+    walk: 0, wet: 1, dryT: 0, zone: null,
+    side: SIDE[CH.form] || null, face: 1,
   };
   resetSpine(player, formLook());
   zoom = targetZoom();
@@ -379,23 +475,46 @@ function spawnCreature(id, initial = false) {
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
   const hunter = sp.kind === 'hunter' || sp.kind === 'stinger';
-  for (let tries = 0; tries < 12; tries++) {
-    const a = Math.random() * TAU;
-    const minD = initial ? (hunter ? half * 1.05 : sp.size + 120) : half + sp.size * 2;
-    const d = rand(minD, far);
-    const x = player.x + Math.cos(a) * d, y = player.y + Math.sin(a) * d;
+  const minD = initial ? (hunter ? half * 1.05 : sp.size + 120) : half + sp.size * 2;
+  for (let tries = 0; tries < 14; tries++) {
+    let x, y, home = null;
+    if (sp.habitat === 'water') {
+      // les poissons et les crocodiles ne vivent que dans les mares
+      const ponds = zones.filter((z) => z.zone === 'water' && z.r > sp.size * 1.6 && dist(z, player) < far + z.r);
+      if (!ponds.length) return null;
+      home = pick(ponds);
+      const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * home.r * 0.55;
+      x = home.x + Math.cos(a) * d;
+      y = home.y + Math.sin(a) * d;
+      if (dist({ x, y }, player) < (hunter ? half * 0.8 : sp.size + 100)) continue;
+    } else {
+      const a = Math.random() * TAU;
+      const d = rand(minD, far);
+      x = player.x + Math.cos(a) * d;
+      y = player.y + Math.sin(a) * d;
+      if (!sp.flying && zoneAt(x, y)) continue;
+    }
     if (x < sp.size + 60 || y < sp.size + 60 || x > W.w - sp.size - 60 || y > W.h - sp.size - 60) continue;
-    const vary = sp.kind === 'hunter' ? 1 : rand(0.9, 1.1);
-    const c = {
-      id, sp, x, y, vx: 0, vy: 0, angle: Math.random() * TAU,
-      size: sp.size * vary, spine: null,
-      state: 'wander', timer: 0, rest: 0, lunge: 0, wx: x, wy: y,
-      seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
-      mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
-    };
-    resetSpine(c, SPINES[sp.look] ? sp.look : null);
-    creatures.push(c);
-    return c;
+    const n = sp.pack || 1;
+    let leader = null;
+    for (let k = 0; k < n; k++) {
+      // une meute : les autres apparaissent juste à côté
+      const px = k ? x + rand(-1, 1) * sp.size * 2.5 : x, py = k ? y + rand(-1, 1) * sp.size * 2.5 : y;
+      const vary = sp.kind === 'hunter' ? 1 : rand(0.9, 1.1);
+      const c = {
+        id, sp, x: px, y: py, vx: 0, vy: 0, angle: Math.random() * TAU,
+        size: sp.size * vary, spine: null, home,
+        state: 'wander', timer: 0, rest: 0, lunge: 0, wx: px, wy: py,
+        seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
+        mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
+        walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0,
+        side: SIDE[sp.look] || null, face: 1,
+      };
+      resetSpine(c, SPINES[sp.look] ? sp.look : null);
+      creatures.push(c);
+      if (!leader) leader = c;
+    }
+    return leader;
   }
   return null;
 }
@@ -403,7 +522,7 @@ function spawnCreature(id, initial = false) {
 function populate() {
   creatures = [];
   for (const [id, n] of Object.entries(CH.species)) {
-    for (let i = 0; i < n; i++) spawnCreature(id, true);
+    for (let i = 0; i < n; i += SPECIES[id].pack || 1) spawnCreature(id, true);
   }
 }
 
@@ -419,7 +538,10 @@ function maintainPopulation(dt) {
   for (const c of creatures) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
     let missing = n - (counts[id] || 0);
-    while (missing-- > 0) spawnCreature(id);
+    while (missing > 0) {
+      if (!spawnCreature(id)) break;
+      missing -= SPECIES[id].pack || 1;
+    }
   }
 }
 
@@ -543,6 +665,17 @@ function activateDash() {
   game.dashUsed = true;
   shake = Math.max(shake, 0.12);
   sfx.dash();
+  // sur la terre, courir fait du bruit : les chasseurs proches t'entendent
+  const noise = LV.world.noise;
+  if (noise) {
+    let heard = false;
+    for (const c of creatures) {
+      if (c.sp.kind !== 'hunter' || !isDanger(c) || dist(c, player) > noise + c.size) continue;
+      c.noiseT = 0.4;
+      heard = true;
+    }
+    if (heard) sayOnce('noise', LINES.noise, 45, 2);
+  }
   for (let i = 0; i < 10; i++) bubbleAt(player.x - Math.cos(player.angle) * player.size, player.y - Math.sin(player.angle) * player.size, player.size * 0.25);
 }
 
@@ -692,7 +825,11 @@ function updatePlayer(dt) {
   }
   const dir = inputDir();
   if (dir) lastMoveAt = performance.now();
-  const ms = maxSpeed();
+  // dans l'eau ou dans la boue, on avance moins vite (sauf le tétrapode, qui nage bien)
+  const zone = zoneAt(p.x, p.y);
+  if (zone !== p.zone) enterZone(zone);
+  const zk = zone === 'mud' ? 0.4 : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
+  const ms = maxSpeed() * zk;
   const dashing = p.dash > 0;
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
   let want = dir;
@@ -715,7 +852,9 @@ function updatePlayer(dt) {
   if (p.y > W.h - m) { p.y = W.h - m; p.vy = -Math.abs(p.vy) * 0.3; }
   const sp = Math.hypot(p.vx, p.vy);
   p.speed = clamp(sp / ms, 0, 1.5);
+  p.walk += sp * dt / Math.max(10, p.size) * 1.3;
   if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (stats.dash ? 10 : TURN) * dt);
+  updateFace(p);
   if (dashing) {
     p.dash -= dt;
     if (Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
@@ -734,26 +873,62 @@ function updatePlayer(dt) {
     p.shieldT += dt;
     if (p.shieldT >= SHIELD_RECHARGE) { p.shield++; p.shieldT = 0; }
   }
-  // caché dans les algues ?
+  updateDrying(dt, zone);
+  // caché dans les algues (ou les fougères) ?
   const wasHidden = p.hidden;
-  p.hidden = algae.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
+  p.hidden = hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
   if (p.hidden && !wasHidden && creatures.some((c) => c.state === 'chase')) sayOnce('hidden', LINES.hidden, 20, 2);
   // la bouche s'ouvre quand il y a quelque chose à croquer devant
-  const mx = p.x + Math.cos(p.angle) * p.size * 0.8, my = p.y + Math.sin(p.angle) * p.size * 0.8;
   let wantMouth = 0;
   for (const c of creatures) {
     if (!canEat(c)) continue;
-    if (Math.hypot(c.x - mx, c.y - my) < c.size + p.size * 1.6) { wantMouth = 1; break; }
+    if (mouthDist(p, c.x, c.y) < c.size + p.size * 1.6) { wantMouth = 1; break; }
   }
   p.mouth += (wantMouth - p.mouth) * (1 - Math.exp(-12 * dt));
   p.mood = creatures.some((c) => c.state === 'chase') ? 'scared' : 'happy';
 }
 
+/** On entre dans une mare ou dans la boue */
+function enterZone(zone) {
+  const p = player;
+  p.zone = zone;
+  if (zone === 'water') {
+    sfx.splash();
+    for (let i = 0; i < 10; i++) bubbleAt(p.x, p.y, p.size * 0.3);
+  } else if (zone === 'mud') {
+    addFloater('Ça colle !', p.x, p.y - p.size * 1.6, '#C9A06A', 1);
+    sayOnce('mud', LINES.mud, 60, 1);
+  }
+}
+
+/** Sur la terre, la peau sèche : il faut retourner dans l'eau (jusqu'à l'œuf à coquille) */
+function updateDrying(dt, zone) {
+  const p = player;
+  if (!drying()) { p.wet = 1; p.dryT = 0; return; }
+  if (zone === 'water') {
+    if (p.wet < 0.6 && performance.now() > (cooldowns.wetSaid || 0)) {
+      cooldowns.wetSaid = performance.now() + 20000;
+      addFloater('Aaah, de l’eau !', p.x, p.y - p.size * 1.6, '#9EE7FF', 1);
+    }
+    p.wet = Math.min(1, p.wet + dt * 0.8);
+    p.dryT = 0;
+    return;
+  }
+  p.wet = Math.max(0, p.wet - CH.dry * stats.dry * dt);
+  if (p.wet < 0.3) sayOnce('dry', LINES.dry, 25, 3);
+  if (p.wet <= 0) {
+    p.dryT += dt;
+    if (p.dryT > 2.5) loseLife(null, 'dry');
+  }
+}
+
 function respawn() {
   const p = player;
-  // on renaît dans la forêt d'algues la plus proche (mais pas sous le nez du chasseur)
-  let best = algae[0], bd = Infinity;
-  for (const a of algae) {
+  // on renaît dans la cachette la plus proche (mais pas sous le nez du chasseur) ;
+  // tant que la peau sèche, on renaît dans une mare
+  const spots = drying() ? zones.filter((z) => z.zone === 'water') : hides;
+  let best = spots[0] || { x: LV.world.start.x, y: LV.world.start.y }, bd = Infinity;
+  for (const a of spots) {
     const d = dist(a, p);
     if (d > 500 && d < bd && a.r > p.size * 1.5) { bd = d; best = a; }
   }
@@ -761,6 +936,8 @@ function respawn() {
   p.y = best.y;
   p.vx = p.vy = 0;
   p.dead = false;
+  p.wet = 1;
+  p.dryT = 0;
   p.invul = INVUL_TIME;
   p.size = targetSize();
   resetSpine(p, formLook());
@@ -779,6 +956,8 @@ function steer(c, tx, ty, speed, dt) {
 function updateCreatures(dt) {
   const p = player;
   const W = LV.world;
+  const maxChasers = W.maxChasers || MAX_CHASERS;
+  const hearR = Math.hypot(viewW, viewH) * 0.9;     // on entend les grands pas jusque-là
   let chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'alert').length;
   for (const c of creatures) {
     const sp = c.sp;
@@ -786,10 +965,13 @@ function updateCreatures(dt) {
     const d = Math.hypot(dx, dy) || 1;
     c.rest = Math.max(0, c.rest - dt);
     c.markT = Math.max(0, c.markT - dt);
+    c.noiseT = Math.max(0, c.noiseT - dt);
     if (c.markT <= 0) c.mark = null;
     c.blink = ((worldT + c.seed) % 4.3) < 0.12 ? 1 : 0;
     const edible = !p.dead && canEat(c);
     const danger = !p.dead && isDanger(c);
+    // un poisson (ou un crocodile) ne te suit pas hors de sa mare
+    const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
     let mouthTarget = 0;
 
     if (sp.kind === 'food' || sp.kind === 'stinger') {
@@ -797,9 +979,10 @@ function updateCreatures(dt) {
       c.angle += Math.sin(worldT * 0.5 + c.seed * 3) * dt * 0.6;
       steer(c, Math.cos(c.angle), Math.sin(c.angle), sp.speed, dt);
       c.mood = 'calm';
-    } else if (edible && d < (sp.sense || 200) && !p.hidden) {
+    } else if (edible && d < (sp.sense || 200) && !p.hidden && sp.kind !== 'neutral' && sp.kind !== 'giant') {
       // il a peur : il s'enfuit en zigzag
       if (c.state === 'chase' || c.state === 'alert') { c.state = 'wander'; chasers--; }
+      if (c.state === 'charge') c.state = 'wander';
       const zig = Math.sin(worldT * 5 + c.seed * 4) * 0.6;
       const a = Math.atan2(-dy, -dx) + zig;
       steer(c, Math.cos(a), Math.sin(a), sp.speed * (sp.kind === 'hunter' ? 0.85 : 1), dt);
@@ -810,18 +993,12 @@ function updateCreatures(dt) {
       c.mood = 'angry';
       if (c.state === 'wander') {
         wander(c, sp.speed * 0.42, dt);
-        const sees = !p.hidden && p.invul <= 0 && d < sp.sense && c.rest <= 0;
-        if (sees && chasers < MAX_CHASERS) {
-          c.state = 'alert';
-          c.timer = ALERT_TIME;
-          c.mark = '!';
-          c.markT = 1.1;
-          chasers++;
-          if (onScreen(c, 60)) {
-            sfx.alert();
-            buzz(40);
-            if (sayOnce('spotted', LINES.spotted, 12, 2) && !game.dashUsed) later(() => sayOnce('dashHint', LINES.dashHint, 60, 2), 2200);
-          }
+        // il ne voit que devant lui (cône), sauf tout près ; mais il entend quand on court
+        const inView = !sp.cone || Math.abs(angleDiff(c.angle, Math.atan2(dy, dx))) <= sp.cone / 2 || d < sp.sense * 0.3;
+        const sees = !p.hidden && p.invul <= 0 && reachable && c.rest <= 0 && ((d < sp.sense && inView) || c.noiseT > 0);
+        if (sees && chasers < maxChasers) {
+          spot(c);
+          chasers += 1 + callPack(c);
         }
       } else if (c.state === 'alert') {
         steer(c, 0, 0, 0, dt);
@@ -844,14 +1021,42 @@ function updateCreatures(dt) {
           mouthTarget = 0.5 + 0.5 * Math.abs(Math.sin(worldT * 9));
           if (Math.random() < dt * 2.5 && onScreen(c, 0)) sfx.snap();
         }
-        if (p.hidden || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
+        if (p.hidden || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
+      }
+    } else if (sp.kind === 'defender' && !p.dead) {
+      // un gros herbivore : il fonce sur toi si tu t'approches trop
+      c.fleeing = false;
+      if (c.state === 'charge') {
+        c.mood = 'angry';
+        c.timer -= dt;
+        steer(c, dx / d, dy / d, sp.speed * 1.8, dt);
+        if (c.timer <= 0 || d > sp.sense * 2) { c.state = 'wander'; c.rest = 3; }
+      } else if (c.state === 'alert') {
+        c.mood = 'angry';
+        steer(c, 0, 0, 0, dt);
+        c.angle = turnToward(c.angle, Math.atan2(dy, dx), 6 * dt);
+        c.timer -= dt;
+        if (c.timer <= 0) { c.state = 'charge'; c.timer = 1.6; }
+      } else {
+        c.mood = 'calm';
+        wander(c, sp.speed * 0.3, dt);
+        if (p.invul <= 0 && c.rest <= 0 && d < sp.sense && !p.hidden) {
+          c.state = 'alert';
+          c.timer = 0.6;
+          c.mark = '!';
+          c.markT = 1;
+          if (onScreen(c, 40)) {
+            sfx.alert();
+            sayOnce('defender', LINES.defender, 30, 2);
+          }
+        }
       }
     } else {
       // ni proie ni danger : il se promène
-      if (c.state === 'chase' || c.state === 'alert') loseTrack(c, false);
+      if (c.state === 'chase' || c.state === 'alert' || c.state === 'charge') loseTrack(c, false);
       c.fleeing = false;
       c.mood = sp.kind === 'hunter' ? 'angry' : 'calm';
-      wander(c, sp.speed * 0.35, dt);
+      wander(c, sp.speed * (sp.kind === 'giant' ? 0.6 : 0.35), dt);
     }
 
     // les chasseurs grignotent aussi les petites bêtes qui passent devant leur gueule
@@ -859,10 +1064,9 @@ function updateCreatures(dt) {
       c.eatT -= dt;
       if (c.eatT <= 0) {
         c.eatT = 0.25;
-        const mx = c.x + Math.cos(c.angle) * c.size * 0.8, my = c.y + Math.sin(c.angle) * c.size * 0.8;
         for (const o of creatures) {
           if (o === c || o.dead || o.size > c.size * 0.55) continue;
-          if (Math.hypot(o.x - mx, o.y - my) < o.size + c.size * 0.35) {
+          if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
             if (onScreen(o, 0)) {
@@ -877,16 +1081,87 @@ function updateCreatures(dt) {
     if (c.chomp > 0) { c.chomp -= dt; mouthTarget = c.chomp > 0.15 ? 1 : 0; }
     c.mouth += (mouthTarget - c.mouth) * (1 - Math.exp(-14 * dt));
 
-    c.x += c.vx * dt;
-    c.y += c.vy * dt;
+    // la boue colle, l'eau ralentit ceux qui marchent
+    const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
+    const zk = zone === 'mud' ? 0.4 : zone === 'water' ? 0.6 : 1;
+    c.x += c.vx * dt * zk;
+    c.y += c.vy * dt * zk;
+    if (c.home) keepInPond(c);
     const m = c.size + 40;
     if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
     if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
+    updateFace(c);
+    c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
     followSpine(c, sp.look);
+
+    // boum… boum… les pas des géants font trembler le sol
+    if (sp.stomp && v > 15) {
+      c.stepT -= dt * (0.7 + 1.6 * v / sp.speed);
+      if (c.stepT <= 0) {
+        c.stepT = 1;
+        const k = clamp(1 - d / hearR, 0, 1) * clamp(c.size / 250, 0.5, 1.3);
+        if (k > 0.05) {
+          sfx.stomp(k);
+          shake = Math.max(shake, k * 0.3);
+          if (k > 0.45) sayOnce('stomp', LINES.stomp, 50, 1);
+        }
+      }
+    }
   }
   if (creatures.some((c) => c.dead)) creatures = creatures.filter((c) => !c.dead);
+}
+
+/** Un chasseur te repère : « ! », et il rugit s'il est gros */
+function spot(c) {
+  c.state = 'alert';
+  c.timer = ALERT_TIME;
+  c.mark = '!';
+  c.markT = 1.1;
+  if (!onScreen(c, 60) && dist(c, player) > Math.hypot(viewW, viewH) * 0.6) return;
+  if (c.sp.roar) {
+    const k = clamp(c.size / 300, 0.4, 1.2);
+    sfx.roar(k);
+    shake = Math.max(shake, 0.25 + 0.3 * k);
+    addFloater('ROAAAR !', c.x, c.y - c.size * 1.7, '#FF6F91', 1.5);
+    sayOnce('roar', LINES.roar, 30, 2);
+  } else {
+    sfx.alert();
+  }
+  buzz(40);
+  if (sayOnce('spotted', LINES.spotted, 12, 2) && !game.dashUsed) later(() => sayOnce('dashHint', LINES.dashHint, 60, 2), 2200);
+}
+
+/** Si c'est une meute, les autres membres arrivent aussi */
+function callPack(c) {
+  if (!c.sp.pack) return 0;
+  let n = 0;
+  for (const o of creatures) {
+    if (o === c || o.id !== c.id || o.state !== 'wander' || dist(o, c) > 800 || !isDanger(o)) continue;
+    o.state = 'alert';
+    o.timer = ALERT_TIME + rand(0.1, 0.4);
+    o.mark = '!';
+    o.markT = 1.1;
+    n++;
+  }
+  if (n) sayOnce('pack', LINES.pack, 30, 3);
+  return n;
+}
+
+/** Un animal des mares reste dans sa mare */
+function keepInPond(c) {
+  const h = c.home;
+  const dd = dist(c, h) || 1;
+  const lim = Math.max(10, h.r * 0.78 - c.size * 0.4);
+  if (dd > lim) {
+    c.x = h.x + (c.x - h.x) / dd * lim;
+    c.y = h.y + (c.y - h.y) / dd * lim;
+    c.vx *= -0.4;
+    c.vy *= -0.4;
+    c.wx = h.x;
+    c.wy = h.y;
+  }
 }
 
 function wander(c, speed, dt) {
@@ -926,11 +1201,9 @@ function onScreen(e, margin) {
 function updateContacts() {
   const p = player;
   if (p.dead) return;
-  const fx = Math.cos(p.angle), fy = Math.sin(p.angle);
-  const mx = p.x + fx * p.size * 0.8, my = p.y + fy * p.size * 0.8;
   for (const c of creatures) {
     if (c.dead) continue;
-    const dm = Math.hypot(c.x - mx, c.y - my);
+    const dm = mouthDist(p, c.x, c.y);
     // 1. le joueur croque
     if (canEat(c)) {
       if (dm < c.size * 0.9 + p.size * 0.38 * stats.reach) { playerEats(c); continue; }
@@ -946,8 +1219,7 @@ function updateContacts() {
     const d = Math.hypot(c.x - p.x, c.y - p.y);
     // 2. un chasseur nous croque avec sa gueule
     if (c.sp.kind === 'hunter' && isDanger(c) && p.invul <= 0) {
-      const cmx = c.x + Math.cos(c.angle) * c.size * 0.8, cmy = c.y + Math.sin(c.angle) * c.size * 0.8;
-      if (Math.hypot(cmx - p.x, cmy - p.y) < p.size * 0.85 + c.size * 0.3) {
+      if (mouthDist(c, p.x, p.y) < p.size * 0.85 + c.size * 0.3) {
         bitten(c);
         if (p.dead) return;
         continue;
@@ -958,9 +1230,14 @@ function updateContacts() {
       stung(c);
       continue;
     }
-    // 4. on se cogne
+    // 4. un herbivore qui charge (ou la queue à pointes), un géant qui écrase
+    if (p.invul <= 0 && !canEat(c) && hurtsByContact(c, d)) {
+      stung(c);
+      continue;
+    }
+    // 5. on se cogne (sauf contre ce qui vole, très haut)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !canEat(c) && !(c.sp.kind === 'food')) {
+    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && c.sp.kind !== 'giant') {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
@@ -1036,23 +1313,36 @@ function bitten(c) {
     buzz([30, 40, 30]);
     return;
   }
-  playerEaten(c);
+  loseLife(c, 'eaten');
 }
 
-function playerEaten(by) {
+/**
+ * On perd une vie : mangé par un chasseur (by), ou desséché sur la terre (cause 'dry').
+ * Un de tes descendants prend la relève, mais tu perds la moitié de ton ADN
+ * (il reste là : on peut essayer de le récupérer) et un peu de taille.
+ */
+function loseLife(by, cause) {
   const p = player;
-  sfx.gulp();
+  if (p.dead) return;
   buzz([80, 60, 120]);
   shake = 0.7;
-  flash = { a: 0.55, color: '255,60,80' };
-  by.chomp = 0.6;
-  by.state = 'wander';
-  by.rest = FULL_REST;
-  by.mark = null;
-  burst(p.x, p.y, 24, ['#6EE0B0', '#FFFFFF', '#B9F5DA'], p.size * 8 + 60, Math.max(2, p.size * 0.18));
-  addFloater('GLOUPS !', p.x, p.y - p.size * 1.5, '#FF6F91', 1.8);
-  // on perd la moitié de son ADN (il flotte là : on peut essayer de le récupérer)
-  const lost = Math.floor(game.adn * EATEN_ADN_LOSS);
+  if (cause === 'dry') {
+    sfx.sting();
+    flash = { a: 0.5, color: '255,210,120' };
+    addFloater('Desséché !', p.x, p.y - p.size * 1.5, '#FFD24A', 1.6);
+    burst(p.x, p.y, 20, ['#E8D9A0', '#FFFFFF', '#C9B27A'], p.size * 6 + 40, Math.max(2, p.size * 0.15));
+  } else {
+    sfx.gulp();
+    flash = { a: 0.55, color: '255,60,80' };
+    by.chomp = 0.6;
+    by.state = 'wander';
+    by.rest = FULL_REST;
+    by.mark = null;
+    addFloater('GLOUPS !', p.x, p.y - p.size * 1.5, '#FF6F91', 1.8);
+    burst(p.x, p.y, 24, ['#6EE0B0', '#FFFFFF', '#B9F5DA'], p.size * 8 + 60, Math.max(2, p.size * 0.18));
+  }
+  const pen = LV.world.penalty || { adn: EATEN_ADN_LOSS, growth: EATEN_GROWTH_LOSS };
+  const lost = Math.floor(game.adn * pen.adn);
   if (lost > 0) {
     game.adn -= lost;
     const n = Math.min(6, Math.max(1, Math.ceil(lost / 8)));
@@ -1062,15 +1352,36 @@ function playerEaten(by) {
       drops.push({ x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: Math.max(8, p.size * 0.35), adn: share, life: DROP_LIFE, seed: Math.random() * 10 });
     }
   }
-  game.earned = Math.max(0, game.earned - CH.growth * EATEN_GROWTH_LOSS);
+  game.earned = Math.max(0, game.earned - CH.growth * pen.growth);
   game.stats.deaths++;
   p.dead = true;
   p.deadT = RESPAWN_TIME;
-  for (const c of creatures) if (c.state === 'chase' || c.state === 'alert') { c.state = 'wander'; c.rest = GIVE_UP_REST; }
-  say(pick(LINES.eaten), 3, 6000);
+  for (const c of creatures) if (c.state === 'chase' || c.state === 'alert' || c.state === 'charge') { c.state = 'wander'; c.rest = GIVE_UP_REST; }
+  say(pick(cause === 'dry' ? LINES.dried : LINES.eaten), 3, 6000);
   saveGame();
 }
 
+/** Ce qui fait mal quand on le touche, sans nous manger */
+function hurtsByContact(c, d) {
+  const p = player;
+  const k = c.sp.kind;
+  if (k === 'giant') {
+    // sous les pattes du géant (le milieu de son corps)
+    const mid = c.spine && !c.side ? c.spine[Math.floor(c.spine.length / 2)] : c;
+    return Math.hypot(mid.x - p.x, mid.y - p.y) < c.size * 0.5 + p.size * 0.5;
+  }
+  if (k !== 'defender') return false;
+  if (c.state === 'charge' && d < c.size * 0.8 + p.size * 0.6) return true;
+  // la queue à pointes (ou la massue) fait mal même sans charger
+  const b = c.sp.body || {};
+  if (b.tailSpikes || b.club) {
+    const tail = tailPoint(c);
+    return Math.hypot(tail.x - p.x, tail.y - p.y) < c.size * 0.4 + p.size * 0.6;
+  }
+  return false;
+}
+
+/** Une méduse pique, une corne, une massue ou une patte de géant : ça fait mal ! */
 function stung(c) {
   const p = player;
   const d = dist(p, c) || 1;
@@ -1082,11 +1393,13 @@ function stung(c) {
     game.adn -= lost;
     drops.push({ x: p.x, y: p.y, vx: rand(-80, 80), vy: rand(-80, 80), r: Math.max(8, p.size * 0.3), adn: lost, life: DROP_LIFE, seed: Math.random() * 10 });
   }
-  sfx.sting();
-  shake = 0.3;
-  flash = { a: 0.35, color: '255,120,255' };
-  addFloater('Aïe !', p.x, p.y - p.size * 1.6, '#F6A6FF', 1.3);
-  sayOnce('stung', LINES.stung, 25, 2);
+  if (c.state === 'charge') { c.state = 'wander'; c.rest = 3; }
+  const kind = c.sp.kind;
+  if (kind === 'stinger') sfx.sting(); else sfx.thud();
+  shake = kind === 'giant' ? 0.6 : 0.35;
+  flash = { a: 0.35, color: kind === 'stinger' ? '255,120,255' : '255,160,90' };
+  addFloater(c.sp.hurt || 'Aïe !', p.x, p.y - p.size * 1.6, kind === 'stinger' ? '#F6A6FF' : '#FFB36B', 1.3);
+  sayOnce('hurt-' + kind, kind === 'giant' ? LINES.crushed : kind === 'defender' ? LINES.horned : LINES.stung, 25, 2);
   buzz(60);
 }
 
@@ -1245,7 +1558,7 @@ function openEvolutions() {
     <p class="dlg-title">🧬 Évoluer</p>
     <p class="dlg-sub">Tu as <b>${game.adn} 🧬</b> d'ADN. Choisis comment tes descendants vont changer :</p>
     <ul class="shop-rows">${rows}</ul>
-    <div class="dlg-actions"><button class="primary" data-act="close">Retour à l'océan</button></div>`, actions, true);
+    <div class="dlg-actions"><button class="primary" data-act="close">${LV.world.ground === 'land' ? 'Retour à la terre ferme' : "Retour à l'océan"}</button></div>`, actions, true);
 }
 
 function evolve(id) {
@@ -1321,7 +1634,7 @@ function update(dt) {
   updateDrops(dt);
   updateFx(dt);
   // poursuite : le cœur bat, l'écran rougit
-  const chasers = creatures.filter((c) => c.state === 'chase');
+  const chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'charge');
   if (chasers.length && !player.dead) {
     const close = chasers.some((c) => dist(c, player) < c.size * 3 + player.size * 3);
     heartT -= dt;
@@ -1413,36 +1726,50 @@ function draw() {
   for (let tx = Math.floor(x0 / T) * T; tx < x1; tx += T) {
     for (let ty = Math.floor(y0 / T) * T; ty < y1; ty += T) ctx.drawImage(floorTile, tx, ty, T + 1, T + 1);
   }
-  ctx.globalCompositeOperation = 'lighter';
-  for (const [scale, sxv, syv, alpha] of [[2.1, 14, 8, 0.09], [3.3, -10, 12, 0.06]]) {
-    const S = 256 * scale;
-    const ox = (worldT * sxv) % S, oy = (worldT * syv) % S;
-    ctx.globalAlpha = alpha;
-    for (let tx = Math.floor((x0 - ox) / S) * S + ox; tx < x1; tx += S) {
-      for (let ty = Math.floor((y0 - oy) / S) * S + oy; ty < y1; ty += S) ctx.drawImage(caustics, tx, ty, S + 1, S + 1);
+  const land = W.ground === 'land';
+  if (!land) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [scale, sxv, syv, alpha] of [[2.1, 14, 8, 0.09], [3.3, -10, 12, 0.06]]) {
+      const S = 256 * scale;
+      const ox = (worldT * sxv) % S, oy = (worldT * syv) % S;
+      ctx.globalAlpha = alpha;
+      for (let tx = Math.floor((x0 - ox) / S) * S + ox; tx < x1; tx += S) {
+        for (let ty = Math.floor((y0 - oy) / S) * S + oy; ty < y1; ty += S) ctx.drawImage(caustics, tx, ty, S + 1, S + 1);
+      }
     }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'source-over';
 
   const ch = game.chapter + 1;
-  for (const a of algae) if (inView(a, a.r)) drawDecor(ctx, a, worldT);
+  const inChapter = (d) => d.from <= ch && d.to >= ch;
+  for (const z of zones) if (inView(z, z.r * 1.2)) drawDecor(ctx, z, worldT);
+  for (const a of hides) if (inChapter(a) && inView(a, a.r)) drawDecor(ctx, a, worldT);
   ctx.globalAlpha = 0.82;
-  for (const d of decor) if (d.from <= ch && d.to >= ch && inView(d, d.r * 1.3)) drawDecor(ctx, d, worldT);
+  for (const d of decor) if (!d.hide && inChapter(d) && inView(d, d.r * 1.3)) drawDecor(ctx, d, worldT);
   ctx.globalAlpha = 1;
+  if (stats.cones) drawCones(inView);
   for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
 
-  // les créatures, des plus petites aux plus grosses ; le joueur à sa place
-  const list = creatures.filter((c) => inView(c, c.size * 3.5)).sort((a, b) => a.size - b.size);
+  // les créatures, des plus petites aux plus grosses ; le joueur à sa place ; ce qui vole, tout en haut
+  const list = creatures.filter((c) => inView(c, c.size * 3.5)).sort(land ? (a, b) => a.y - b.y : (a, b) => a.size - b.size);
   let playerDrawn = false;
   for (const c of list) {
-    if (!playerDrawn && c.size > player.size) { drawThePlayer(); playerDrawn = true; }
+    if (c.sp.flying) continue;
+    if (!playerDrawn && (land ? c.y > player.y : c.size > player.size)) { drawThePlayer(); playerDrawn = true; }
     drawCreature(ctx, c, worldT + c.seed);
   }
   if (!playerDrawn) drawThePlayer();
 
-  // les algues par-dessus : on s'y cache
-  for (const a of algae) if (inView(a, a.r + 200)) drawAlgaeFronds(ctx, a, worldT);
+  // par-dessus : les cachettes (algues, fougères) et les feuillages, transparents quand on est dessous
+  for (const a of covers) {
+    if (!inChapter(a) || !inView(a, a.r + 200)) continue;
+    if (a.canopy) ctx.globalAlpha = dist(a, player) < a.r + player.size ? 0.35 : 0.94;
+    drawCover(ctx, a, worldT);
+    ctx.globalAlpha = 1;
+  }
+  for (const c of list) if (c.sp.flying) drawCreature(ctx, c, worldT + c.seed);
+  if (land) drawCloudShadows(ctx, clouds, worldT, x0, y0, x1, y1);
 
   // marques au-dessus des créatures
   for (const c of list) {
@@ -1467,6 +1794,29 @@ function draw() {
     ctx.fillRect(0, 0, cssW, cssH);
   }
   drawMinimap();
+}
+
+/** (Gros cerveau) Ce que voient les chasseurs : un cône devant eux */
+function drawCones(inView) {
+  for (const c of creatures) {
+    const sp = c.sp;
+    if (sp.kind !== 'hunter' || !sp.cone || !isDanger(c) || !inView(c, sp.sense)) continue;
+    const hot = c.state === 'alert' || c.state === 'chase';
+    const g = ctx.createRadialGradient(c.x, c.y, c.size * 0.5, c.x, c.y, sp.sense);
+    g.addColorStop(0, hot ? 'rgba(255, 60, 60, 0.32)' : 'rgba(255, 90, 90, 0.2)');
+    g.addColorStop(1, 'rgba(255, 90, 90, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.arc(c.x, c.y, sp.sense, c.angle - sp.cone / 2, c.angle + sp.cone / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = hot ? 'rgba(255, 70, 70, 0.6)' : 'rgba(255, 120, 120, 0.3)';
+    ctx.lineWidth = 3 / zoom;
+    ctx.setLineDash([12 / zoom, 10 / zoom]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 }
 
 function drawThePlayer() {
@@ -1551,7 +1901,7 @@ function drawEdges(W) {
 }
 
 function drawMotes() {
-  ctx.fillStyle = 'rgba(230, 255, 245, 0.55)';
+  ctx.fillStyle = CH.palette.motes || 'rgba(230, 255, 245, 0.55)';
   for (const m of motes) {
     const S = Math.max(cssW, cssH) + 40;
     const x = ((m.x * S - cam.x * zoom * m.d + Math.sin(worldT * 0.6 + m.p) * 8) % S + S) % S - 20;
@@ -1572,7 +1922,7 @@ function drawDarkness() {
   const far = Math.hypot(cssW, cssH);
   const g = ctx.createRadialGradient(s.x, s.y, r * 0.55, s.x, s.y, Math.max(r * 1.05, r + 30));
   g.addColorStop(0, 'rgba(3, 20, 34, 0)');
-  g.addColorStop(1, 'rgba(3, 20, 34, 0.64)');
+  g.addColorStop(1, `rgba(3, 20, 34, ${CH.fog ?? 0.64})`);
   ctx.fillStyle = g;
   if (r < far) ctx.fillRect(0, 0, cssW, cssH);
   // bords de l'écran un peu plus sombres (toujours)
@@ -1587,8 +1937,12 @@ function drawDarkness() {
     const cs = worldToScreen(c.x, c.y);
     const fx = Math.cos(c.angle), fy = Math.sin(c.angle);
     const er = Math.max(3, c.size * zoom * 0.1);
-    for (const side of [-1, 1]) {
-      const ex = cs.x + (fx * 0.3 - fy * 0.32 * side) * c.size * zoom, ey = cs.y + (fy * 0.3 + fx * 0.32 * side) * c.size * zoom;
+    for (const side of c.side ? [0] : [-1, 1]) {
+      let ex = cs.x + (fx * 0.3 - fy * 0.32 * side) * c.size * zoom, ey = cs.y + (fy * 0.3 + fx * 0.32 * side) * c.size * zoom;
+      if (c.side) {
+        ex = cs.x + c.face * c.side[0] * 0.65 * c.size * zoom;
+        ey = cs.y + (c.side[1] - 0.15) * c.size * zoom;
+      }
       const gg = ctx.createRadialGradient(ex, ey, 0, ex, ey, er * 3);
       gg.addColorStop(0, 'rgba(255, 60, 60, 0.95)');
       gg.addColorStop(0.35, 'rgba(255, 40, 40, 0.45)');
@@ -1678,14 +2032,22 @@ function drawMinimap() {
   mctx.lineWidth = 2;
   mctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
-  for (const a of algae) {
+  for (const z of zones) {
+    const m = toM(z.x, z.y);
+    mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : 'rgba(140, 100, 60, 0.6)';
+    mctx.beginPath();
+    mctx.arc(m.x, m.y, Math.max(2, z.r * k * 0.85), 0, TAU);
+    mctx.fill();
+  }
+  mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
+  for (const a of hides) {
     const m = toM(a.x, a.y);
     mctx.beginPath();
     mctx.arc(m.x, m.y, Math.max(2, a.r * k), 0, TAU);
     mctx.fill();
   }
   const wanted = CH.missions.filter((mm) => mm.type === 'eat' && !missionInfo(mm).done).map((mm) => mm.species);
-  const vr = stats.vision > 1 ? range : visionR();
+  const vr = stats.vision > 1 || stats.radar ? range : visionR();
   for (const c of creatures) {
     const d = dist(c, player);
     if (d > range) continue;
@@ -1744,6 +2106,7 @@ function renderHud() {
     era,
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
+    water: drying() ? Math.round(player.wet * 50) : -1,
   };
   if (v.adn !== shown.adn) adnEl.textContent = v.adn;
   if (v.size !== shown.size) sizeBar.style.width = `${v.size}%`;
@@ -1753,6 +2116,11 @@ function renderHud() {
     shieldsEl.textContent = '🛡️'.repeat(player.shield) + '▫️'.repeat(Math.max(0, stats.shield - player.shield));
   }
   if (v.canEvolve !== shown.canEvolve) evoBtn.classList.toggle('ready', v.canEvolve);
+  if (v.water !== shown.water) {
+    waterItem.hidden = v.water < 0;
+    waterBar.style.width = `${Math.max(0, v.water) * 2}%`;
+    waterItem.classList.toggle('low', v.water >= 0 && v.water < 15);
+  }
   shown = v;
 }
 
@@ -1830,12 +2198,18 @@ function showStartScreen() {
   setupGame();
   const done = game.finished;
   const choice = done && LV.ending.choices.find((c) => c.id === game.path);
+  const next = nextLevel(choice);
   $('startLevel').textContent = `Niveau ${game.level + 1} — ${LV.name}`;
   $('startGoal').innerHTML = LV.goal;
-  $('startBtn').textContent = done ? '🎬 Revoir la fin' : hasSave ? `🌊 Continuer (chapitre ${game.chapter + 1})` : '🌊 Plonger !';
+  $('startBtn').textContent = done
+    ? (next >= 0 ? `${LEVELS[next].icon} Niveau ${next + 1} : ${LEVELS[next].name}` : '🎬 Revoir la fin')
+    : hasSave ? `${LV.icon} Continuer (chapitre ${game.chapter + 1})` : `${LV.icon} Plonger !`;
   $('newGameBtn').textContent = done ? '🔁 Recommencer au début' : '🆕 Nouvelle partie';
   $('newGameBtn').hidden = !hasSave;
-  $('startDone').innerHTML = choice ? `🏆 Bravo ! Tu as régné sur l'océan, puis tu as choisi : <b>${choice.icon} ${escapeHtml(choice.title)}</b>.<br>${escapeHtml(choice.soon)} : bientôt !` : '';
+  $('startDone').innerHTML = choice
+    ? `🏆 Bravo ! ${escapeHtml(LV.ending.done)}, puis tu as choisi : <b>${choice.icon} ${escapeHtml(choice.title)}</b>.<br>`
+      + (next >= 0 ? `Le niveau ${next + 1} t'attend !` : `${escapeHtml(choice.soon)} : bientôt !`)
+    : '';
   $('startDone').hidden = !done;
   $('startGoal').hidden = done;
   $('howTo').hidden = done;
@@ -1848,7 +2222,11 @@ function startGame() {
   if (state !== 'ready') return;
   startOverlay.hidden = true;
   enterFullscreen();
-  if (game.finished) { startEnding(); return; }
+  if (game.finished) {
+    const next = nextLevel(LV.ending.choices.find((c) => c.id === game.path));
+    if (next >= 0) goToLevel(next); else startEnding();
+    return;
+  }
   if (!game.started) { playIntro(); return; }
   beginPlay();
 }
@@ -1872,11 +2250,18 @@ function beginPlay() {
 /* ---------- L'animation de départ (intro.js) ---------- */
 function playIntro() {
   state = 'intro';
-  intro = createIntro({
-    sfx,
-    drawCell: (c, x, y, r, t) => drawPlayer(c, { x, y, angle: -0.3, size: r, mouth: 0, mood: 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.2, spine: null }, 'cellule', {}, t),
-    drawCreature: (c, id, x, y, r, angle, t) => drawCreature(c, { sp: SPECIES[id], x, y, angle, size: r, seed: 2, mood: 'angry', mouth: 0.6, blink: 0, spine: makeSpine(x, y, angle, r, SPECIES[id].look) }, t),
-  });
+  if (LV.intro === 'terre') {
+    intro = createLandIntro({
+      sfx,
+      drawHero: (c, x, y, r, angle, t, walk) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 9.6 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: makeSpine(x, y, angle, r, 'tetrapode') }, 'tetrapode', {}, t),
+    });
+  } else {
+    intro = createIntro({
+      sfx,
+      drawCell: (c, x, y, r, t) => drawPlayer(c, { x, y, angle: -0.3, size: r, mouth: 0, mood: 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.2, spine: null }, 'cellule', {}, t),
+      drawCreature: (c, id, x, y, r, angle, t) => drawCreature(c, { sp: SPECIES[id], x, y, angle, size: r, seed: 2, mood: 'angry', mouth: 0.6, blink: 0, spine: makeSpine(x, y, angle, r, SPECIES[id].look) }, t),
+    });
+  }
   introOverlay.hidden = false;
   sizeCanvas(introCanvas, introOverlay);
   $('introSkip').focus({ preventScroll: true });
@@ -1896,7 +2281,22 @@ $('introSkip').addEventListener('click', (e) => { e.currentTarget.blur(); endInt
 function startEnding() {
   state = 'ending';
   endT = 0;
-  endFx = Array.from({ length: 26 }, (_, i) => ({ a: (i / 26) * TAU, d: rand(0.6, 1.3), s: rand(0.5, 1), sp: pick(['petit-poisson', 'poisson-osseux', 'trilobite']), seed: Math.random() * 10 }));
+  endCues.clear();
+  const crowd = LV.ending.crowd || [];
+  endFx = Array.from({ length: LV.ending.scene === 'meteorite' ? 9 : 26 }, (_, i) => ({
+    a: (i / 26) * TAU, d: rand(0.6, 1.3), s: rand(0.5, 1), sp: pick(crowd), seed: Math.random() * 10,
+    x: rand(0.08, 0.92), y: rand(0.3, 0.92), ang: rand(0, TAU),
+  }));
+  endDecor = [];
+  if (LV.ending.scene === 'meteorite') {
+    // des plantes tout autour, mais pas sur le roi (au centre)
+    while (endDecor.length < 16) {
+      const fx = Math.random(), fy = Math.random();
+      if (Math.hypot(fx - 0.45, (fy - 0.6) * 0.6) < 0.2) continue;
+      const i = endDecor.length;
+      endDecor.push({ type: i < 7 ? 'fougeres' : i < 12 ? 'cycas' : 'conifere', fx, fy, fr: rand(0.05, 0.1), seed: i * 977 + 13 });
+    }
+  }
   closeDialog();
   endOverlay.hidden = false;
   endOverlay.classList.remove('show-text', 'chosen');
@@ -1904,6 +2304,7 @@ function startEnding() {
   $('endTitle').textContent = LV.ending.title;
   $('endSub').textContent = LV.ending.sub;
   $('endStats').textContent = `🍽️ ${game.stats.eaten} repas · 💨 ${game.stats.escapes} fuites réussies · 😱 croqué ${game.stats.deaths} fois · 🧬 ${game.stats.evolutions} évolutions`;
+  $('endChoices').classList.toggle('three', LV.ending.choices.length > 2);
   $('endChoices').innerHTML = LV.ending.choices.map((c) => `
     <button class="choice-card" data-choice="${c.id}">
       <span class="choice-icon">${c.icon}</span>
@@ -1911,8 +2312,18 @@ function startEnding() {
       <span class="choice-text">${escapeHtml(c.text)}</span>
     </button>`).join('');
   $('endResult').hidden = true;
-  sfx.victory();
-  confetti(120);
+  if (LV.ending.scene === 'meteorite') {
+    sfx.roar(1.2);
+    later(() => sfx.victory(), 600);
+  } else {
+    sfx.victory();
+    confetti(120);
+  }
+}
+
+/** L'index du niveau où mène un choix de fin (-1 s'il n'existe pas encore) */
+function nextLevel(choice) {
+  return choice ? LEVELS.findIndex((lv) => lv.id === choice.level) : -1;
 }
 
 $('endChoices').addEventListener('click', (e) => {
@@ -1930,29 +2341,35 @@ $('endChoices').addEventListener('click', (e) => {
   $('endSoon').textContent = `${c.soon} : bientôt !`;
   $('endFact').textContent = c.fact || '';
   $('endFact').hidden = !c.fact;
-  const next = LEVELS.findIndex((lv) => lv.id === c.level);
+  const next = nextLevel(c);
   $('endNext').hidden = next < 0;
+  $('endNext').textContent = next >= 0 ? `${LEVELS[next].icon} Niveau ${next + 1} : ${LEVELS[next].name} ▶` : '';
   $('endNext').onclick = () => goToLevel(next);
+  $('endSoon').hidden = next >= 0;
+  $('endAgain').hidden = game.level === 0;
   setTimeout(() => $('endReplay').focus({ preventScroll: true }), 50);
 });
 
+/** On passe au niveau suivant : on garde son ADN et ses statistiques, le reste repart à zéro */
 function goToLevel(i) {
   endOverlay.hidden = true;
+  startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
   game.owned = {};
   game.finished = false;
   game.path = null;
   game.pos = null;
+  game.started = false;
+  game.tipsSaid = {};
   Object.assign(game, freshChapter());
   game.chapterDone = false;
   setupGame();
-  state = 'playing';
-  say(LV.lines.start, 4, 7000);
-  later(openChapterIntro, 600);
   saveGame();
+  playIntro();
 }
 
+$('endAgain').addEventListener('click', () => goToLevel(game.level));
 $('endReplay').addEventListener('click', () => {
   clearSave();
   endOverlay.hidden = true;
@@ -1961,6 +2378,7 @@ $('endReplay').addEventListener('click', () => {
 });
 
 function drawEnding(dt) {
+  if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   endT += dt;
   if (endT > 2.4 && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
   const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
@@ -2007,6 +2425,262 @@ function drawEnding(dt) {
   const p = { x: px, y: py, angle: a, size, mouth: 0.3 + Math.abs(Math.sin(endT * 2)) * 0.4, mood: 'happy', blink: 0, speed: 0.5, spine: makeSpine(px, py, a, size, formLook() || 'poisson') };
   drawPlayer(c, p, CH.form, game.owned, endT);
   drawCrown(c, px + Math.cos(a) * size * 0.1, py - size * 1.15 + Math.sin(endT * 3) * 4, size * 0.75);
+}
+
+/* ---------- La fin du niveau 2 : on domine la Terre… puis la météorite ----------
+   0 → 4 s       le joueur, couronné, rugit au milieu des herbivores
+   4,2 → 7,3 s   le ciel rougit, une boule de feu traverse le ciel
+   7,3 s         impact : flash, onde de choc, pluie de débris, cendres
+   8 → 11 s      les grands dinosaures disparaissent
+   11,8 → 15 s   les survivants : un petit oiseau, un petit mammifère, un crocodile
+   15 s →        le texte et les trois chemins */
+const METEOR_TEXT_AT = 15;
+const IMPACT = 7.3;
+const ASH = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2.5, v: 0.02 + Math.random() * 0.05 }));
+const DEBRIS = Array.from({ length: 12 }, (_, i) => ({ x: 0.1 + Math.random() * 0.8, y: 0.25 + Math.random() * 0.7, at: IMPACT + 0.3 + i * 0.28 }));
+const FIRES = Array.from({ length: 7 }, () => ({ x: 0.1 + Math.random() * 0.85, y: 0.2 + Math.random() * 0.75, s: 0.5 + Math.random() }));
+
+function cueEnd(name, at, fn) {
+  if (endT >= at && !endCues.has(name)) { endCues.add(name); fn(); }
+}
+
+function drawMeteorEnding(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('rumble', 4.2, () => sfx.rumble());
+  cueEnd('boom', IMPACT, () => { sfx.boom(); buzz([200, 100, 300]); });
+  cueEnd('sad', 9, () => sfx.sad());
+  cueEnd('hope', 12.2, () => sfx.evolve());
+  if (t > METEOR_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  const c = ectx;
+  const m = Math.min(w, h);
+  const quake = t > IMPACT && t < IMPACT + 2.5 ? (1 - (t - IMPACT) / 2.5) * 16 : t > 4.2 && t < IMPACT ? (t - 4.2) * 1.5 : 0;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.save();
+  c.translate((Math.random() - 0.5) * quake, (Math.random() - 0.5) * quake);
+
+  // le sol, une mare, des fougères et des arbres
+  const T = 420;
+  for (let x = -T; x < w + T; x += T) for (let y = -T; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
+  const pond = { type: 'mare', zone: 'water', x: w * 0.8, y: h * 0.8, r: m * 0.14, seed: 4242 };
+  drawDecor(c, pond, t);
+  for (const d of endDecor) {
+    d.x = d.fx * w;
+    d.y = d.fy * h;
+    d.r = d.fr * m;
+    drawDecor(c, d, t);
+  }
+
+  // les grands dinosaures : ils broutent… puis fuient et disparaissent
+  const dying = clamp((t - IMPACT - 0.5) / 2.8, 0, 1);
+  for (const f of endFx) {
+    const sp = SPECIES[f.sp];
+    if (!sp) continue;
+    if (t > IMPACT) {
+      f.ang = turnToward(f.ang, Math.atan2(f.y - 0.3, f.x - 0.85), dt * 4);
+      f.x += Math.cos(f.ang) * dt * 0.09;
+      f.y += Math.sin(f.ang) * dt * 0.09;
+    } else {
+      f.ang += Math.sin(t * 0.7 + f.seed) * dt * 0.4;
+      f.x += Math.cos(f.ang) * dt * 0.008;
+      f.y += Math.sin(f.ang) * dt * 0.008;
+    }
+    const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
+    c.globalAlpha = 1 - dying;
+    drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: t > IMPACT ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (t > IMPACT ? 5 : 1), spine: makeSpine(x, y, f.ang, r, sp.look) }, t + f.seed);
+  }
+  // toi, le roi… qui disparaît aussi
+  const size = m * 0.085;
+  const px = w * 0.45, py = h * 0.6;
+  const a = t > IMPACT ? -0.5 : Math.sin(t * 0.7) * 0.25 - 0.2;
+  const roaring = t < 1.8 || (t > 3 && t < 3.6);
+  drawPlayer(c, { x: px, y: py, angle: a, size, mouth: roaring ? 0.9 : 0.15, mood: t > IMPACT ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t, spine: makeSpine(px, py, a, size, formLook()) }, CH.form, game.owned, t);
+  // la couronne tombe au moment de l'impact
+  const fall = t > IMPACT ? Math.min(1, (t - IMPACT) / 1.2) : 0;
+  c.globalAlpha = Math.max(0, 1 - clamp((t - IMPACT - 1.5) / 1.5, 0, 1));
+  drawCrown(c, px + Math.cos(a) * size * 0.2 + fall * size, py - size * 1.2 + fall * size * 1.6, size * 0.6);
+  c.globalAlpha = 1;
+  for (const d of endDecor) if (d.type !== 'cycas') drawCover(c, d, t);
+
+  // pluie de débris en feu
+  for (const db of DEBRIS) {
+    if (t < db.at - 0.6 || t > db.at + 0.8) continue;
+    const x = db.x * w, y = db.y * h;
+    if (t < db.at) {
+      const k = 1 - (db.at - t) / 0.6;
+      c.fillStyle = `rgba(0, 0, 0, ${0.35 * k})`;
+      c.beginPath();
+      c.arc(x, y, m * 0.02 * k, 0, TAU);
+      c.fill();
+    } else {
+      const k = (t - db.at) / 0.8;
+      const g = c.createRadialGradient(x, y, 0, x, y, m * 0.08 * (0.4 + k));
+      g.addColorStop(0, `rgba(255, 230, 150, ${1 - k})`);
+      g.addColorStop(0.5, `rgba(255, 120, 40, ${0.7 * (1 - k)})`);
+      g.addColorStop(1, 'rgba(255, 60, 20, 0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(x, y, m * 0.08 * (0.4 + k), 0, TAU);
+      c.fill();
+    }
+  }
+  // incendies
+  if (t > IMPACT + 0.5) {
+    const k = clamp((t - IMPACT - 0.5) / 1.5, 0, 1) * (1 - clamp((t - 11.5) / 2, 0, 1) * 0.7);
+    for (const f of FIRES) {
+      const fl = 0.75 + Math.sin(t * 9 + f.x * 20) * 0.25;
+      const x = f.x * w, y = f.y * h, r = m * 0.05 * f.s * fl;
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(255, 200, 80, ${0.8 * k})`);
+      g.addColorStop(1, 'rgba(255, 80, 20, 0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(x, y, r, 0, TAU);
+      c.fill();
+    }
+  }
+  // les survivants
+  if (t > 11.8) drawSurvivors(c, w, h, m, t, pond);
+  c.restore();
+
+  // le ciel rougit, puis tout devient gris de cendres
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const dusk = clamp((t - 4.2) / 3, 0, 1);
+  const ash = clamp((t - IMPACT) / 2, 0, 1);
+  const hope = clamp((t - 12) / 3, 0, 1);
+  if (dusk > 0) {
+    c.fillStyle = `rgba(140, 40, 20, ${0.35 * dusk * (1 - ash)})`;
+    c.fillRect(0, 0, w, h);
+  }
+  if (ash > 0) {
+    c.fillStyle = `rgba(55, 55, 60, ${0.55 * ash * (1 - hope * 0.6)})`;
+    c.fillRect(0, 0, w, h);
+  }
+  // la boule de feu
+  if (t > 4.2 && t < IMPACT) {
+    const k = (t - 4.2) / (IMPACT - 4.2);
+    const e = k * k;
+    const x = -0.1 * w + (0.95 * w) * e, y = 0.2 * h + 0.1 * h * e;
+    const r = m * (0.012 + 0.07 * e);
+    c.strokeStyle = 'rgba(255, 170, 60, 0.6)';
+    c.lineCap = 'round';
+    c.lineWidth = r * 1.2;
+    c.beginPath();
+    c.moveTo(x - r * 8, y - r * 0.8);
+    c.lineTo(x, y);
+    c.stroke();
+    const g = c.createRadialGradient(x, y, 0, x, y, r * 4);
+    g.addColorStop(0, 'rgba(255, 255, 220, 1)');
+    g.addColorStop(0.25, 'rgba(255, 190, 80, 0.9)');
+    g.addColorStop(1, 'rgba(255, 80, 20, 0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(x, y, r * 4, 0, TAU);
+    c.fill();
+  }
+  // l'impact : un éclair blanc, puis l'onde de choc
+  if (t > IMPACT) {
+    const k = t - IMPACT;
+    if (k < 1.4) {
+      c.fillStyle = `rgba(255, 250, 235, ${1 - k / 1.4})`;
+      c.fillRect(0, 0, w, h);
+    }
+    if (k < 3) {
+      c.strokeStyle = `rgba(255, 220, 170, ${0.7 * (1 - k / 3)})`;
+      c.lineWidth = m * 0.03 * (1 - k / 3) + 2;
+      c.beginPath();
+      c.arc(w * 0.85, h * 0.3, k * Math.hypot(w, h) * 0.45, 0, TAU);
+      c.stroke();
+    }
+    // les cendres qui tombent
+    c.fillStyle = 'rgba(200, 200, 200, 0.7)';
+    for (const f of ASH) {
+      const y = ((f.y + (t - IMPACT) * f.v) % 1) * h;
+      const x = (f.x * w + Math.sin(t + f.x * 10) * 12) % w;
+      c.globalAlpha = Math.min(1, k) * (1 - hope * 0.7);
+      c.beginPath();
+      c.arc(x, y, f.s, 0, TAU);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+  const cap = LV.ending.captions.find(([a0, b0]) => t >= a0 && t < b0);
+  if (cap && t < METEOR_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
+/** Ceux qui survivent : un petit oiseau, un petit mammifère, un crocodile (les trois chemins) */
+function drawSurvivors(c, w, h, m, t, pond) {
+  const k = clamp((t - 11.8) / 1.5, 0, 1);
+  const glow = (x, y, r) => {
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255, 245, 190, ${0.45 * k})`);
+    g.addColorStop(1, 'rgba(255, 245, 190, 0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(x, y, r, 0, TAU);
+    c.fill();
+  };
+  // le crocodile, dans la mare
+  const cx = pond.x, cy = pond.y, cr = m * 0.055;
+  glow(cx, cy, cr * 4);
+  c.globalAlpha = k;
+  const croc = { look: 'lezard', color: '#4F7A3A', kind: 'prey', body: { snout: 1.4 } };
+  drawCreature(c, { sp: croc, x: cx, y: cy, angle: Math.PI + 0.3, size: cr, seed: 3, mood: 'calm', mouth: 0, blink: 0, walk: t, spine: makeSpine(cx, cy, Math.PI + 0.3, cr, 'lezard') }, t);
+  // le petit mammifère, qui sort de son terrier
+  const mx = w * 0.22, my = h * 0.72, mr = m * 0.05;
+  c.globalAlpha = 1;
+  glow(mx, my, mr * 4);
+  c.fillStyle = 'rgba(40, 25, 10, 0.8)';
+  c.beginPath();
+  c.ellipse(mx - mr * 1.2, my + mr * 0.4, mr * 1.4, mr * 0.9, 0, 0, TAU);
+  c.fill();
+  c.globalAlpha = k;
+  const furry = { look: 'lezard', color: '#A0785A', kind: 'prey', body: { fur: true } };
+  drawCreature(c, { sp: furry, x: mx, y: my, angle: -0.4, size: mr, seed: 5, mood: 'calm', mouth: 0, blink: (t % 2.5) < 0.12 ? 1 : 0, walk: 0, spine: makeSpine(mx, my, -0.4, mr, 'lezard') }, t);
+  // le petit oiseau, qui s'envole
+  const bx = w * (0.1 + (t - 11.8) * 0.1), by = h * (0.42 - Math.sin((t - 11.8) * 0.8) * 0.06), br = m * 0.05;
+  c.globalAlpha = 1;
+  glow(bx, by, br * 4);
+  c.globalAlpha = k;
+  drawBird(c, bx, by, br, t);
+  c.globalAlpha = 1;
+}
+
+/** Un petit oiseau vu de dessus, qui bat des ailes */
+function drawBird(c, x, y, r, t) {
+  const flap = Math.sin(t * 12) * 0.5;
+  c.fillStyle = '#5FA8E8';
+  c.strokeStyle = '#1F4E7A';
+  c.lineWidth = Math.max(1, r * 0.12);
+  for (const s of [-1, 1]) {
+    c.beginPath();
+    c.moveTo(x, y);
+    c.quadraticCurveTo(x - r * 0.4, y + s * r * (1.4 + flap), x - r * 1.1, y + s * r * (2 + flap));
+    c.quadraticCurveTo(x - r * 0.2, y + s * r * 0.9, x - r * 0.6, y);
+    c.closePath();
+    c.fill();
+    c.stroke();
+  }
+  c.beginPath();
+  c.ellipse(x, y, r * 0.9, r * 0.5, 0, 0, TAU);
+  c.fill();
+  c.stroke();
+  c.fillStyle = '#FFB000';
+  c.beginPath();
+  c.moveTo(x + r * 1.3, y);
+  c.lineTo(x + r * 0.85, y - r * 0.18);
+  c.lineTo(x + r * 0.85, y + r * 0.18);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#FFFFFF';
+  c.beginPath();
+  c.arc(x + r * 0.6, y - r * 0.2, r * 0.18, 0, TAU);
+  c.fill();
+  c.fillStyle = '#1E2A3A';
+  c.beginPath();
+  c.arc(x + r * 0.65, y - r * 0.2, r * 0.09, 0, TAU);
+  c.fill();
 }
 
 /** Une couronne d'or, avec ses pierres précieuses */
@@ -2142,11 +2816,25 @@ let botCareful = true;               // false = un enfant distrait, qui ne fuit 
 function botDir() {
   const p = player;
   let fx = 0, fy = 0, threat = 0;
+  // la peau sèche : direction la mare la plus proche
+  if (drying() && p.wet < 0.4 && p.zone !== 'water') {
+    const pond = nearestZone(p.x, p.y, 'water');
+    if (pond) {
+      // on boit au bord (au milieu, il y a des poissons géants)
+      const dx = pond.x - p.x, dy = pond.y - p.y, d = Math.hypot(dx, dy) || 1;
+      if (d > pond.r * 0.7) return { x: dx / d, y: dy / d };
+      return { x: 0, y: 0 };
+    }
+  }
   for (const c of creatures) {
-    if (!isDanger(c)) continue;
+    if (!isThreat(c)) continue;
+    // un poisson géant ne peut rien contre nous si on reste au bord de sa mare
+    if (c.home && dist(p, c.home) > c.home.r * (c.sp.reach || 0.85) + p.size + 150) continue;
     if (!botCareful && c.state !== 'chase') continue;
     const d = dist(c, p) || 1;
-    const R = botCareful ? c.size * 2.5 + p.size * 3 + (c.state === 'chase' ? 260 : 120) : c.size * 1.6 + p.size * 2;
+    const big = c.sp.kind === 'giant' || c.sp.kind === 'defender';
+    const R = big ? c.size * 1.3 + p.size * 2
+      : botCareful ? c.size * 2.5 + p.size * 3 + (c.state === 'chase' ? 260 : 120) : c.size * 1.6 + p.size * 2;
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
   if (threat > 0.15) {
@@ -2161,7 +2849,11 @@ function botDir() {
     const d = dist(c, p) * (wanted.includes(c.id) ? 0.12 : 1);
     if (d < bd) { bd = d; best = c; }
   }
-  if (!best) return { x: Math.cos(worldT * 0.3), y: Math.sin(worldT * 0.2) };
+  if (!best) {
+    // rien à manger en vue : on explore (en restant près de l'eau si la peau sèche)
+    const a = worldT * 0.3 + p.walk * 0.01;
+    return { x: Math.cos(a), y: Math.sin(a * 0.8) };
+  }
   const dx = best.x - p.x, dy = best.y - p.y, d = Math.hypot(dx, dy) || 1;
   return { x: dx / d, y: dy / d };
 }
@@ -2204,8 +2896,14 @@ async function init() {
   new ResizeObserver(resize).observe(stage);
   renderSoundBtn();
   try { await document.fonts.load('700 17px "Baloo 2"'); } catch (err) { /* police de secours */ }
-  if (DEBUG && new URLSearchParams(location.search).has('reset')) clearSave();
+  const params = new URLSearchParams(location.search);
+  if (DEBUG && params.has('reset')) clearSave();
   showStartScreen();
+  // ?debug&niveau=2 : aller directement au début d'un niveau
+  if (DEBUG && LEVELS[Number(params.get('niveau')) - 1]) {
+    startOverlay.hidden = true;
+    goToLevel(Number(params.get('niveau')) - 1);
+  }
   requestAnimationFrame(loop);
   if (DEBUG) {
     // pour tester : ?debug, puis __evo.chapter(3), __evo.adn(500)…
@@ -2217,6 +2915,7 @@ async function init() {
       own(id) { game.owned[id] = true; recalc(); player.shield = stats.shield; },
       spawn(id, dx = 200, dy = 0) { const c = spawnCreature(id, true); if (c) { c.x = player.x + dx; c.y = player.y + dy; resetSpine(c, SPINES[c.sp.look] ? c.sp.look : null); } return c; },
       ending: startEnding,
+      level: goToLevel,
       simulate,
     };
   }

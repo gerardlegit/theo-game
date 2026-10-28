@@ -62,6 +62,13 @@ body {
   transition: width .4s ease;
 }
 .era-item #era { font-weight: 700; color: #BDF5EC; }
+.water-item { min-width: 90px; }
+.water-item .gold-bar i { background: linear-gradient(90deg, #4FB8E8, #9EE7FF); }
+.water-item.low { animation: lowWater .8s ease-in-out infinite; }
+.water-item.low .gold-bar i { background: #FF6B6B; }
+@keyframes lowWater {
+  50% { background: rgba(255, 80, 80, 0.45); transform: scale(1.06); }
+}
 .shield-item { letter-spacing: -.1em; }
 .evo-btn { font-weight: 800; }
 .evo-btn.ready {
@@ -352,6 +359,7 @@ body {
 .choice-icon { font-size: 2.6rem; line-height: 1; }
 .choice-title { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.25rem; color: #1F9C8E; }
 .choice-text { font-size: .9rem; line-height: 1.35; }
+.end-choices.three .choice-card { width: min(250px, 30vw); }
 .end-overlay.chosen .end-choices { display: none; }
 .end-result-icon { margin: 0; font-size: 3.4rem; line-height: 1.1; }
 .end-soon {

@@ -47,6 +47,9 @@
       <span class="gold-bar" aria-hidden="true"><i id="sizeBar"></i></span>
     </div>
     <div class="hud-item era-item" title="L'époque">⏳ <span id="era"></span></div>
+    <div class="hud-item size-item water-item" id="waterItem" title="Ta réserve d'eau : sur la terre, ta peau sèche. Plonge dans une mare !" hidden>💧
+      <span class="gold-bar" aria-hidden="true"><i id="waterBar"></i></span>
+    </div>
     <div class="hud-item shield-item" id="shieldItem" title="Ta carapace : les morsures qu'elle peut encaisser" hidden><span id="shields"></span></div>
     <button id="evoBtn" class="hud-btn evo-btn" aria-label="Évoluer">🧬 <span class="btn-label">Évoluer</span></button>
     <button id="soundBtn" class="hud-btn" aria-label="Couper ou remettre le son">🔊</button>
@@ -159,6 +162,7 @@
         <p class="end-fact" id="endFact"></p>
         <div class="end-actions">
           <button id="endNext" class="royal-btn" hidden>Niveau suivant ▶</button>
+          <button id="endAgain" class="royal-btn" hidden>🔁 Rejouer ce niveau</button>
           <button id="endReplay">🔁 Rejouer depuis la cellule</button>
           <a class="ghost-btn quit-link" href="../../">🏠 La Cabane</a>
         </div>

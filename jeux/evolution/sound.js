@@ -2,6 +2,8 @@
 // Bruitages synthétisés (aucun fichier audio) : croc et gloups quand on mange,
 // alerte quand un chasseur nous repère, battements de cœur pendant la
 // poursuite, sprint, « gloups » quand on se fait manger, évolution, fanfares.
+// Sur la terre : pas lourds des dinosaures, rugissements, plouf, boue,
+// grondement et explosion de la météorite, petite musique triste.
 // ============================================================================
 
 const STORAGE_KEY = 'evolution-sound';
@@ -134,4 +136,36 @@ export const sfx = {
     [48, 55, 60, 64, 67].forEach((n) => tone(NOTE(n), 1.3, 2, { vol: 0.05 }));
   }),
   click: () => play(() => tone(NOTE(76), 0, 0.06, { type: 'triangle', vol: 0.07 })),
+
+  /* ---- sur la terre ferme ---- */
+  /* boum… un grand pas qui fait trembler le sol (k = 0 loin … 1 tout près) */
+  stomp: (k = 1) => play(() => {
+    tone(55, 0, 0.35, { type: 'sine', vol: 0.12 + k * 0.3, to: 32 });
+    noise(0, 0.18, { vol: 0.05 + k * 0.15, freq: 180, q: 0.8, type: 'lowpass' });
+  }),
+  /* un rugissement (k = taille) */
+  roar: (k = 1) => play(() => {
+    const f = 140 / (0.6 + k * 0.5);
+    noise(0, 1.1, { vol: 0.28, freq: 600, to: 220, q: 0.9 });
+    tone(f, 0, 1, { type: 'sawtooth', vol: 0.09, to: f * 0.6 });
+    tone(f * 1.5, 0.05, 0.9, { type: 'sawtooth', vol: 0.05, to: f * 0.8 });
+  }),
+  /* un coup de corne ou de massue */
+  thud: () => play(() => { tone(150, 0, 0.2, { type: 'triangle', vol: 0.22, to: 60 }); noise(0, 0.12, { vol: 0.2, freq: 700, q: 1.5 }); }),
+  /* plouf dans une mare */
+  splash: () => play(() => { noise(0, 0.35, { vol: 0.16, freq: 1600, to: 500, q: 0.7 }); tone(NOTE(79), 0.02, 0.1, { vol: 0.04, to: NOTE(86) }); }),
+  /* la météorite qui approche, puis l'impact */
+  rumble: () => play(() => {
+    noise(0, 3, { vol: 0.25, freq: 120, to: 400, q: 0.5, type: 'lowpass' });
+    tone(40, 0, 3, { type: 'sine', vol: 0.2, to: 70 });
+  }),
+  boom: () => play(() => {
+    noise(0, 2.5, { vol: 0.6, freq: 900, to: 60, q: 0.4, type: 'lowpass' });
+    tone(60, 0, 2, { type: 'sine', vol: 0.4, to: 25 });
+    tone(90, 0.05, 1.5, { type: 'triangle', vol: 0.15, to: 30 });
+  }),
+  /* une petite musique triste, puis pleine d'espoir */
+  sad: () => play(() => {
+    [[69, 0], [67, 0.4], [64, 0.8], [62, 1.2], [64, 1.8], [67, 2.2], [72, 2.8]].forEach(([n, t]) => tone(NOTE(n), t, 0.5, { type: 'triangle', vol: 0.09 }));
+  }),
 };

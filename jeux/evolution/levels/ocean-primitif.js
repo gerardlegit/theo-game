@@ -15,7 +15,7 @@ const world = {
   h: 6000,
   start: { x: 4500, y: 3000 },
   decor: [
-    { type: 'algues', count: 60, r: [90, 380] },
+    { type: 'algues', count: 60, r: [90, 380], hide: true, atStart: true },
     { type: 'rocher', count: 110, r: [16, 80] },
     { type: 'cheminee', count: 10, r: [36, 62] },
     { type: 'stromatolithe', count: 120, r: [14, 42], to: 2 },
@@ -300,7 +300,10 @@ const lines = {
 
 /* La fin du niveau : on règne sur l'océan, puis on choisit son chemin */
 const ending = {
+  scene: 'roi',
+  crowd: ['petit-poisson', 'poisson-osseux', 'trilobite'],
   title: "Tu règnes sur l'océan !",
+  done: "Tu as régné sur l'océan",
   sub: "En plus d'un milliard d'années, ta minuscule cellule est devenue le chasseur le plus redoutable de la mer. Et maintenant, que vont devenir tes descendants ?",
   choices: [
     {
@@ -322,6 +325,8 @@ const ending = {
 export default {
   id: 'ocean-primitif',
   name: "L'océan primitif",
+  icon: '🌊',
+  intro: 'ocean',
   goal: "Tu es une minuscule cellule dans la soupe primitive. <b>Mange pour grandir</b>, fais évoluer ton corps, et deviens le roi de l'océan :<br>🦠 la cellule → 🐛 le ver → 🐟 le poisson → 👑 le maître des mers !",
   world,
   species,
