@@ -22,7 +22,7 @@ const CLAW = '#EDE3CC';
 let fine = true;
 function setDetail(ctx, r) {
   const m = ctx.getTransform();
-  fine = r * Math.hypot(m.a, m.b) > 26;
+  fine = r * Math.hypot(m.a, m.b) > 34;
 }
 
 /* ============================================================================

@@ -16,7 +16,8 @@ const world = {
   w: 12000,
   h: 8000,
   start: { x: 2200, y: 4000 },
-  maxChasers: 3,
+  maxChasers: 4,
+  speed: 1.3,                      // sur la terre, le joueur est plus vif que dans l'océan
   noise: 560,                      // un sprint s'entend jusque-là : les chasseurs se retournent
   penalty: { adn: 0.3, growth: 0.06 },   // se faire manger coûte un peu moins cher que dans l'océan
   decor: [
@@ -41,6 +42,34 @@ const world = {
    hurt = ce qui s'affiche quand il te blesse (defender, giant) ;
    reach = (animaux des mares) jusqu'où il attaque dans sa mare : 0,55 = seulement au milieu. */
 const species = {
+  /* ---- Les rivaux : des animaux de ton espèce, qui te piquent ta nourriture (un par chapitre) ---- */
+  'cousin-tetrapode': {
+    name: 'Tétrapode rival', plural: 'tétrapodes rivaux', kind: 'rival', look: 'lezard', color: '#7FA88E',
+    body: { wide: true },
+    size: 28, speed: 165, sense: 300, adn: 6,
+    fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
+  },
+  'cousin-reptile': {
+    name: 'Reptile rival', plural: 'reptiles rivaux', kind: 'rival', look: 'lezard', color: '#B8865A',
+    size: 52, speed: 210, sense: 340, adn: 10,
+    fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
+  },
+  'cousin-dino': {
+    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'coelophysis', color: '#A8604A',
+    size: 85, speed: 280, sense: 400, adn: 14,
+    fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
+  },
+  'cousin-grand': {
+    name: 'Chasseur rival', plural: 'chasseurs rivaux', kind: 'rival', look: 'allosaure', color: '#5F7A9E',
+    size: 135, speed: 340, sense: 460, adn: 20,
+    fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
+  },
+  'jeune-trex': {
+    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'trex', color: '#8A6E50',
+    size: 205, speed: 400, sense: 520, adn: 30,
+    fact: "Les jeunes T. rex étaient fins et très rapides. Ils ne chassaient pas les mêmes proies que les adultes… mais parfois, ils volaient leur repas !",
+  },
+
   /* ---- Chapitre 1 : la sortie de l'eau ---- */
   insecte: {
     name: 'Insecte', plural: 'insectes', kind: 'prey', look: 'insecte', color: '#7FA63A',
@@ -60,13 +89,13 @@ const species = {
   },
   scorpion: {
     name: 'Scorpion', plural: 'scorpions', kind: 'hunter', look: 'scorpion', color: '#7A4E2D',
-    size: 32, speed: 185, sense: 300, cone: 2.2, adn: 14,
+    size: 32, speed: 240, sense: 340, cone: 2.2, adn: 14,
     fact: "Les scorpions ont été parmi les premiers chasseurs de la terre ferme. Leur queue cache un dard !",
   },
   hyneria: {
     name: 'Hyneria', plural: 'Hyneria', proper: true, kind: 'hunter', look: 'poisson', color: '#5D6B4F', habitat: 'water',
     fish: { jaw: 'teeth', fins: true },
-    size: 70, speed: 205, sense: 300, reach: 0.55, adn: 30,
+    size: 70, speed: 265, sense: 340, reach: 0.55, adn: 30,
     fact: "Hyneria était un poisson géant aux dents pointues. Il guettait les animaux qui s'approchaient trop près du bord !",
   },
 
@@ -78,7 +107,7 @@ const species = {
   },
   meganeura: {
     name: 'Meganeura', plural: 'Meganeura', proper: true, kind: 'hunter', look: 'libellule', color: '#3FA7D6', flying: true,
-    size: 50, speed: 255, sense: 330, adn: 18,
+    size: 50, speed: 330, sense: 380, adn: 18,
     fact: "Meganeura était une libellule géante : ses ailes étaient aussi larges que les bras d'un adulte ! L'air contenait plus d'oxygène.",
   },
   arthropleura: {
@@ -88,13 +117,13 @@ const species = {
   },
   'scorpion-geant': {
     name: 'Scorpion géant', plural: 'scorpions géants', kind: 'hunter', look: 'scorpion', color: '#4A2F1E',
-    size: 62, speed: 215, sense: 330, cone: 1.9, adn: 24,
+    size: 62, speed: 275, sense: 380, cone: 1.9, adn: 24,
     fact: "Pulmonoscorpius, un scorpion géant du Carbonifère, était aussi long que ton bras !",
   },
   'amphibien-geant': {
     name: 'Amphibien géant', plural: 'amphibiens géants', kind: 'hunter', look: 'lezard', color: '#6E7F3A',
     body: { wide: true },
-    size: 105, speed: 235, sense: 370, cone: 2.0, adn: 40,
+    size: 105, speed: 300, sense: 430, cone: 2.0, adn: 40,
     fact: "Il y a 300 millions d'années, des amphibiens géants de 2 mètres, comme Eryops, chassaient au bord des marais.",
   },
 
@@ -112,19 +141,19 @@ const species = {
   },
   coelophysis: {
     name: 'Coelophysis', plural: 'Coelophysis', proper: true, kind: 'hunter', look: 'coelophysis', color: '#C9A35C', pack: 3,
-    size: 82, speed: 330, sense: 420, cone: 2.4, adn: 22,
+    size: 82, speed: 425, sense: 480, cone: 2.4, adn: 22,
     fact: "On a retrouvé des dizaines de Coelophysis ensemble : ces premiers dinosaures, légers et rapides, vivaient peut-être en groupe.",
   },
   postosuchus: {
     name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'lezard', color: '#7B3F2A',
     body: { snout: 1.2, plates: 'back' }, stomp: true, roar: true,
-    size: 150, speed: 320, sense: 460, cone: 2.2, adn: 50,
+    size: 150, speed: 415, sense: 530, cone: 2.2, adn: 50,
     fact: "Postosuchus n'était pas un dinosaure mais un cousin des crocodiles. Au Trias, c'était lui le grand chasseur !",
   },
   phytosaure: {
     name: 'Phytosaure', plural: 'phytosaures', kind: 'hunter', look: 'lezard', color: '#556B2F', habitat: 'water',
     body: { snout: 1.8 },
-    size: 120, speed: 225, sense: 320, adn: 35,
+    size: 120, speed: 290, sense: 370, adn: 35,
     fact: "Les phytosaures ressemblaient à des crocodiles, mais leurs narines étaient près des yeux, en haut de la tête.",
   },
 
@@ -162,12 +191,12 @@ const species = {
   },
   ceratosaure: {
     name: 'Ceratosaurus', plural: 'Ceratosaurus', proper: true, kind: 'hunter', look: 'ceratosaure', color: '#8C5A3C', stomp: true, roar: true,
-    size: 160, speed: 380, sense: 500, cone: 2.3, adn: 50,
+    size: 160, speed: 485, sense: 580, cone: 2.3, adn: 50,
     fact: "Ceratosaurus avait une corne sur le nez et de très longues dents.",
   },
   allosaure: {
     name: 'Allosaurus', plural: 'Allosaurus', proper: true, kind: 'hunter', look: 'allosaure', color: '#9A6A3A', stomp: true, roar: true,
-    size: 210, speed: 400, sense: 540, cone: 2.3, adn: 70,
+    size: 210, speed: 515, sense: 620, cone: 2.3, adn: 70,
     fact: "Allosaurus était le plus grand chasseur du Jurassique. Il pouvait ouvrir la gueule très grand !",
   },
 
@@ -194,7 +223,7 @@ const species = {
   },
   spinosaure: {
     name: 'Spinosaure', plural: 'spinosaures', kind: 'hunter', look: 'spinosaure', color: '#6F7D5A', habitat: 'water',
-    roar: true, size: 280, speed: 300, sense: 420, reach: 0.65, adn: 90,
+    roar: true, size: 280, speed: 385, sense: 480, reach: 0.65, adn: 90,
     fact: "Le spinosaure, avec sa grande voile sur le dos, était encore plus long que le T. rex ! Il chassait les poissons dans les rivières.",
   },
   pachycephalosaure: {
@@ -204,7 +233,7 @@ const species = {
   },
   dakotaraptor: {
     name: 'Dakotaraptor', plural: 'Dakotaraptor', proper: true, kind: 'hunter', look: 'raptor', color: '#5E6E8C', pack: 2,
-    size: 200, speed: 480, sense: 560, cone: 2.5, adn: 55,
+    size: 200, speed: 615, sense: 640, cone: 2.5, adn: 55,
     fact: "Dakotaraptor, un cousin géant du vélociraptor, était couvert de plumes et avait une énorme griffe en forme de faucille à chaque patte.",
   },
   triceratops: {
@@ -220,12 +249,12 @@ const species = {
   },
   quetzalcoatlus: {
     name: 'Quetzalcoatlus', plural: 'Quetzalcoatlus', proper: true, kind: 'hunter', look: 'quetzalcoatlus', color: '#D8C3A0', flying: true,
-    size: 230, speed: 450, sense: 560, adn: 60,
+    size: 230, speed: 580, sense: 640, adn: 60,
     fact: "Quetzalcoatlus était le plus grand animal volant de tous les temps. Debout, il était aussi haut qu'une girafe !",
   },
   trex: {
     name: 'T. rex rival', plural: 'T. rex rivaux', proper: true, kind: 'hunter', look: 'trex', color: '#5B4636', boss: true, stomp: true, roar: true,
-    size: 360, speed: 500, sense: 660, cone: 2.3, adn: 250,
+    size: 360, speed: 645, sense: 760, cone: 2.3, adn: 250,
     fact: "Tyrannosaurus rex avait la morsure la plus puissante de tous les animaux terrestres connus !",
   },
 };
@@ -297,13 +326,13 @@ const chapters = [
     form: 'tetrapode',
     skin: { body: '#4FAE9C', belly: '#F1E3A0', dark: '#1D5A4E', stripe: '#2E7A6C' },
     size: [20, 40],
-    growth: 140,
+    growth: 90,
     dry: 1 / 22,
     waterSpeed: 1,
     vision: 1.3,
     fog: 0.55,
     palette: { water: ['#5E7F4E', '#33452A'], floor: '#7C8A55', motes: 'rgba(255, 250, 200, 0.5)' },
-    species: { insecte: 18, 'mille-pattes': 12, 'petit-poisson': 8, scorpion: 3, hyneria: 2 },
+    species: { insecte: 28, 'mille-pattes': 18, 'petit-poisson': 10, 'cousin-tetrapode': 3, scorpion: 3, hyneria: 2 },
     unlock: ['pattes', 'poumons'],
     intro: "Te voilà au bord de l'eau, il y a 375 millions d'années. Sur la terre, presque personne… mais attention : ta peau sèche vite ! Retourne souvent dans une mare. Et dans l'eau, méfie-toi de Hyneria…",
     missions: [
@@ -325,13 +354,13 @@ const chapters = [
     form: 'reptile',
     skin: { body: '#D98E3A', belly: '#F7E0A8', dark: '#6B3A12', stripe: '#8A4A16' },
     size: [40, 70],
-    growth: 320,
+    growth: 200,
     dry: 1 / 30,
     waterSpeed: 0.7,
     vision: 0.85,
     fog: 0.72,
     palette: { water: ['#3D5A3A', '#1E2E1C'], floor: '#4F6B3A', motes: 'rgba(210, 255, 170, 0.45)' },
-    species: { insecte: 12, blatte: 12, 'mille-pattes': 8, arthropleura: 2, meganeura: 2, 'scorpion-geant': 2, 'amphibien-geant': 2 },
+    species: { insecte: 18, blatte: 18, 'mille-pattes': 12, 'cousin-reptile': 3, arthropleura: 2, meganeura: 2, 'scorpion-geant': 2, 'amphibien-geant': 2 },
     unlock: ['ecailles', 'oeuf'],
     intro: "Des millions d'années plus tard, tes descendants ressemblent à des lézards. La forêt de charbon est sombre, humide… et pleine de monstres : libellules géantes, scorpions énormes. Il te faut une peau à écailles et des œufs à coquille pour quitter les mares !",
     missions: [
@@ -353,12 +382,12 @@ const chapters = [
     form: 'dino',
     skin: { body: '#C8553D', belly: '#F6CFA8', dark: '#5E1F14', stripe: '#7A2A1C' },
     size: [70, 110],
-    growth: 600,
+    growth: 380,
     speed: 1.05,
     vision: 1.4,
     fog: 0.45,
     palette: { water: ['#B98F5A', '#7A5534'], floor: '#C2A36B', motes: 'rgba(255, 230, 180, 0.5)' },
-    species: { lezard: 12, cynodonte: 8, coelophysis: 3, postosuchus: 2, phytosaure: 2 },
+    species: { lezard: 18, cynodonte: 14, 'cousin-dino': 3, coelophysis: 3, postosuchus: 2, phytosaure: 2 },
     unlock: ['cerveau', 'griffes'],
     intro: "Le Trias ! Tes descendants marchent sur deux pattes : tu es devenu l'un des tout premiers dinosaures. Mais ici, le roi, c'est Postosuchus… et les Coelophysis chassent en meute. Sois malin !",
     missions: [
@@ -380,12 +409,12 @@ const chapters = [
     form: 'grand-dino',
     skin: { body: '#3E7CB8', belly: '#DCEAF5', dark: '#1B3A5C', stripe: '#F2C14E' },
     size: [110, 170],
-    growth: 1000,
+    growth: 650,
     speed: 1.05,
     vision: 1.3,
     fog: 0.5,
     palette: { water: ['#5C7F4A', '#2F4A2A'], floor: '#6E8B4E', motes: 'rgba(255, 255, 210, 0.5)' },
-    species: { compsognathus: 10, dryosaure: 8, rhamphorhynchus: 6, stegosaure: 2, brachiosaure: 1, diplodocus: 1, ceratosaure: 2, allosaure: 2 },
+    species: { compsognathus: 14, dryosaure: 12, rhamphorhynchus: 8, 'cousin-grand': 3, stegosaure: 2, brachiosaure: 1, diplodocus: 1, ceratosaure: 2, allosaure: 2 },
     unlock: ['dents', 'flair'],
     intro: "Le Jurassique, l'âge des géants ! Les brachiosaures et les diplodocus sont si grands qu'ils peuvent t'écraser sans le faire exprès. Et l'Allosaurus, le plus terrible chasseur de l'époque, rôde dans la forêt…",
     missions: [
@@ -406,11 +435,11 @@ const chapters = [
     form: 'tyran',
     skin: { body: '#2F6E73', belly: '#F2D7A6', dark: '#123336', stripe: '#E9822B' },
     size: [170, 260],
-    growth: 2600,
+    growth: 1500,
     vision: 1.25,
     fog: 0.55,
     palette: { water: ['#7C7A4A', '#3F3C24'], floor: '#8A8656', motes: 'rgba(255, 240, 200, 0.5)' },
-    species: { edmontosaure: 5, parasaurolophus: 3, gallimimus: 4, pteranodon: 3, pachycephalosaure: 3, dakotaraptor: 2, triceratops: 2, ankylosaure: 2, quetzalcoatlus: 2, spinosaure: 2, trex: 1 },
+    species: { edmontosaure: 6, parasaurolophus: 4, gallimimus: 5, pteranodon: 3, pachycephalosaure: 3, 'jeune-trex': 2, dakotaraptor: 2, triceratops: 2, ankylosaure: 2, quetzalcoatlus: 2, spinosaure: 2, trex: 1 },
     unlock: ['peau-epaisse', 'morsure'],
     intro: "La fin du Crétacé. Les premières fleurs ont poussé, et tu es devenu un grand tyrannosaure ! Mais un autre T. rex règne ici. Pour dominer la Terre, il faudra le battre…",
     missions: [

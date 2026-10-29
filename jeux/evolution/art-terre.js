@@ -9,7 +9,7 @@
 
 import {
   INK, PLAYER, LOOKS, FORMS, DECORS, COVERS, FRAMES, FORM_SPINE, SPINES,
-  shade, seeded, spineShape, smoothClosed, segDir, shadow, eyes, mouth,
+  shade, seeded, spineShape, smoothClosed, segDir, shadow, eyes, mouth, drawSprite, turnOf,
 } from './art.js';
 
 const TAU = Math.PI * 2;
@@ -818,38 +818,6 @@ DECORS.boue = (ctx, d, t) => {
   ctx.fill();
 };
 
-/* ---------- Des images toutes prêtes pour la végétation ----------
-   Une fougère, c'est des centaines de petits traits : les redessiner tous à
-   chaque image ralentit beaucoup le jeu quand il y en a des dizaines à
-   l'écran. On dessine donc chaque plante une seule fois dans une petite toile
-   (quelques variantes par type), puis on recopie cette image, tournée et
-   balancée par le vent. La toile est refaite plus grande si on zoome. */
-const SPRITES = new Map();
-
-function drawSprite(ctx, d, key, v, paint, angle = 0, pad = 1.3) {
-  const m = ctx.getTransform();
-  const px = d.r * Math.hypot(m.a, m.b);
-  let R = 32;
-  while (R < px && R < 256) R *= 2;
-  let s = SPRITES.get(key + v);
-  if (!s || s.R < R) {
-    const half = Math.ceil(R * pad);
-    const c = document.createElement('canvas');
-    c.width = c.height = half * 2;
-    paint(c.getContext('2d'), { x: half, y: half, r: R, seed: v * 7919 + 13, v });
-    s = { c, R, half };
-    SPRITES.set(key + v, s);
-  }
-  const k = d.r / s.R;
-  ctx.save();
-  ctx.translate(d.x, d.y);
-  if (angle) ctx.rotate(angle);
-  ctx.drawImage(s.c, -s.half * k, -s.half * k, s.half * 2 * k, s.half * 2 * k);
-  ctx.restore();
-}
-
-/** Un angle fixe propre à chaque plante (pour que les copies ne se ressemblent pas) */
-const turnOf = (d) => (d.seed % 628) / 100;
 
 /* Fougères : une ombre au sol, puis des frondes par-dessus les créatures */
 function paintFernShadow(ctx, d) {

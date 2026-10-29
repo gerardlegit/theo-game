@@ -16,6 +16,7 @@ export const DECORS = {};          // type de décor posé au sol → fonction (
 export const COVERS = {};          // type de cachette dessinée par-dessus les créatures → fonction (ctx, d, t)
 export const FRAMES = {};          // cadrage des vignettes : look ou forme → { r, x, y } (en part de la taille)
 export const FORM_SPINE = { cellule: null, ver: 'ver', poisson: 'poisson' };   // forme du joueur → colonne
+export const SNOUT = {};           // (vue de dessus) look ou forme → où est la gueule, devant la tête (× taille)
 
 /* ---------- Couleurs ---------- */
 const shadeCache = new Map();
@@ -1403,11 +1404,27 @@ export function drawCover(ctx, d, t) {
   return drawAlgaeFronds(ctx, d, t);
 }
 
-/* …et les longues lanières qui ondulent par-dessus les créatures (on s'y cache) */
+/* …et les longues lanières qui ondulent par-dessus les créatures (on s'y cache).
+   De loin (petites à l'écran), on recopie une image toute prête qui se balance :
+   c'est bien plus rapide quand il y a beaucoup d'algues à l'écran. */
 export function drawAlgaeFronds(ctx, d, t) {
+  const m = ctx.getTransform();
+  if (d.r * Math.hypot(m.a, m.b) < 170) {
+    const v = (d.r > 240 ? 3 : 0) + d.seed % 3;
+    drawSprite(ctx, d, 'algues', v, paintAlgae, turnOf(d) + Math.sin(t * 1.1 + d.seed) * 0.04, 1.35);
+    return;
+  }
+  liveFronds(ctx, d, t);
+}
+
+function paintAlgae(ctx, d) {
+  liveFronds(ctx, { ...d, n: d.v >= 3 ? 40 : 24 }, 0);
+}
+
+function liveFronds(ctx, d, t) {
   if (!d.fronds) {
     const rnd = seeded(d.seed);
-    const n = Math.round(Math.min(46, 10 + d.r / 8));
+    const n = d.n || Math.round(Math.min(46, 10 + d.r / 8));
     d.fronds = Array.from({ length: n }, () => {
       const a = rnd() * TAU, rr = Math.sqrt(rnd()) * d.r * 0.75;
       return {
@@ -1421,25 +1438,66 @@ export function drawAlgaeFronds(ctx, d, t) {
     });
   }
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.78;
   for (const f of d.fronds) {
     const bx = d.x + f.x, by = d.y + f.y;
     ctx.strokeStyle = f.col;
-    ctx.globalAlpha = 0.78;
+    // la lanière ondule : une moitié épaisse près du pied, une moitié fine au bout
     let px = bx, py = by;
     const seg = 5;
+    ctx.lineWidth = f.w * 0.92;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
     for (let k = 1; k <= seg; k++) {
       const a = f.dir + Math.sin(t * 1.3 + f.ph + k * 0.6) * 0.35 * (k / seg);
-      const nx = px + Math.cos(a) * f.len / seg, ny = py + Math.sin(a) * f.len / seg;
-      ctx.lineWidth = f.w * (1 - (k - 1) / (seg + 1));
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(nx, ny);
-      ctx.stroke();
-      px = nx; py = ny;
+      px += Math.cos(a) * f.len / seg;
+      py += Math.sin(a) * f.len / seg;
+      ctx.lineTo(px, py);
+      if (k === 2) {
+        ctx.stroke();
+        ctx.lineWidth = f.w * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+      }
     }
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
+
+/* ---------- Des images toutes prêtes pour la végétation ----------
+   Une fougère, c'est des centaines de petits traits : les redessiner tous à
+   chaque image ralentit beaucoup le jeu quand il y en a des dizaines à
+   l'écran. On dessine donc chaque plante une seule fois dans une petite toile
+   (quelques variantes par type), puis on recopie cette image, tournée et
+   balancée par le vent. La toile est refaite plus grande si on zoome. */
+const SPRITES = new Map();
+
+export function drawSprite(ctx, d, key, v, paint, angle = 0, pad = 1.3) {
+  const m = ctx.getTransform();
+  const px = d.r * Math.hypot(m.a, m.b);
+  let R = 32;
+  while (R < px && R < 256) R *= 2;
+  let s = SPRITES.get(key + v);
+  if (!s || s.R < R) {
+    const half = Math.ceil(R * pad);
+    const c = document.createElement('canvas');
+    c.width = c.height = half * 2;
+    paint(c.getContext('2d'), { x: half, y: half, r: R, seed: v * 7919 + 13, v });
+    s = { c, R, half };
+    SPRITES.set(key + v, s);
+  }
+  const k = d.r / s.R;
+  ctx.save();
+  ctx.translate(d.x, d.y);
+  if (angle) ctx.rotate(angle);
+  ctx.drawImage(s.c, -s.half * k, -s.half * k, s.half * 2 * k, s.half * 2 * k);
+  ctx.restore();
+}
+
+/** Un angle fixe propre à chaque plante (pour que les copies ne se ressemblent pas) */
+export const turnOf = (d) => (d.seed % 628) / 100;
 
 /* ============================================================================
    Textures pré-dessinées : le sable du fond et les reflets de lumière

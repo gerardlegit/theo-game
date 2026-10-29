@@ -47,6 +47,20 @@ export const LINES = {
     "Oh non, tu t'es desséché… Tes descendants repartent d'une mare.",
     "Trop longtemps loin de l'eau ! Pense à te mouiller plus souvent.",
   ],
+  /* dans la mer des reptiles marins (niveau 2, version mer) */
+  air: [
+    "Tu manques d'air ! Remonte respirer à la surface, dans la lumière 🐳",
+    "Plus d'air ! Vite, vers une tache de lumière !",
+  ],
+  drowned: [
+    "Oh non, tu as manqué d'air… Les reptiles marins doivent remonter respirer !",
+    "Trop longtemps sous l'eau ! Pense à remonter à la surface plus souvent.",
+  ],
+  ammonite: "Hé ! Ce sont mes cousines, les ammonites ! Bon… la nature est ainsi faite. Bon appétit…",
+  stolen: [
+    "Hé ! Un animal de ton espèce t'a piqué ta proie ! Sois plus rapide que lui…",
+    "Volé ! Tes cousins ont faim, eux aussi. Dépêche-toi !",
+  ],
   noise: "Chut ! Quand tu cours, ça fait du bruit : les chasseurs t'ont entendu…",
   roar: [
     "Il rugit ! Il t'a vu ! Cours, cache-toi !",

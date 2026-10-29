@@ -4,6 +4,8 @@
 //   4 → 8 s     on plonge : des molécules flottent dans la soupe primitive
 //   8 → 12 s    elles s'assemblent, une enveloppe se forme… une cellule naît : toi !
 //   12 → 16 s   bien plus tard, une cellule géante s'approche : mange ou sois mangé !
+// Puis celles du niveau 2 : sur la terre (createLandIntro) ou dans la mer
+// (createSeaIntro).
 // ============================================================================
 
 const TAU = Math.PI * 2;
@@ -453,4 +455,152 @@ export function drawCaptionBox(ctx, w, h, text, alpha) {
   ctx.textBaseline = 'top';
   lines.forEach((l, i) => ctx.fillText(l, w / 2, y + 12 + i * lh));
   ctx.globalAlpha = 1;
+}
+
+/* ============================================================================
+   L'animation du niveau 2, version mer (environ 14 s) : vue du ciel, une plage.
+   0 → 4,5 s   un petit reptile descend la plage vers la mer
+   4,5 → 9 s   il plonge et s'éloigne du rivage : la mer devient profonde
+   9 → 14 s    il remonte respirer… une ombre immense passe sous lui
+   drawHero(ctx, x, y, r, angle, t, swim) dessine le joueur en nothosaure.
+   ============================================================================ */
+const SEA_DURATION = 14;
+const SEA_CAPTIONS = [
+  [0.3, 4.5, "Pendant que des reptiles conquièrent la terre, d'autres font le chemin inverse…"],
+  [4.7, 9, "Ils retournent dans la mer ! Leurs pattes vont devenir des nageoires."],
+  [9.2, 14, "Mais un reptile doit remonter respirer… et la mer est pleine de monstres !"],
+];
+
+export function createSeaIntro({ sfx, drawHero }) {
+  let t = 0;
+  const cues = new Set();
+  const prints = [];
+  const fish = Array.from({ length: 14 }, () => ({ x: 0.5 + Math.random() * 0.5, y: Math.random(), a: Math.random() * TAU, s: 0.5 + Math.random() }));
+
+  function cue(name, at, fn) {
+    if (t >= at && !cues.has(name)) { cues.add(name); fn(); }
+  }
+
+  const intro = {
+    done: false,
+    update(dt) {
+      t += dt;
+      cue('splash', 4.5, () => sfx.splash());
+      cue('breath', 9.2, () => sfx.pickup());
+      cue('h1', 10.4, () => sfx.heart(false));
+      cue('h2', 11.1, () => sfx.heart(true));
+      cue('h3', 11.8, () => sfx.heart(true));
+      cue('alert', 12.2, () => sfx.alert());
+      if (t >= SEA_DURATION) intro.done = true;
+    },
+    draw(ctx, w, h) {
+      const m = Math.min(w, h);
+      // la terre à gauche, une plage, puis la mer de plus en plus profonde
+      const shore = w * 0.3;
+      ctx.fillStyle = '#7C8A55';
+      ctx.fillRect(-10, -10, shore, h + 20);
+      ctx.fillStyle = '#D9C38F';
+      ctx.fillRect(shore - 20, -10, 90, h + 20);
+      const g = ctx.createLinearGradient(shore + 40, 0, w, 0);
+      g.addColorStop(0, '#5FC0CF');
+      g.addColorStop(0.35, '#1E8C9E');
+      g.addColorStop(1, '#073A52');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(w + 10, -10);
+      for (let y = -10; y <= h + 20; y += 20) ctx.lineTo(shore + 40 + Math.sin(y * 0.03 + t) * 10, y);
+      ctx.lineTo(w + 10, h + 20);
+      ctx.closePath();
+      ctx.fill();
+      // l'écume qui vient lécher la plage
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 4; i++) {
+        const k = (t * 0.25 + i / 4) % 1;
+        const x = shore + 140 - k * 100;
+        ctx.globalAlpha = 1 - k;
+        ctx.beginPath();
+        for (let y = 0; y <= h; y += 16) ctx.lineTo(x + Math.sin(y * 0.04 + i) * 8, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // des bancs de petits poissons, au large
+      ctx.fillStyle = 'rgba(200, 235, 245, 0.7)';
+      for (const f of fish) {
+        f.a += 0.01 * f.s;
+        const x = f.x * w + Math.cos(f.a) * 30, y = f.y * h + Math.sin(f.a * 1.3) * 20;
+        if (x < shore + 120) continue;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 7, 3, f.a + Math.PI / 2, 0, TAU);
+        ctx.fill();
+      }
+      // une tache de lumière : la surface, où l'on respire
+      const lx = w * 0.72, ly = h * 0.42, lr = m * 0.16;
+      const lg = ctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
+      lg.addColorStop(0, 'rgba(255, 255, 235, 0.5)');
+      lg.addColorStop(1, 'rgba(190, 245, 255, 0)');
+      ctx.fillStyle = lg;
+      ctx.beginPath();
+      ctx.arc(lx, ly, lr, 0, TAU);
+      ctx.fill();
+      // le héros : il marche sur la plage (en laissant des traces), plonge, puis nage vers la lumière
+      const r = m * 0.05;
+      const k1 = clamp01(t / 4.5), k2 = clamp01((t - 4.5) / 4.5), k3 = clamp01((t - 9) / 1.5);
+      let x = w * 0.05 + (shore + 60 - w * 0.05) * ease(k1) + (lx - shore - 60 - r) * ease(k2);
+      let y = h * 0.62 - (h * 0.62 - ly) * ease(k2) * 0.8 - (h * 0.62 - ly) * 0.2 * ease(k3);
+      x += r * ease(k3);
+      if (t > 10.4) x += Math.sin(t * 40) * 1.5;
+      if (t < 4.5 && Math.floor(t * 4) !== Math.floor((t - 0.016) * 4)) prints.push({ x: x - r, y: y + (prints.length % 2 ? r * 0.4 : -r * 0.4) });
+      ctx.fillStyle = 'rgba(80, 60, 30, 0.35)';
+      for (const p of prints) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * 0.12, 0, TAU);
+        ctx.fill();
+      }
+      // des bulles en plongeant
+      if (t > 4.5 && t < 6) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        for (let i = 0; i < 6; i++) {
+          const k = ((t - 4.5) * 1.3 + i / 6) % 1;
+          ctx.beginPath();
+          ctx.arc(x - r * (1 + k * 2) + Math.sin(i * 3) * r, y + Math.cos(i * 2) * r * 0.8, r * 0.12 * (1 - k), 0, TAU);
+          ctx.fill();
+        }
+      }
+      const ang = t < 4.5 ? 0 : Math.atan2(-(h * 0.62 - ly) * 0.8, lx - shore) * (1 - k3);
+      drawHero(ctx, x, y, r, ang, t, t < 4.5 ? t * 3 : t * 1.5);
+      // une ombre immense passe sous lui…
+      if (t > 10.2) {
+        const k = clamp01((t - 10.2) / 3.5);
+        // la silhouette d'un pliosaure géant : une tête énorme, quatre nageoires
+        ctx.fillStyle = `rgba(0, 10, 25, ${0.55 * Math.sin(k * Math.PI)})`;
+        ctx.beginPath();
+        const sx = w * (1.35 - k * 1.1), sy = h * 0.6;
+        for (const [dx, dy, rx, ry, a] of [
+          [0, 0, 0.36, 0.13, 0], [-0.08, 0, 0.3, 0.16, 0], [0.5, 0.01, 0.16, 0.04, 0],
+          [0.02, -0.2, 0.17, 0.05, -1.0], [0.02, 0.2, 0.17, 0.05, 1.0],
+          [0.3, -0.17, 0.14, 0.045, -1.1], [0.3, 0.17, 0.14, 0.045, 1.1],
+        ]) {
+          ctx.moveTo(sx + (dx + rx * Math.cos(a)) * m, sy + (dy + rx * Math.sin(a)) * m);
+          ctx.ellipse(sx + dx * m, sy + dy * m, rx * m, ry * m, a, 0, TAU);
+        }
+        ctx.fill();
+      }
+      // l'eau devient sombre
+      if (t > 9) {
+        const v = ctx.createRadialGradient(w / 2, h / 2, m * 0.2, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+        v.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        v.addColorStop(1, `rgba(0, 5, 20, ${0.65 * clamp01((t - 9) / 2)})`);
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, w, h);
+      }
+      const cap = SEA_CAPTIONS.find(([a, b]) => t >= a && t < b);
+      if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+      if (t > SEA_DURATION - 0.6) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${(t - (SEA_DURATION - 0.6)) / 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    },
+  };
+  return intro;
 }

@@ -313,9 +313,10 @@ const ending = {
   choices: [
     {
       id: 'mer', icon: '🌊', title: 'Rester dans la mer',
-      text: 'Deviens le plus grand chasseur des océans, parmi les requins et les poissons géants.',
-      level: 'maitres-des-oceans',
-      soon: 'Niveau 2 : Les maîtres des océans',
+      text: 'Deviens un monstre marin géant : ichthyosaure, pliosaure… et le terrible mosasaure !',
+      level: 'monstres-marins',
+      soon: 'Niveau 2 : Les monstres marins',
+      fact: "Pendant que les dinosaures régnaient sur la terre, les mers appartenaient à des reptiles marins géants, comme les mosasaures.",
     },
     {
       id: 'terre', icon: '🦖', title: 'Conquérir la terre',

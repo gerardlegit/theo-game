@@ -10,12 +10,13 @@
 import { LEVELS } from './levels/index.js';
 import {
   drawCreature, drawPlayer, drawDecor, drawCover, drawDrop, drawSweat, drawAlert,
-  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, AMMO_SVG, PLAYER,
+  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, SNOUT, AMMO_SVG, PLAYER,
 } from './art.js';
 import { drawCloudShadows, SIDE } from './art-terre.js';
 import './art-dinos.js';
+import './art-mer.js';
 import { LINES } from './data.js';
-import { createIntro, createLandIntro, drawCaptionBox } from './intro.js';
+import { createIntro, createLandIntro, createSeaIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 const SAVE_KEY = 'evolution-save';
@@ -293,9 +294,18 @@ function recalc() {
 
 const growthK = () => clamp(game.earned / CH.growth, 0, 1);
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
-const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1);
+const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1) * (LV.world.speed || 1);
 const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1);
 const drying = () => !!CH.dry && stats.dry > 0;
+
+/* La jauge qui baisse : sur la terre, la peau sèche (on la remplit dans une
+   mare) ; dans la mer, les reptiles marins respirent de l'air (on le remplit à
+   la surface). Un niveau la décrit dans world.meter. */
+const METER_WATER = {
+  zone: 'water', icon: '💧', low: 'dry', out: 'dried', refill: 'Aaah, de l’eau !', dead: 'Desséché !',
+  title: "Ta réserve d'eau : sur la terre, ta peau sèche. Plonge dans une mare !",
+};
+const meter = () => LV.world.meter || METER_WATER;
 
 /* Qui peut manger qui ? */
 function canEat(c) {
@@ -312,6 +322,7 @@ function isThreat(c) {
 /** Où est la gueule d'un animal (ou du joueur) */
 function mouthPoint(e, k = 0.8) {
   if (e.side) return { x: e.x + e.face * e.size * e.side[0], y: e.y + e.size * e.side[1] };
+  k = SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
 
@@ -904,6 +915,8 @@ function enterZone(zone) {
   if (zone === 'water') {
     sfx.splash();
     for (let i = 0; i < 10; i++) bubbleAt(p.x, p.y, p.size * 0.3);
+  } else if (zone === 'air') {
+    for (let i = 0; i < 8; i++) bubbleAt(p.x, p.y, p.size * 0.3);
   } else if (zone === 'mud') {
     addFloater('Ça colle !', p.x, p.y - p.size * 1.6, '#C9A06A', 1);
     sayOnce('mud', LINES.mud, 60, 1);
@@ -914,17 +927,17 @@ function enterZone(zone) {
 function updateDrying(dt, zone) {
   const p = player;
   if (!drying()) { p.wet = 1; p.dryT = 0; return; }
-  if (zone === 'water') {
+  if (zone === meter().zone) {
     if (p.wet < 0.6 && performance.now() > (cooldowns.wetSaid || 0)) {
       cooldowns.wetSaid = performance.now() + 20000;
-      addFloater('Aaah, de l’eau !', p.x, p.y - p.size * 1.6, '#9EE7FF', 1);
+      addFloater(meter().refill, p.x, p.y - p.size * 1.6, '#9EE7FF', 1);
     }
     p.wet = Math.min(1, p.wet + dt * 0.8);
     p.dryT = 0;
     return;
   }
   p.wet = Math.max(0, p.wet - CH.dry * stats.dry * dt);
-  if (p.wet < 0.3) sayOnce('dry', LINES.dry, 25, 3);
+  if (p.wet < 0.3) sayOnce('dry', LINES[meter().low], 25, 3);
   if (p.wet <= 0) {
     p.dryT += dt;
     if (p.dryT > 2.5) loseLife(null, 'dry');
@@ -934,8 +947,8 @@ function updateDrying(dt, zone) {
 function respawn() {
   const p = player;
   // on renaît dans la cachette la plus proche (mais pas sous le nez du chasseur) ;
-  // tant que la peau sèche, on renaît dans une mare
-  const spots = drying() ? zones.filter((z) => z.zone === 'water') : hides;
+  // tant que la jauge baisse, on renaît là où on la remplit (une mare, la surface)
+  const spots = drying() ? zones.filter((z) => z.zone === meter().zone) : hides;
   let best = spots[0] || { x: LV.world.start.x, y: LV.world.start.y }, bd = Infinity;
   for (const a of spots) {
     const d = dist(a, p);
@@ -1032,6 +1045,21 @@ function updateCreatures(dt) {
         }
         if (p.hidden || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
       }
+    } else if (sp.kind === 'rival') {
+      // un animal de ton espèce : de temps en temps, il a faim et file vers une proie… la tienne !
+      c.fleeing = false;
+      c.mood = 'happy';
+      c.hungerT = (c.hungerT ?? rand(0, 8)) - dt;
+      if (c.hungerT <= 0) { c.hungry = !c.hungry; c.hungerT = c.hungry ? rand(6, 10) : rand(5, 9); c.prey = null; }
+      if (c.prey && (c.prey.dead || dist(c, c.prey) > sp.sense * 1.5)) c.prey = null;
+      if (c.hungry && !c.prey && Math.random() < dt * 2) c.prey = rivalTarget(c);
+      if (c.prey) {
+        const tx = c.prey.x - c.x, ty = c.prey.y - c.y, td = Math.hypot(tx, ty) || 1;
+        steer(c, tx / td, ty / td, sp.speed, dt);
+        c.mood = 'angry';
+      } else {
+        wander(c, sp.speed * 0.4, dt);
+      }
     } else if (sp.kind === 'defender' && !p.dead) {
       // un gros herbivore : il fonce sur toi si tu t'approches trop
       c.fleeing = false;
@@ -1068,19 +1096,25 @@ function updateCreatures(dt) {
       wander(c, sp.speed * (sp.kind === 'giant' ? 0.6 : 0.35), dt);
     }
 
-    // les chasseurs grignotent aussi les petites bêtes qui passent devant leur gueule
-    if (sp.kind === 'hunter') {
+    // les chasseurs (et les rivaux) grignotent les petites bêtes qui passent devant leur gueule
+    if (sp.kind === 'hunter' || sp.kind === 'rival') {
       c.eatT -= dt;
       if (c.eatT <= 0) {
         c.eatT = 0.25;
+        const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * 0.55) continue;
+          if (o === c || o.dead || o.size > c.size * most || o.sp.kind === 'rival') continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
+            if (o === c.prey) c.prey = null;
             if (onScreen(o, 0)) {
               burst(o.x, o.y, 6, [o.sp.color || '#FFFFFF', '#FFFFFF'], o.size * 6, o.size * 0.25);
               if (dist(o, p) < viewW * 0.4) sfx.eat(0.6);
+              if (sp.kind === 'rival') {
+                addFloater('Volé !', c.x, c.y - c.size * 1.4, '#FFB36B', 1.1);
+                sayOnce('stolen', LINES.stolen, 40, 1);
+              }
             }
             break;
           }
@@ -1120,6 +1154,19 @@ function updateCreatures(dt) {
     }
   }
   if (creatures.some((c) => c.dead)) creatures = creatures.filter((c) => !c.dead);
+}
+
+/** La proie qu'un rival va te voler : une petite bête près de lui… et près de toi */
+function rivalTarget(c) {
+  let best = null, bd = Infinity;
+  for (const o of creatures) {
+    if (o.dead || (o.sp.kind !== 'food' && o.sp.kind !== 'prey') || o.size > c.size * 0.7) continue;
+    const d = dist(o, c);
+    if (d > c.sp.sense) continue;
+    const score = d + dist(o, player) * 0.5;
+    if (score < bd) { bd = score; best = o; }
+  }
+  return best;
 }
 
 /** Un chasseur te repère : « ! », et il rugit s'il est gros */
@@ -1285,6 +1332,7 @@ function playerEats(c) {
   burst(c.x, c.y, 8 + Math.round(big * 12), [sp.color || '#FFE58A', '#FFFFFF'], c.size * 5 + 40, Math.max(2, c.size * 0.2));
   addFloater(`+${sp.adn} 🧬`, c.x, c.y - c.size, '#FFE58A', 0.8 + big * 0.5);
   bump(adnItem);
+  if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
     addFloater('CROC !', c.x, c.y - c.size * 1.8, '#FF6F91', 1.4);
@@ -1338,7 +1386,7 @@ function loseLife(by, cause) {
   if (cause === 'dry') {
     sfx.sting();
     flash = { a: 0.5, color: '255,210,120' };
-    addFloater('Desséché !', p.x, p.y - p.size * 1.5, '#FFD24A', 1.6);
+    addFloater(meter().dead, p.x, p.y - p.size * 1.5, '#FFD24A', 1.6);
     burst(p.x, p.y, 20, ['#E8D9A0', '#FFFFFF', '#C9B27A'], p.size * 6 + 40, Math.max(2, p.size * 0.15));
   } else {
     sfx.gulp();
@@ -1363,10 +1411,11 @@ function loseLife(by, cause) {
   }
   game.earned = Math.max(0, game.earned - CH.growth * pen.growth);
   game.stats.deaths++;
+  if (botInput) botDeaths[cause === 'dry' ? 'jauge' : by ? by.sp.look : '?'] = (botDeaths[cause === 'dry' ? 'jauge' : by ? by.sp.look : '?'] || 0) + 1;
   p.dead = true;
   p.deadT = RESPAWN_TIME;
   for (const c of creatures) if (c.state === 'chase' || c.state === 'alert' || c.state === 'charge') { c.state = 'wander'; c.rest = GIVE_UP_REST; }
-  say(pick(cause === 'dry' ? LINES.dried : LINES.eaten), 3, 6000);
+  say(pick(cause === 'dry' ? LINES[meter().out] : LINES.eaten), 3, 6000);
   saveGame();
 }
 
@@ -1517,6 +1566,8 @@ function applySkin() {
 
 function setupChapter(keepPos) {
   applySkin();
+  $('waterIcon').textContent = meter().icon;
+  waterItem.title = meter().title;
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   const x = keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
   const y = keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
@@ -2050,7 +2101,7 @@ function drawMinimap() {
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
   for (const z of zones) {
     const m = toM(z.x, z.y);
-    mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : 'rgba(140, 100, 60, 0.6)';
+    mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : z.zone === 'air' ? 'rgba(225, 250, 255, 0.7)' : 'rgba(140, 100, 60, 0.6)';
     mctx.beginPath();
     mctx.arc(m.x, m.y, Math.max(2, z.r * k * 0.85), 0, TAU);
     mctx.fill();
@@ -2215,16 +2266,16 @@ function showStartScreen() {
   const done = game.finished;
   const choice = done && LV.ending.choices.find((c) => c.id === game.path);
   const next = nextLevel(choice);
-  $('startLevel').textContent = `Niveau ${game.level + 1} — ${LV.name}`;
+  $('startLevel').textContent = `Niveau ${levelNum(game.level)} — ${LV.name}`;
   $('startGoal').innerHTML = LV.goal;
   $('startBtn').textContent = done
-    ? (next >= 0 ? `${LEVELS[next].icon} Niveau ${next + 1} : ${LEVELS[next].name}` : '🎬 Revoir la fin')
+    ? (next >= 0 ? `${LEVELS[next].icon} Niveau ${levelNum(next)} : ${LEVELS[next].name}` : '🎬 Revoir la fin')
     : hasSave ? `${LV.icon} Continuer (chapitre ${game.chapter + 1})` : `${LV.icon} Plonger !`;
   $('newGameBtn').textContent = done ? '🔁 Recommencer au début' : '🆕 Nouvelle partie';
   $('newGameBtn').hidden = !hasSave;
   $('startDone').innerHTML = choice
     ? `🏆 Bravo ! ${escapeHtml(LV.ending.done)}, puis tu as choisi : <b>${choice.icon} ${escapeHtml(choice.title)}</b>.<br>`
-      + (next >= 0 ? `Le niveau ${next + 1} t'attend !` : `${escapeHtml(choice.soon)} : bientôt !`)
+      + (next >= 0 ? `Le niveau ${levelNum(next)} t'attend !` : `${escapeHtml(choice.soon)} : bientôt !`)
     : '';
   $('startDone').hidden = !done;
   $('startGoal').hidden = done;
@@ -2266,7 +2317,21 @@ function beginPlay() {
 /* ---------- L'animation de départ (intro.js) ---------- */
 function playIntro() {
   state = 'intro';
-  if (LV.intro === 'terre') {
+  if (LV.intro === 'mer') {
+    intro = createSeaIntro({
+      sfx,
+      drawHero: (c, x, y, r, angle, t, swim) => {
+        // la colonne ondule un peu, comme quand on nage
+        const spine = makeSpine(x, y, angle, r, 'nothosaure');
+        spine.forEach((p, i) => {
+          const w = Math.sin(swim * 2 - i * 0.7) * r * 0.08 * (i / spine.length);
+          p.x -= Math.sin(angle) * w;
+          p.y += Math.cos(angle) * w;
+        });
+        drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 10.4 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, spine }, 'nothosaure', {}, swim);
+      },
+    });
+  } else if (LV.intro === 'terre') {
     intro = createLandIntro({
       sfx,
       drawHero: (c, x, y, r, angle, t, walk) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 9.6 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: makeSpine(x, y, angle, r, 'tetrapode') }, 'tetrapode', {}, t),
@@ -2295,6 +2360,8 @@ function endIntro() {
 $('introSkip').addEventListener('click', (e) => { e.currentTarget.blur(); endIntro(); });
 
 /* ---------- La fin du niveau : le roi de l'océan, puis le grand choix ---------- */
+const LAND_END = ['fougeres', 'cycas', 'conifere'];   // le décor de la fin sur la terre
+
 function startEnding() {
   state = 'ending';
   endT = 0;
@@ -2306,12 +2373,14 @@ function startEnding() {
   }));
   endDecor = [];
   if (LV.ending.scene === 'meteorite') {
-    // des plantes tout autour, mais pas sur le roi (au centre)
+    // des plantes (ou des algues et des coraux) tout autour, mais pas sur le roi (au centre)
+    const types = LV.world.ground === 'land' ? LAND_END : ['algues', 'corail', 'eponge'];
     while (endDecor.length < 16) {
       const fx = Math.random(), fy = Math.random();
       if (Math.hypot(fx - 0.45, (fy - 0.6) * 0.6) < 0.2) continue;
       const i = endDecor.length;
-      endDecor.push({ type: i < 7 ? 'fougeres' : i < 12 ? 'cycas' : 'conifere', fx, fy, fr: rand(0.05, 0.1), seed: i * 977 + 13 });
+      const small = types === LAND_END ? false : i >= 7;   // dans la mer : de petits coraux et éponges
+      endDecor.push({ type: types[i < 7 ? 0 : i < 12 ? 1 : 2], fx, fy, fr: small ? rand(0.025, 0.045) : rand(0.05, 0.1), seed: i * 977 + 13 });
     }
   }
   closeDialog();
@@ -2338,6 +2407,9 @@ function startEnding() {
   }
 }
 
+/** Le numéro d'un niveau, tel qu'on l'affiche (deux niveaux peuvent avoir le même) */
+const levelNum = (i) => LEVELS[i].num || i + 1;
+
 /** L'index du niveau où mène un choix de fin (-1 s'il n'existe pas encore) */
 function nextLevel(choice) {
   return choice ? LEVELS.findIndex((lv) => lv.id === choice.level) : -1;
@@ -2360,7 +2432,7 @@ $('endChoices').addEventListener('click', (e) => {
   $('endFact').hidden = !c.fact;
   const next = nextLevel(c);
   $('endNext').hidden = next < 0;
-  $('endNext').textContent = next >= 0 ? `${LEVELS[next].icon} Niveau ${next + 1} : ${LEVELS[next].name} ▶` : '';
+  $('endNext').textContent = next >= 0 ? `${LEVELS[next].icon} Niveau ${levelNum(next)} : ${LEVELS[next].name} ▶` : '';
   $('endNext').onclick = () => goToLevel(next);
   $('endSoon').hidden = next >= 0;
   $('endAgain').hidden = game.level === 0;
@@ -2371,6 +2443,7 @@ $('endChoices').addEventListener('click', (e) => {
 function goToLevel(i) {
   endOverlay.hidden = true;
   freeCanvas(endCanvas);
+  game.adn = 0;                      // un nouveau niveau : on repart de zéro
   startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
@@ -2446,12 +2519,13 @@ function drawEnding(dt) {
   drawCrown(c, px + Math.cos(a) * size * 0.1, py - size * 1.15 + Math.sin(endT * 3) * 4, size * 0.75);
 }
 
-/* ---------- La fin du niveau 2 : on domine la Terre… puis la météorite ----------
-   0 → 4 s       le joueur, couronné, rugit au milieu des herbivores
+/* ---------- La fin du niveau 2 : on domine la Terre (ou la mer)… puis la météorite ----------
+   0 → 4 s       le joueur, couronné, rugit au milieu des herbivores (ou des proies de la mer)
    4,2 → 7,3 s   le ciel rougit, une boule de feu traverse le ciel
    7,3 s         impact : flash, onde de choc, pluie de débris, cendres
    8 → 11 s      les grands dinosaures disparaissent
    11,8 → 15 s   les survivants : un petit oiseau, un petit mammifère, un crocodile
+                 (dans la mer : un requin et une tortue de mer)
    15 s →        le texte et les trois chemins */
 const METEOR_TEXT_AT = 15;
 const IMPACT = 7.3;
@@ -2479,11 +2553,21 @@ function drawMeteorEnding(dt) {
   c.save();
   c.translate((Math.random() - 0.5) * quake, (Math.random() - 0.5) * quake);
 
-  // le sol, une mare, des fougères et des arbres
+  // le sol, une mare, des fougères et des arbres (ou le fond de la mer, ses algues et ses coraux)
+  const sea = LV.world.ground !== 'land';
   const T = 420;
   for (let x = -T; x < w + T; x += T) for (let y = -T; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
-  const pond = { type: 'mare', zone: 'water', x: w * 0.8, y: h * 0.8, r: m * 0.14, seed: 4242 };
-  drawDecor(c, pond, t);
+  if (sea) {
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.08 * (1 - clamp((t - IMPACT) / 2, 0, 0.8));
+    const S = 540;
+    const o = (t * 14) % S;
+    for (let x = -S + o; x < w + S; x += S) for (let y = -S + o * 0.5; y < h + S; y += S) c.drawImage(caustics, x, y, S + 1, S + 1);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+  }
+  const pond = sea ? null : { type: 'mare', zone: 'water', x: w * 0.8, y: h * 0.8, r: m * 0.14, seed: 4242 };
+  if (pond) drawDecor(c, pond, t);
   for (const d of endDecor) {
     d.x = d.fx * w;
     d.y = d.fy * h;
@@ -2520,7 +2604,7 @@ function drawMeteorEnding(dt) {
   c.globalAlpha = Math.max(0, 1 - clamp((t - IMPACT - 1.5) / 1.5, 0, 1));
   drawCrown(c, px + Math.cos(a) * size * 0.2 + fall * size, py - size * 1.2 + fall * size * 1.6, size * 0.6);
   c.globalAlpha = 1;
-  for (const d of endDecor) if (d.type !== 'cycas') drawCover(c, d, t);
+  for (const d of endDecor) if (['fougeres', 'conifere', 'algues'].includes(d.type)) drawCover(c, d, t);
 
   // pluie de débris en feu
   for (const db of DEBRIS) {
@@ -2544,8 +2628,8 @@ function drawMeteorEnding(dt) {
       c.fill();
     }
   }
-  // incendies
-  if (t > IMPACT + 0.5) {
+  // incendies (sur la terre)
+  if (!sea && t > IMPACT + 0.5) {
     const k = clamp((t - IMPACT - 0.5) / 1.5, 0, 1) * (1 - clamp((t - 11.5) / 2, 0, 1) * 0.7);
     for (const f of FIRES) {
       const fl = 0.75 + Math.sin(t * 9 + f.x * 20) * 0.25;
@@ -2560,7 +2644,10 @@ function drawMeteorEnding(dt) {
     }
   }
   // les survivants
-  if (t > 11.8) drawSurvivors(c, w, h, m, t, pond);
+  if (t > 11.8) {
+    if (sea) drawSeaSurvivors(c, w, h, m, t);
+    else drawSurvivors(c, w, h, m, t, pond);
+  }
   c.restore();
 
   // le ciel rougit, puis tout devient gris de cendres
@@ -2663,6 +2750,35 @@ function drawSurvivors(c, w, h, m, t, pond) {
   glow(bx, by, br * 4);
   c.globalAlpha = k;
   drawBird(c, bx, by, br, t);
+  c.globalAlpha = 1;
+}
+
+/** Dans la mer, ceux qui survivent : un requin et une tortue de mer (les deux chemins) */
+function drawSeaSurvivors(c, w, h, m, t) {
+  const k = clamp((t - 11.8) / 1.5, 0, 1);
+  const glow = (x, y, r) => {
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(220, 250, 255, ${0.45 * k})`);
+    g.addColorStop(1, 'rgba(220, 250, 255, 0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(x, y, r, 0, TAU);
+    c.fill();
+  };
+  // le requin, qui traverse l'écran
+  const sx = w * (0.05 + (t - 11.8) * 0.07), sy = h * 0.4 + Math.sin(t * 0.9) * h * 0.03, sr = m * 0.06;
+  const sa = Math.sin(t * 0.9) * 0.15;
+  glow(sx, sy, sr * 4);
+  c.globalAlpha = k;
+  const shark = { look: 'requin', color: '#7D8FA3', kind: 'prey' };
+  drawCreature(c, { sp: shark, x: sx, y: sy, angle: sa, size: sr, seed: 2, mood: 'calm', mouth: 0, blink: 0, spine: makeSpine(sx, sy, sa, sr, 'requin') }, t);
+  // la tortue de mer, qui nage vers la plage
+  const tx = w * 0.72, ty = h * (0.8 - (t - 11.8) * 0.03), tr = m * 0.06;
+  c.globalAlpha = 1;
+  glow(tx, ty, tr * 4);
+  c.globalAlpha = k;
+  const turtle = { look: 'tortue', color: '#6F9A5A', kind: 'prey' };
+  drawCreature(c, { sp: turtle, x: tx, y: ty, angle: -Math.PI / 2 + 0.3, size: tr, seed: 4, mood: 'calm', mouth: 0, blink: (t % 2.5) < 0.12 ? 1 : 0 }, t);
   c.globalAlpha = 1;
 }
 
@@ -2831,13 +2947,14 @@ $('newGameBtn').addEventListener('click', () => {
 /* ---------- (?debug) Pilote automatique : joue en accéléré pour tester l'équilibrage ----------
    Il fuit ce qui est dangereux, file vers la proie la plus proche (celles des missions d'abord)
    et achète les évolutions des missions dès qu'il peut. */
+let botDeaths = {};                  // (?debug) de quoi meurt le pilote automatique
 let botCareful = true;               // false = un enfant distrait, qui ne fuit qu'au dernier moment
 function botDir() {
   const p = player;
   let fx = 0, fy = 0, threat = 0;
-  // la peau sèche : direction la mare la plus proche
-  if (drying() && p.wet < 0.4 && p.zone !== 'water') {
-    const pond = nearestZone(p.x, p.y, 'water');
+  // la jauge baisse : direction la mare (ou la surface) la plus proche
+  if (drying() && p.wet < 0.4 && p.zone !== meter().zone) {
+    const pond = nearestZone(p.x, p.y, meter().zone);
     if (pond) {
       // on boit au bord (au milieu, il y a des poissons géants)
       const dx = pond.x - p.x, dy = pond.y - p.y, d = Math.hypot(dx, dy) || 1;
@@ -2880,6 +2997,7 @@ function botDir() {
 function simulate(seconds, careful = true, log = []) {
   botInput = botDir;
   botCareful = careful;
+  botDeaths = {};
   const dt = 1 / 30;
   const t0 = { chapter: game.chapter, deaths: game.stats.deaths };
   let t = 0, chapterT = 0, prev = game.chapter;
@@ -2904,7 +3022,7 @@ function simulate(seconds, careful = true, log = []) {
     }
   }
   botInput = null;
-  return { seconds: Math.round(t), chapter: game.chapter + 1, state, deaths: game.stats.deaths - t0.deaths, log, adn: game.adn, growth: Math.round(growthK() * 100), done: game.done };
+  return { seconds: Math.round(t), chapter: game.chapter + 1, state, deaths: game.stats.deaths - t0.deaths, causes: botDeaths, log, adn: game.adn, growth: Math.round(growthK() * 100), done: game.done };
 }
 
 /* ---------- Démarrage ---------- */
