@@ -445,6 +445,32 @@ body {
 .exit-btn:hover { transform: translateY(2px); box-shadow: 0 2px 0 #c94f6e, 0 4px 10px rgba(0, 0, 0, 0.35); }
 body.full .exit-btn, body.phone .exit-btn { display: inline-flex; }
 .quit-overlay { z-index: 66; }
+
+/* ---------- Téléphone tenu debout : « Tourne ton téléphone » ---------- */
+.rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--night);
+  color: #fff;
+  text-align: center;
+}
+.rotate-overlay[hidden] { display: none; }
+.rotate-phone {
+  font-size: 4.5rem;
+  line-height: 1;
+  animation: rotatePhone 2.4s ease-in-out infinite;
+}
+.rotate-title { margin: 1.2rem 0 .3rem; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.7rem; color: var(--sea); }
+.rotate-sub { margin: 0; font-size: 1.05rem; color: var(--muted); }
+@keyframes rotatePhone {
+  0%, 25% { transform: rotate(0deg); }
+  55%, 100% { transform: rotate(-90deg); }
+}
 #fsBtn { display: inline-flex; align-items: center; justify-content: center; }
 body.phone #fsBtn { display: none; }
 #fsBtn .fs-out { display: none; }

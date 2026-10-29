@@ -115,6 +115,7 @@ const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const dashBtn = $('dashBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
+const portraitMQ = window.matchMedia('(orientation: portrait)');
 const DEBUG = new URLSearchParams(location.search).has('debug');
 
 /* ---------- État ---------- */
@@ -2229,6 +2230,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, last ? (now - last) / 1000 : 0);
   last = now;
+  if (mustRotate()) return;        // téléphone tenu debout : tout est en pause
   if (state === 'playing' && isBlocked()) runTimers(0);
   else runTimers(dt);
   if (state === 'intro' && intro) {
@@ -2866,14 +2868,40 @@ const isFullscreen = () => !!(document.fullscreenElement || document.webkitFulls
 
 function enterFullscreen() {
   const el = document.documentElement;
-  if (isFullscreen()) return;
+  if (isFullscreen()) { lockLandscape(); return; }
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
   if (!req) return;
   try {
     const p = req.call(el, { navigationUI: 'hide' });
-    if (p && p.catch) p.catch(() => {});
+    if (p && p.then) p.then(lockLandscape, () => {});
+    else lockLandscape();
   } catch (err) { /* refusé par le navigateur */ }
 }
+
+/** Sur téléphone, on bloque l'écran en paysage (possible seulement en plein écran, pas sur iPhone) */
+function lockLandscape() {
+  if (!phoneMQ.matches) return;
+  try {
+    const p = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape');
+    if (p && p.catch) p.catch(() => {});
+  } catch (err) { /* pas possible ici : l'écran « Tourne ton téléphone » prend le relais */ }
+}
+
+/** Téléphone tenu debout pendant le jeu : on demande de le tourner */
+const rotateOverlay = $('rotateOverlay');
+function mustRotate() {
+  const on = phoneMQ.matches && portraitMQ.matches && state !== 'loading' && startOverlay.hidden;
+  if (rotateOverlay.hidden === on) {
+    rotateOverlay.hidden = !on;
+    if (on) releaseAll();
+  }
+  return on;
+}
+
+// sorti du plein écran (geste retour…) : on y retourne au prochain toucher
+document.addEventListener('pointerup', () => {
+  if (phoneMQ.matches && state !== 'loading' && startOverlay.hidden && !isFullscreen()) enterFullscreen();
+});
 
 function exitFullscreen() {
   const exit = document.exitFullscreen || document.webkitExitFullscreen;
