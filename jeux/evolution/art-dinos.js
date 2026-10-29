@@ -1252,7 +1252,7 @@ const PTERO = {
 
 /* ---------- Les looks, la position de la gueule, le cadrage des vignettes ---------- */
 for (const [id, P] of Object.entries(THERO)) {
-  LOOKS[id] = (ctx, c, t) => drawTheropod(ctx, c, t, P, c.sp.color);
+  LOOKS[id] = (ctx, c, t) => drawTheropod(ctx, c, t, P, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
   SIDE[id] = mouthOf(P.head);
   FRAMES[id] = { r: 0.16, x: 0.58, y: P.head.y < -0.8 ? 0.6 : 0.55 };
 }

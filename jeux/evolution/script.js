@@ -1562,6 +1562,10 @@ function timeTravel() {
 const PLAYER_DEFAULT = { ...PLAYER };
 function applySkin() {
   Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null }, CH.skin || {});
+  // les rivaux sont de ton espèce : ils ont tes couleurs
+  for (const sp of Object.values(SPECIES)) {
+    if (sp.kind === 'rival') Object.assign(sp, { color: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe });
+  }
 }
 
 function setupChapter(keepPos) {

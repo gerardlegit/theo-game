@@ -699,7 +699,7 @@ Object.assign(LOOKS, {
   millepattes: drawMillepattes,
   scorpion: drawScorpion,
   libellule: drawLibellule,
-  lezard: (ctx, c, t) => drawLizardSide(ctx, c, t),
+  lezard: (ctx, c, t) => drawLizardSide(ctx, c, t, c.sp.color, c.sp.body || {}, { belly: c.sp.belly, stripe: c.sp.stripe }),
 });
 
 /* Cadrage des vignettes (r = taille, x / y = position de la tête, en part de l'image) */

@@ -256,7 +256,7 @@ const chapters = [
     vision: 1.2,
     fog: 0.5,
     palette: { water: ['#1E8C9E', '#0B4A5E'], floor: '#7C8F7A', light: '#E6FFF6' },
-    species: { sardine: 28, belemnite: 18, 'cousin-nothosaure': 3, meduse: 4, hybodus: 3, cymbospondylus: 1 },
+    species: { sardine: 22, belemnite: 15, 'cousin-nothosaure': 3, meduse: 4, hybodus: 3, cymbospondylus: 1 },
     unlock: ['palmes', 'poumons'],
     intro: "Des millions d'années ont passé. Tes descendants sont devenus des reptiles… et ils sont retournés dans la mer ! Mais un reptile respire de l'air : remonte souvent à la surface, dans les taches de lumière 🐳. Et méfie-toi des requins Hybodus…",
     missions: [
@@ -283,7 +283,7 @@ const chapters = [
     vision: 0.95,
     fog: 0.62,
     palette: { water: ['#1B7FA6', '#093D5C'], floor: '#6F8E85', light: '#E2F6FF' },
-    species: { sardine: 16, belemnite: 14, ammonite: 6, 'cousin-ichthyosaure': 3, meduse: 3, hybodus: 3, plesiosaure: 2, temnodontosaurus: 2 },
+    species: { sardine: 13, belemnite: 12, ammonite: 6, 'cousin-ichthyosaure': 3, meduse: 3, hybodus: 3, plesiosaure: 2, temnodontosaurus: 2 },
     unlock: ['nageoire', 'grands-yeux'],
     intro: "Le Jurassique ! Tes descendants ont un corps de dauphin : tu es un ichthyosaure. Mais les eaux sont sombres… et le terrible Temnodontosaurus, aux yeux géants, te voit de très loin !",
     missions: [
@@ -310,7 +310,7 @@ const chapters = [
     vision: 1.1,
     fog: 0.55,
     palette: { water: ['#1A6E93', '#08324F'], floor: '#667F80', light: '#E0F2FF' },
-    species: { belemnite: 12, ammonite: 8, ophthalmosaurus: 9, cryptoclidus: 8, 'cousin-pliosaure': 3, leedsichthys: 2, metriorhynque: 3, liopleurodon: 2 },
+    species: { belemnite: 10, ammonite: 8, ophthalmosaurus: 7, cryptoclidus: 7, 'cousin-pliosaure': 3, leedsichthys: 2, metriorhynque: 3, liopleurodon: 2 },
     unlock: ['machoires', 'flair'],
     intro: "Tes descendants ont une tête énorme et quatre nageoires comme des ailes : tu es un pliosaure ! Mais ici règne Liopleurodon, encore plus grand que toi… et les crocodiles marins chassent en pleine mer.",
     missions: [
@@ -336,7 +336,7 @@ const chapters = [
     vision: 1.1,
     fog: 0.6,
     palette: { water: ['#155F86', '#062A45'], floor: '#5D7480', light: '#DDEFFF' },
-    species: { ammonite: 10, belemnite: 10, xiphactinus: 9, platypterygius: 7, 'grand-pliosaure': 3, cretoxyrhina: 3, kronosaurus: 2 },
+    species: { ammonite: 9, belemnite: 8, xiphactinus: 7, platypterygius: 6, 'grand-pliosaure': 3, cretoxyrhina: 3, kronosaurus: 2 },
     unlock: ['dents', 'cuir'],
     intro: "Le Crétacé ! Tu es un grand pliosaure… mais Kronosaurus, avec sa tête aussi longue qu'une voiture, est encore plus fort. Et les requins Cretoxyrhina coupent tout avec leurs dents-couteaux !",
     missions: [
@@ -362,7 +362,7 @@ const chapters = [
     vision: 1.15,
     fog: 0.62,
     palette: { water: ['#124F75', '#05223A'], floor: '#566B78', light: '#D8ECFF' },
-    species: { xiphactinus: 9, ammonite: 8, archelon: 4, elasmosaure: 6, squalicorax: 4, 'cousin-mosasaure': 2, tylosaure: 3, mosasaurus: 1 },
+    species: { xiphactinus: 7, ammonite: 7, archelon: 4, elasmosaure: 5, squalicorax: 4, 'cousin-mosasaure': 2, tylosaure: 3, mosasaurus: 1 },
     unlock: ['peau-epaisse', 'morsure'],
     intro: "La fin du Crétacé. Tu es devenu un mosasaure, un lézard de mer géant et impitoyable ! Mais un autre mosasaure, encore plus énorme, règne sur ces eaux. Pour devenir le maître des océans, il faudra le battre…",
     missions: [

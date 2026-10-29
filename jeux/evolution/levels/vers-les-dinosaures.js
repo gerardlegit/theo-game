@@ -332,7 +332,7 @@ const chapters = [
     vision: 1.3,
     fog: 0.55,
     palette: { water: ['#5E7F4E', '#33452A'], floor: '#7C8A55', motes: 'rgba(255, 250, 200, 0.5)' },
-    species: { insecte: 28, 'mille-pattes': 18, 'petit-poisson': 10, 'cousin-tetrapode': 3, scorpion: 3, hyneria: 2 },
+    species: { insecte: 22, 'mille-pattes': 15, 'petit-poisson': 9, 'cousin-tetrapode': 3, scorpion: 3, hyneria: 2 },
     unlock: ['pattes', 'poumons'],
     intro: "Te voilà au bord de l'eau, il y a 375 millions d'années. Sur la terre, presque personne… mais attention : ta peau sèche vite ! Retourne souvent dans une mare. Et dans l'eau, méfie-toi de Hyneria…",
     missions: [
@@ -360,7 +360,7 @@ const chapters = [
     vision: 0.85,
     fog: 0.72,
     palette: { water: ['#3D5A3A', '#1E2E1C'], floor: '#4F6B3A', motes: 'rgba(210, 255, 170, 0.45)' },
-    species: { insecte: 18, blatte: 18, 'mille-pattes': 12, 'cousin-reptile': 3, arthropleura: 2, meganeura: 2, 'scorpion-geant': 2, 'amphibien-geant': 2 },
+    species: { insecte: 15, blatte: 15, 'mille-pattes': 10, 'cousin-reptile': 3, arthropleura: 2, meganeura: 2, 'scorpion-geant': 2, 'amphibien-geant': 2 },
     unlock: ['ecailles', 'oeuf'],
     intro: "Des millions d'années plus tard, tes descendants ressemblent à des lézards. La forêt de charbon est sombre, humide… et pleine de monstres : libellules géantes, scorpions énormes. Il te faut une peau à écailles et des œufs à coquille pour quitter les mares !",
     missions: [
@@ -387,7 +387,7 @@ const chapters = [
     vision: 1.4,
     fog: 0.45,
     palette: { water: ['#B98F5A', '#7A5534'], floor: '#C2A36B', motes: 'rgba(255, 230, 180, 0.5)' },
-    species: { lezard: 18, cynodonte: 14, 'cousin-dino': 3, coelophysis: 3, postosuchus: 2, phytosaure: 2 },
+    species: { lezard: 15, cynodonte: 11, 'cousin-dino': 3, coelophysis: 3, postosuchus: 2, phytosaure: 2 },
     unlock: ['cerveau', 'griffes'],
     intro: "Le Trias ! Tes descendants marchent sur deux pattes : tu es devenu l'un des tout premiers dinosaures. Mais ici, le roi, c'est Postosuchus… et les Coelophysis chassent en meute. Sois malin !",
     missions: [
@@ -414,7 +414,7 @@ const chapters = [
     vision: 1.3,
     fog: 0.5,
     palette: { water: ['#5C7F4A', '#2F4A2A'], floor: '#6E8B4E', motes: 'rgba(255, 255, 210, 0.5)' },
-    species: { compsognathus: 14, dryosaure: 12, rhamphorhynchus: 8, 'cousin-grand': 3, stegosaure: 2, brachiosaure: 1, diplodocus: 1, ceratosaure: 2, allosaure: 2 },
+    species: { compsognathus: 12, dryosaure: 10, rhamphorhynchus: 7, 'cousin-grand': 3, stegosaure: 2, brachiosaure: 1, diplodocus: 1, ceratosaure: 2, allosaure: 2 },
     unlock: ['dents', 'flair'],
     intro: "Le Jurassique, l'âge des géants ! Les brachiosaures et les diplodocus sont si grands qu'ils peuvent t'écraser sans le faire exprès. Et l'Allosaurus, le plus terrible chasseur de l'époque, rôde dans la forêt…",
     missions: [
@@ -439,7 +439,7 @@ const chapters = [
     vision: 1.25,
     fog: 0.55,
     palette: { water: ['#7C7A4A', '#3F3C24'], floor: '#8A8656', motes: 'rgba(255, 240, 200, 0.5)' },
-    species: { edmontosaure: 6, parasaurolophus: 4, gallimimus: 5, pteranodon: 3, pachycephalosaure: 3, 'jeune-trex': 2, dakotaraptor: 2, triceratops: 2, ankylosaure: 2, quetzalcoatlus: 2, spinosaure: 2, trex: 1 },
+    species: { edmontosaure: 5, parasaurolophus: 4, gallimimus: 4, pteranodon: 3, pachycephalosaure: 3, 'jeune-trex': 2, dakotaraptor: 2, triceratops: 2, ankylosaure: 2, quetzalcoatlus: 2, spinosaure: 2, trex: 1 },
     unlock: ['peau-epaisse', 'morsure'],
     intro: "La fin du Crétacé. Les premières fleurs ont poussé, et tu es devenu un grand tyrannosaure ! Mais un autre T. rex règne ici. Pour dominer la Terre, il faudra le battre…",
     missions: [

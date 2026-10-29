@@ -885,7 +885,7 @@ const MARINE = {
 
 for (const [id, P] of Object.entries(MARINE)) {
   SPINES[id] = P.spine;
-  LOOKS[id] = (ctx, c, t) => drawMarine(ctx, c, t, P, c.sp.color);
+  LOOKS[id] = (ctx, c, t) => drawMarine(ctx, c, t, P, c.sp.color, { stripe: c.sp.stripe });
   SNOUT[id] = P.head.L * 0.9;
   // le cadrage des vignettes : tout l'animal doit tenir dans l'image
   const len = (P.spine.n - 1) * P.spine.gap + P.head.L + (P.tail ? 0.7 : 0.15);
