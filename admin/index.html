@@ -113,6 +113,24 @@
   th { color: var(--muted); font-size: .85rem; position: sticky; top: 0; background: var(--surface); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .note { color: var(--muted); font-size: .85rem; margin-top: 16px; }
+
+  /* ----- Messages des visiteurs ----- */
+  .messages-card { margin-top: 24px; }
+  .messages-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .messages-head h2 { font-size: 1.15rem; }
+  .messages-head .count { color: var(--muted); font-family: 'Quicksand', sans-serif; font-size: .9rem; }
+  .msg-login { max-width: 360px; }
+  .msg-login p { color: var(--muted); font-size: .9rem; margin: 0; }
+  .msg-login button { margin-top: 16px; }
+  .msg-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .msg-filters button { padding: 6px 12px; font-size: .85rem; }
+  .msg-filters button[aria-pressed="false"] { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .msg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .msg { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--bg); }
+  .msg-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--muted); font-size: .85rem; margin-bottom: 6px; }
+  .msg-type { color: var(--ink); font-weight: 700; }
+  .msg-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+  .msg-del { margin-left: auto; padding: 4px 10px; font-size: .8rem; background: transparent; color: var(--error); border: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -166,12 +184,42 @@
       </div>
 
       <p class="note">Une visite = une ouverture de la page d'accueil par un navigateur (recharger la page ne compte pas deux fois). Ce navigateur n'est plus compté depuis que tu t'es connecté ici.</p>
+
+      <!-- Messages du formulaire « Laisser un commentaire » -->
+      <section class="card messages-card" aria-labelledby="msg-title">
+        <div class="messages-head">
+          <h2 id="msg-title">Messages des visiteurs <span class="count" id="msg-count"></span></h2>
+          <button id="msg-logout" class="ghost" type="button" hidden>Fermer la boîte</button>
+        </div>
+
+        <form id="msg-login" class="msg-login">
+          <p>Les messages sont privés : connecte-toi avec le compte Firebase de l'admin (voir FIREBASE-SETUP.md).</p>
+          <label for="msg-email">E-mail</label>
+          <input id="msg-email" type="email" autocomplete="username" required>
+          <label for="msg-pass">Mot de passe</label>
+          <input id="msg-pass" type="password" autocomplete="current-password" required>
+          <button type="submit">Lire les messages</button>
+          <p class="error" id="msg-error" role="alert"></p>
+        </form>
+
+        <div id="msg-box" hidden>
+          <div class="msg-filters" id="msg-filters">
+            <button type="button" data-filter="" aria-pressed="true">Tous</button>
+            <button type="button" data-filter="idee" aria-pressed="false">🎮 Idées de jeux</button>
+            <button type="button" data-filter="commentaire" aria-pressed="false">💬 Commentaires</button>
+            <button type="button" data-filter="probleme" aria-pressed="false">🐞 Problèmes</button>
+          </div>
+          <ul class="msg-list" id="msg-list"></ul>
+        </div>
+      </section>
     </section>
 
   </main>
 
 <script type="module">
   import { fetchVisitHistory, todayKey, ADMIN_DEVICE_KEY } from "../shared/visits.js";
+  import { fetchMessages, deleteMessage, messagesApp, MESSAGE_TYPES } from "../shared/messages.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 
   // SHA-256 de "identifiant:mot de passe"
   const CREDENTIALS_HASH = "8da193366e1554c08b2870c50f737b9587c3372b656151c4a96028af26f51334";
@@ -320,6 +368,121 @@
       hit.addEventListener("mouseleave", () => { tip.hidden = true; });
     });
   }
+
+  // ---------- Messages des visiteurs ----------
+  // Lus avec le vrai compte Firebase de l'admin : les règles Firestore
+  // refusent la lecture à tout autre visiteur (voir FIREBASE-SETUP.md).
+  const app = messagesApp();
+  const auth = app ? getAuth(app) : null;
+  let messages = [];
+  let filter = "";
+
+  function msgDate(d) {
+    return d ? d.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "";
+  }
+
+  function msgNote(text) {
+    const li = document.createElement("li");
+    li.className = "note";
+    li.textContent = text;
+    return li;
+  }
+
+  // Tout passe par textContent : un message de visiteur n'est jamais interprété comme du HTML
+  function renderMessages() {
+    const list = $("msg-list");
+    list.textContent = "";
+    $("msg-count").textContent = `(${messages.length})`;
+    const shown = messages.filter((m) => !filter || m.type === filter);
+    if (!shown.length) {
+      list.append(msgNote(messages.length ? "Aucun message de ce type." : "Aucun message pour l'instant."));
+      return;
+    }
+    for (const m of shown) {
+      const li = document.createElement("li");
+      li.className = "msg";
+      const meta = document.createElement("div");
+      meta.className = "msg-meta";
+      const type = document.createElement("span");
+      type.className = "msg-type";
+      type.textContent = MESSAGE_TYPES[m.type] || m.type;
+      const who = document.createElement("span");
+      who.textContent = m.name || "Anonyme";
+      const when = document.createElement("span");
+      when.textContent = msgDate(m.date);
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "msg-del";
+      del.textContent = "Supprimer";
+      del.addEventListener("click", async () => {
+        if (!confirm("Supprimer ce message ?")) return;
+        del.disabled = true;
+        if (await deleteMessage(m.id)) {
+          messages = messages.filter((x) => x !== m);
+          renderMessages();
+        } else {
+          del.disabled = false;
+          alert("Impossible de supprimer ce message.");
+        }
+      });
+      meta.append(type, who, when, del);
+      const text = document.createElement("p");
+      text.className = "msg-text";
+      text.textContent = m.message;
+      li.append(meta, text);
+      list.append(li);
+    }
+  }
+
+  async function openMailbox() {
+    $("msg-login").hidden = true;
+    $("msg-box").hidden = false;
+    $("msg-logout").hidden = false;
+    $("msg-list").replaceChildren(msgNote("Chargement…"));
+    try {
+      messages = await fetchMessages();
+      renderMessages();
+    } catch (err) {
+      console.error(err);
+      $("msg-list").replaceChildren(msgNote("Lecture refusée : vérifie que l'UID de ce compte est bien dans les règles Firestore (FIREBASE-SETUP.md)."));
+    }
+  }
+
+  function closeMailbox() {
+    messages = [];
+    $("msg-login").hidden = false;
+    $("msg-box").hidden = true;
+    $("msg-logout").hidden = true;
+    $("msg-count").textContent = "";
+  }
+
+  $("msg-filters").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-filter]");
+    if (!btn) return;
+    filter = btn.dataset.filter;
+    $("msg-filters").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    renderMessages();
+  });
+
+  $("msg-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("msg-error").textContent = "";
+    if (!auth) {
+      $("msg-error").textContent = "Firebase n'est pas configuré.";
+      return;
+    }
+    try {
+      await signInWithEmailAndPassword(auth, $("msg-email").value.trim(), $("msg-pass").value);
+      $("msg-pass").value = "";
+    } catch (err) {
+      console.error(err);
+      $("msg-error").textContent = "Connexion impossible : vérifie l'e-mail et le mot de passe du compte admin Firebase.";
+    }
+  });
+
+  $("msg-logout").addEventListener("click", () => signOut(auth));
+
+  if (auth) onAuthStateChanged(auth, (user) => (user ? openMailbox() : closeMailbox()));
 
   if (read(sessionStorage, SESSION_KEY)) showDashboard();
 </script>

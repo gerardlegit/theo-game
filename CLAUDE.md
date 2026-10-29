@@ -15,7 +15,10 @@ shared/                   ES modules used by every game
   firebase-config.js      Real Firebase web config (public by design; security = Firestore rules)
   leaderboard.js          fetchTopScores / submitScore / isLeaderboardConfigured
   visits.js               Daily visit counter (home page) + history for admin
-admin/index.html          Visit stats; client-side "admin/admin" login (not real security)
+  messages.js             « Laisser un commentaire » form (home #avis): send / fetch / delete
+  guide.css, guide.js     « Parents et enseignants » text under each game
+admin/index.html          Visit stats behind a client-side "admin/admin" login (not real security);
+                          visitor messages behind a real Firebase Auth login (admin UID in the rules)
 jeux/<slug>/              One folder per game, served at /jeux/<slug>/
 sitemap.xml, robots.txt   SEO; /admin/ is disallowed
 ```
@@ -45,6 +48,7 @@ Cross-game reuse to be aware of:
 - `game` ids are per game or per mode (`quiz-animaux-36`, `espace-cadet`, `continents-${key}`). Changing an id or the score encoding starts a fresh leaderboard, so do it deliberately (e.g. `course-multiplications-2`).
 - Games either import `../../shared/leaderboard.js` statically or lazily with `import(...).catch(() => null)`, so they still work offline or when Firebase fails. Always handle `isLeaderboardConfigured()` being false or an empty result.
 - A new Firestore collection needs new rules in `FIREBASE-SETUP.md`, and the site owner must publish them in the Firebase console.
+- `messages` (visitor comments and new-game requests) is **private**: create-only for everyone, read/delete only for the admin's Firebase Auth UID. Visitors are children, so never display these messages on the site, and render them with `textContent` only.
 
 ## Adding a new game
 

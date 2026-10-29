@@ -321,6 +321,50 @@
     </div>
   </section>
 
+  <!-- ===== Laisser un commentaire ===== -->
+  <section id="avis" class="feedback" aria-labelledby="avis-title">
+    <div class="feedback-inner">
+      <div class="feedback-intro">
+        <span class="feedback-icon" aria-hidden="true">💌</span>
+        <h2 id="avis-title">Laisser un commentaire</h2>
+        <p>Un jeu t'a plu&nbsp;? Tu as trouvé un problème&nbsp;? Écris-nous&nbsp;: on lit tous les messages, et ils nous aident à rendre la Cabane encore meilleure.</p>
+        <div class="feedback-idea">
+          <p><strong>🎮 Tu rêves d'un nouveau jeu&nbsp;?</strong> Les dinosaures, les volcans, la musique, les fractions… Fais-nous ta demande&nbsp;: les meilleures idées deviendront peut-être les prochains jeux de la Cabane&nbsp;!</p>
+          <button type="button" class="feedback-idea-btn" id="fbIdeaBtn">Je propose un jeu →</button>
+        </div>
+        <p class="feedback-private">Ton message est envoyé à l'équipe de la Cabane&nbsp;: il n'est pas affiché sur le site.</p>
+      </div>
+
+      <form class="feedback-form" id="feedbackForm" novalidate>
+        <fieldset class="feedback-types">
+          <legend>Ton message, c'est…</legend>
+          <label class="fb-type"><input type="radio" name="type" value="commentaire" checked><span>💬 Un commentaire</span></label>
+          <label class="fb-type"><input type="radio" name="type" value="idee"><span>🎮 Une demande de nouveau jeu</span></label>
+          <label class="fb-type"><input type="radio" name="type" value="probleme"><span>🐞 Un problème</span></label>
+        </fieldset>
+
+        <label for="fbName">Ton prénom ou ton pseudo <small>(si tu veux)</small></label>
+        <input type="text" id="fbName" name="name" maxlength="30" autocomplete="off">
+
+        <div class="fb-label-row">
+          <label for="fbMessage">Ton message</label>
+          <span class="fb-count" id="fbCount" aria-hidden="true">0 / 1000</span>
+        </div>
+        <textarea id="fbMessage" name="message" rows="5" maxlength="1000" required placeholder="Qu'as-tu pensé de la Cabane ? Quel est ton jeu préféré ?"></textarea>
+
+        <p class="feedback-safe">🔒 N'écris jamais ton nom de famille, ton adresse, ton école ou ton numéro de téléphone.</p>
+
+        <div class="fb-hp" aria-hidden="true">
+          <label for="fbWebsite">Ne pas remplir</label>
+          <input type="text" id="fbWebsite" name="website" tabindex="-1" autocomplete="off">
+        </div>
+
+        <button type="submit" class="feedback-send" id="fbSend">Envoyer mon message ✉️</button>
+        <p class="feedback-status" id="fbStatus" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
   <footer class="foot">
     <p>La Cabane à Jeux — des jeux ludiques et éducatifs pour apprendre en s'amusant.</p>
     <p>De nouveaux jeux arrivent régulièrement dans la cabane 🏡</p>
@@ -329,6 +373,72 @@
   <script type="module">
     import { recordVisit } from "./shared/visits.js";
     recordVisit();
+  </script>
+  <script type="module">
+    // ---------- Laisser un commentaire ----------
+    const form = document.getElementById("feedbackForm");
+    const msgEl = document.getElementById("fbMessage");
+    const countEl = document.getElementById("fbCount");
+    const statusEl = document.getElementById("fbStatus");
+    const sendBtn = document.getElementById("fbSend");
+    const COOLDOWN_KEY = "cabane_message_sent";
+    const COOLDOWN_MS = 60 * 1000;
+    const PLACEHOLDERS = {
+      commentaire: "Qu'as-tu pensé de la Cabane ? Quel est ton jeu préféré ?",
+      idee: "Raconte ton idée de jeu : de quoi parle-t-il ? Qu'est-ce qu'on y apprend ?",
+      probleme: "Dans quel jeu ? Qu'est-ce qui ne marche pas ?",
+    };
+
+    const setStatus = (text, kind = "") => {
+      statusEl.textContent = text;
+      statusEl.className = `feedback-status ${kind}`;
+    };
+    const updateCount = () => { countEl.textContent = `${msgEl.value.length} / 1000`; };
+
+    form.addEventListener("change", (e) => {
+      if (e.target.name === "type") msgEl.placeholder = PLACEHOLDERS[e.target.value];
+    });
+    msgEl.addEventListener("input", updateCount);
+
+    document.getElementById("fbIdeaBtn").addEventListener("click", () => {
+      form.elements.type.value = "idee";
+      msgEl.placeholder = PLACEHOLDERS.idee;
+      msgEl.focus();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (form.elements.website.value) return; // champ piège : seuls les robots le remplissent
+      const message = msgEl.value.trim();
+      if (message.length < 3) {
+        setStatus("Écris d'abord ton message !", "error");
+        msgEl.focus();
+        return;
+      }
+      let last = 0;
+      try { last = Number(localStorage.getItem(COOLDOWN_KEY)) || 0; } catch { /* stockage bloqué */ }
+      if (Date.now() - last < COOLDOWN_MS) {
+        setStatus("Merci ! Attends une petite minute avant d'envoyer un autre message.", "error");
+        return;
+      }
+
+      sendBtn.disabled = true;
+      setStatus("Envoi en cours…");
+      const lib = await import("./shared/messages.js").catch(() => null);
+      const ok = lib
+        ? await lib.sendMessage({ type: form.elements.type.value, name: document.getElementById("fbName").value, message })
+        : false;
+      sendBtn.disabled = false;
+      if (!ok) {
+        setStatus("Oups, le message n'a pas pu partir. Réessaie dans un moment !", "error");
+        return;
+      }
+      try { localStorage.setItem(COOLDOWN_KEY, String(Date.now())); } catch { /* stockage bloqué */ }
+      form.reset();
+      msgEl.placeholder = PLACEHOLDERS.commentaire;
+      updateCount();
+      setStatus("Merci ! Ton message est bien arrivé dans la cabane 💌", "ok");
+    });
   </script>
 </body>
 </html>

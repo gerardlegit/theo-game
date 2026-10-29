@@ -92,6 +92,25 @@ service cloud.firestore {
                     && request.resource.data.count == resource.data.count + 1;
       allow delete: if false;
     }
+
+    // Messages du formulaire « Laisser un commentaire » (page d'accueil) :
+    // tout le monde peut en envoyer, seul le compte admin peut les lire
+    // et les effacer. Remplace REMPLACE_PAR_TON_UID (voir « Boîte à
+    // messages » plus bas).
+    match /messages/{messageId} {
+      allow create: if request.resource.data.keys().hasAll(['type', 'name', 'message', 'createdAt'])
+                    && request.resource.data.keys().hasOnly(['type', 'name', 'message', 'createdAt'])
+                    && request.resource.data.type in ['commentaire', 'idee', 'probleme']
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() <= 30
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() >= 3
+                    && request.resource.data.message.size() <= 1000
+                    && request.resource.data.createdAt == request.time;
+      allow read, delete: if request.auth != null
+                          && request.auth.uid == 'REMPLACE_PAR_TON_UID';
+      allow update: if false;
+    }
   }
 }
 ```
@@ -168,3 +187,38 @@ compteur ne pourra rien enregistrer.
 > navigateur : il évite les curieux, mais ce n'est pas une vraie sécurité
 > (les chiffres de visites restent lisibles par quelqu'un de motivé). Comme
 > il ne s'agit que de nombres de visites, c'est suffisant ici.
+
+## Boîte à messages (formulaire « Laisser un commentaire »)
+
+Tout en bas de la page d'accueil, les visiteurs peuvent laisser un
+commentaire, signaler un problème ou **demander un nouveau jeu**. Les
+messages arrivent dans la collection `messages` de Firestore. Ils ne sont
+**jamais affichés sur le site** : comme ce sont souvent des enfants qui
+écrivent, seul le compte admin peut les lire.
+
+Contrairement au compteur de visites, la lecture est protégée par une vraie
+connexion Firebase (et pas seulement par le mot de passe de la page admin).
+À faire une seule fois, environ 5 minutes :
+
+1. Dans la console Firebase, va dans **Build → Authentication** et clique
+   sur **"Commencer"**.
+2. Onglet **"Sign-in method"** : active **"E-mail/Mot de passe"** (le
+   premier interrupteur seulement), puis **"Enregistrer"**.
+3. Onglet **"Users"** : clique sur **"Ajouter un utilisateur"**, entre ton
+   e-mail et un mot de passe solide (différent de `admin`). Ne crée aucun
+   autre compte.
+4. Dans la liste des utilisateurs, copie l'**UID** de ce compte (une longue
+   suite de lettres et de chiffres).
+5. Va dans **Firestore Database → Règles**, colle les règles complètes de
+   l'étape 4 (elles contiennent maintenant le bloc `messages`), remplace
+   `REMPLACE_PAR_TON_UID` par ton UID, puis clique sur **"Publier"**.
+
+Pour lire les messages : ouvre **`/admin/`**, connecte-toi comme d'habitude,
+puis, dans le cadre **"Messages des visiteurs"** en bas de la page, entre
+l'e-mail et le mot de passe du compte créé à l'étape 3. Tu peux filtrer les
+messages (idées de jeux, commentaires, problèmes) et supprimer ceux que tu
+as traités.
+
+> ℹ️ Tant que ces règles ne sont pas publiées, le formulaire de l'accueil
+> affiche « le message n'a pas pu partir ». Les règles limitent la taille
+> des messages, et la page impose une minute d'attente entre deux envois.
