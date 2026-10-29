@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 
@@ -53,6 +54,7 @@
     <footer class="select-foot">
       <p>Touchez un immeuble pour choisir votre niveau</p>
       <button class="link-btn" id="rulesBtn">Comment jouer&nbsp;?</button>
+      <button class="link-btn" type="button" data-guide-open>Parents et enseignants</button>
     </footer>
   </section>
 
@@ -169,5 +171,23 @@
   </div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">English à tous les étages&nbsp;: un jeu pour apprendre ses premiers mots d'anglais</h2>
+      <p class="cab-guide-lead">À Paris, Colette doit grimper les dix étages de son immeuble. À chaque étage, un thème de la vie quotidienne (la boulangerie, le café, le marché, la maison…) et des mots d'anglais à retenir.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Trois immeubles, trois niveaux&nbsp;: Débutant pour les CE1 et CE2, Intermédiaire pour les CM1 et CM2, Expert pour les élèves de CM2 et de 6e qui veulent aller plus loin.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le programme de langues vivantes des cycles 2 et 3 demande de comprendre et d'utiliser un vocabulaire simple de la vie quotidienne (niveau A1). Le jeu travaille la compréhension de l'oral grâce au bouton 🔊, qui prononce chaque mot anglais, la reconnaissance du mot écrit et la mémorisation.</p>
+      <h3>Comment jouer</h3>
+      <p>Chaque étage a cinq fenêtres à faire briller. Aux étages impairs, un mot anglais s'affiche et l'enfant doit trouver sa traduction en français&nbsp;; aux étages pairs, c'est l'inverse. Le mot s'efface au bout de quelques secondes&nbsp;: il faut bien le retenir&nbsp;! Une seule erreur, et Colette redescend. Le chronomètre départage les joueurs au classement.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, demandez à l'enfant de répéter chaque mot après la voix. En classe, un étage par séance fait un bon rituel de début de cours d'anglais, en lien avec le thème étudié.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

@@ -24,6 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 <script type="importmap">
 {
   "imports": {
@@ -107,7 +108,7 @@
     </ul>
 
     <div class="board" id="introBoard"></div>
-    <p class="intro-foot"><a href="credits.html">📷 Crédits des photos</a></p>
+    <p class="intro-foot"><a href="credits.html">📷 Crédits des photos</a> · <button type="button" class="cab-guide-link" data-guide-open>👪 Parents et enseignants</button></p>
   </section>
 
   <!-- ===== Une manche : viser ===== -->
@@ -215,5 +216,23 @@
   <div class="confetti" id="confetti" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Pin the Globe&nbsp;: un jeu de géographie sur un globe 3D</h2>
+      <p class="cab-guide-lead">Pin the Globe fait voyager l'enfant sur une Terre en 3D qu'il fait tourner du bout du doigt&nbsp;: il doit planter son épingle sur des villes du monde, ou retrouver de grands monuments et des merveilles de la nature.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Du CM1 au collège. Le mode Explorateur, avec les villes les plus célèbres, convient aussi à des CE2 accompagnés.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le jeu soutient le programme de géographie du cycle 3&nbsp;: se repérer sur un globe et sur une carte, situer des continents, des océans et de grandes villes. Le score en kilomètres donne une idée concrète des distances, et chaque ville présente ses coordonnées (latitude et longitude), notion abordée en 6e.</p>
+      <h3>Comment jouer</h3>
+      <p>Trois modes sont proposés. Dans les modes Villes (Explorateur ou Grand voyageur), l'enfant touche le globe pour placer son épingle&nbsp;; son score est la distance en kilomètres jusqu'à la vraie ville, et le plus petit total gagne. Un indice coûte 500 km. Dans le mode Monuments et merveilles, il choisit le bon point doré pour chaque lieu&nbsp;: 1 point par bonne réponse. Après chaque manche, une fiche présente le continent, le nombre d'habitants, la langue et une anecdote.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, jouez en famille et comparez vos distances. En classe, projetez le globe&nbsp;: les équipes proposent un emplacement, puis mesurent l'écart sur un planisphère.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

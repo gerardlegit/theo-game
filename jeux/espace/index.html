@@ -26,6 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 
@@ -147,6 +148,7 @@
         <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
       </div>
       <p class="order-sign">Signé : <em>Général Gloubi</em>, chef des étoiles ⭐</p>
+      <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
     </div>
   </div>
 
@@ -202,5 +204,23 @@
   <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Mission Cosmos&nbsp;: un jeu pour explorer le système solaire et les planètes</h2>
+      <p class="cab-guide-lead">Aux commandes de son vaisseau, l'enfant parcourt le système solaire pour prendre en photo les objets de son ordre de mission&nbsp;: planètes, lunes, comètes, et même une galaxie.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Le niveau Cadet, où l'on voit le nom et l'image de chaque objet, convient dès le CE1-CE2. Le niveau Commandant, où il faut résoudre des énigmes pour savoir quoi photographier, s'adresse aux élèves de CM1 et CM2.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le programme de sciences du cycle 3 demande de situer la Terre dans le système solaire et de connaître les planètes, le Soleil et la Lune. Le jeu fait découvrir ces objets, leur place et leurs particularités. Chaque photo s'ajoute au carnet de l'explorateur, avec des informations à lire. Le mode Commandant fait aussi travailler la lecture et le raisonnement.</p>
+      <h3>Comment jouer</h3>
+      <p>L'ordre de mission liste les objets à photographier. L'enfant pilote avec les flèches (ou en gardant le doigt sur l'écran)&nbsp;; la photo se prend toute seule quand il s'approche d'un objet. Les étoiles d'or enlèvent une seconde au chrono, mais attention aux astéroïdes et au trou noir&nbsp;! Le score est le temps en secondes&nbsp;: le plus petit gagne.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, feuilletez ensemble le carnet après la partie. En classe, une mission projetée lance bien une séquence sur le système solaire&nbsp;; les élèves peuvent ensuite ranger les planètes de la plus proche à la plus éloignée du Soleil.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

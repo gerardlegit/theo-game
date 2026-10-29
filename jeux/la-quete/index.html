@@ -24,6 +24,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Exo+2:ital,wght@0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 <div id="app">
@@ -45,6 +46,7 @@
         <button class="neon-btn ghost" id="btnScores">🏆 Classement</button>
       </div>
       <p class="title-note">Pour les 9 – 12 ans · Seul ton temps de réflexion est chronométré</p>
+        <p class="cab-guide-line"><button type="button" class="cab-guide-btn is-dark" data-guide-open>👪 Parents et enseignants</button></p>
     </div>
   </section>
 
@@ -193,5 +195,23 @@
 </div>
 
 <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">La Quête&nbsp;: un jeu de logique et d'énigmes pour les 9-12 ans</h2>
+      <p class="cab-guide-lead">OMÉGA, une intelligence artificielle malveillante, a pris le contrôle du monde. Pour la vaincre, l'enfant doit libérer ses six robots gardiens… en résolvant des énigmes de logique.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>De 9 à 12 ans&nbsp;: CM1, CM2 et 6e. Chaque famille d'énigmes existe en trois niveaux de difficulté.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le jeu développe les compétences «&nbsp;chercher&nbsp;» et «&nbsp;raisonner&nbsp;» du programme de mathématiques du cycle 3. Les six familles d'énigmes sont les suites logiques, les engrenages, les codes secrets, les programmes (des déplacements à prévoir, une première initiation à la programmation), les déductions et les équations. Toutes les énigmes sont créées au hasard&nbsp;: on ne joue jamais deux fois la même partie.</p>
+      <h3>Comment jouer</h3>
+      <p>L'enfant choisit un héros parmi trois&nbsp;; chacun a un pouvoir spécial, utilisable une fois par combat. Sur la carte, il affronte les robots un par un, puis OMÉGA elle-même. Chaque bonne réponse affaiblit le robot, et une explication suit chaque énigme. Seul le temps de réflexion est chronométré. La progression est sauvegardée après chaque robot libéré.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, jouez à deux et demandez à l'enfant d'expliquer son raisonnement avant de répondre. En classe, une énigme projetée au tableau devient un vrai débat&nbsp;: chaque groupe propose une réponse et doit la justifier.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

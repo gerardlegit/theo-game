@@ -24,6 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css">
 <link rel="stylesheet" href="../pin-the-globe/style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 <script type="importmap">
 {
   "imports": {
@@ -88,7 +89,7 @@
     </ul>
 
     <div class="board" id="introBoard"></div>
-    <p class="intro-foot"><a href="credits.html">📷 Crédits des photos</a></p>
+    <p class="intro-foot"><a href="credits.html">📷 Crédits des photos</a> · <button type="button" class="cab-guide-link" data-guide-open>👪 Parents et enseignants</button></p>
   </section>
 
   <!-- ===== Une manche : viser ===== -->
@@ -197,5 +198,23 @@
 
   <!-- Même moteur que Pin the Globe : le jeu est choisi par data-game sur <body>. -->
   <script type="module" src="../pin-the-globe/script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Safari Planète&nbsp;: un jeu pour découvrir où vivent les animaux du monde</h2>
+      <p class="cab-guide-lead">Les animaux se sont perdus&nbsp;! Sur un globe terrestre en 3D, l'enfant ramène dix animaux sauvages dans leur milieu naturel, du panda au manchot empereur.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Du CE2 au CM2. Les plus jeunes peuvent jouer accompagnés d'un adulte, qui lit la devinette avec eux.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le jeu relie les sciences et la géographie. En sciences, il montre le lien entre un animal et son milieu (savane, banquise, forêt tropicale, désert…), une notion clé de l'étude du vivant au cycle 3. En géographie, il apprend à se repérer sur un globe et à situer les continents et les océans.</p>
+      <h3>Comment jouer</h3>
+      <p>Dix animaux sont tirés au sort parmi cent. Pour chacun, l'enfant regarde la photo et lit la devinette, fait tourner la Terre (à la souris ou au doigt) et touche, parmi dix points dorés, celui où vit l'animal. Chaque bonne réponse rapporte 1 point. Après chaque animal, une fiche présente son milieu naturel et plusieurs anecdotes.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, prolongez la partie avec un atlas ou un documentaire sur l'animal préféré de l'enfant. En classe, le jeu projeté au tableau ouvre ou conclut une séquence sur les milieux de vie&nbsp;: on peut ensuite placer les animaux sur un planisphère au mur.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

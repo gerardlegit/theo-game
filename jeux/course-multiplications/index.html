@@ -27,6 +27,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Lilita+One&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 
@@ -148,6 +149,7 @@
         <div class="menu-actions">
           <button class="chip-btn" id="helpBtn"><svg><use href="#i-help"/></svg>Comment jouer</button>
           <button class="chip-btn" id="boardBtn"><svg><use href="#i-trophy"/></svg>Classement</button>
+          <button class="chip-btn" type="button" data-guide-open>👪 Parents et enseignants</button>
         </div>
       </div>
     </section>
@@ -239,5 +241,23 @@
 </div>
 
 <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">La Course des Calculs&nbsp;: un jeu pour réviser les tables de multiplication et les additions</h2>
+      <p class="cab-guide-lead">Au volant de sa voiture, sur la route de la plage, l'enfant doit foncer à travers le panneau qui porte la bonne réponse. Le calcul mental devient une vraie course&nbsp;!</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>La course des additions (des petits nombres jusqu'à 100) convient dès le CP et le CE1. La course des multiplications (tables de 2 à 10) s'adresse aux élèves du CE1 au CM2, au moment où l'on apprend puis révise les tables.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le programme de l'école demande de mémoriser les tables d'addition et de multiplication et de calculer mentalement avec rapidité. Le jeu entraîne ces automatismes avec un peu de temps limité, ce qui aide à passer du calcul compté sur les doigts à la réponse qui vient tout de suite.</p>
+      <h3>Comment jouer</h3>
+      <p>Une course dure 3 minutes et pose 9 calculs, un toutes les 20 secondes. L'enfant change de voie avec les flèches (ou en touchant l'écran sur téléphone) et passe à travers la bonne réponse&nbsp;: +1 point. Une pièce ×2 double la prochaine bonne réponse&nbsp;; les papis, les moutons et les taches d'huile font perdre 1 point.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison&nbsp;: une course par jour pendant une semaine, sur la table du moment. En classe&nbsp;: en fin de séance de calcul mental ou en défi par équipes au tableau. Le classement mondial motive les plus compétitifs.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

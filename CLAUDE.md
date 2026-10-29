@@ -34,6 +34,7 @@ Cross-game reuse to be aware of:
 - **localStorage**: keys are prefixed with the game slug (`espace-sound`, `la-quete-save-v1`, `royaume-des-mots-v2`…). Every access is wrapped in `try/catch`, because storage can be blocked. Save formats carry a version, so bump the key/version instead of breaking old saves.
 - **Internal links point to folders, never to `index.html`**: `jeux/<slug>/`, `../../` (back to home), `./` (from `credits.html`). This matches the canonical URLs and the sitemap.
 - **SEO head of a game page**: canonical, `og:*` and description all point to `https://www.la-cabane.app/jeux/<slug>/`. `<title>` puts the search keywords first: `<what people search> – <Game name> | La Cabane à Jeux`. `og:title` stays `<Game name> — La Cabane à Jeux`. The description is ≤ 155 chars and identical to `og:description`. A JSON-LD block (`LearningResource` + a 2-level `BreadcrumbList`) sits just before `<meta name="description">`; copy it from an existing game.
+- **Guide « Parents et enseignants »** (SEO text, 150–300 words): every game page ends with `<section class="cab-guide" id="guide">` (level, programme skills, rules, ideas for class/home), styled by `shared/guide.css`. On scrolling pages it sits under the game. On full-screen games (no scroll) it is `class="cab-guide is-overlay" hidden`, opened by a `[data-guide-open]` button on the game's start screen and driven by `shared/guide.js`. Keep the text in sync when a game's rules or content change.
 - Favicon: the home page uses `favicon.ico` (64 + 192 px) and `favicon-192.png` (what Google shows in results); game pages use `../../favicon.png`.
 - Avoid emojis newer than Unicode 12: Windows 10 shows boxes for 🪙 🪵 🪣 🪶 and similar.
 
@@ -48,7 +49,7 @@ Cross-game reuse to be aware of:
 ## Adding a new game
 
 1. Create `jeux/<slug>/` following an existing game of similar shape (`memory/` is the smallest).
-2. Give it the full SEO head (see Conventions), including its own JSON-LD block.
+2. Give it the full SEO head (see Conventions), including its own JSON-LD block, and its « Parents et enseignants » guide.
 3. On the home page `index.html`: add an `<a class="card" href="jeux/<slug>/">` in the right theme section, add the game to the JSON-LD `ItemList`, and update the game count everywhere it appears (meta/og descriptions, JSON-LD description, `hero-stats`).
 4. Add the URL to `sitemap.xml`, and update `<lastmod>` of any page you change.
 

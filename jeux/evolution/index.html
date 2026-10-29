@@ -28,6 +28,7 @@
 <!-- Même style que Mission Cosmos et Livraisons dans l'espace, en version océan -->
 <link rel="stylesheet" href="../espace/style.css">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 
@@ -130,6 +131,7 @@
         <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
       </div>
       <p class="save-note">💾 Ta partie est sauvegardée toute seule : tu peux revenir quand tu veux.</p>
+      <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
     </div>
   </div>
 
@@ -191,5 +193,23 @@
   <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Évolution&nbsp;: un jeu pour découvrir l'histoire de la vie, de la cellule aux dinosaures</h2>
+      <p class="cab-guide-lead">L'enfant commence sous la forme d'une cellule dans l'océan primitif. En mangeant, il grandit et gagne de l'ADN qui lui permet de faire évoluer son corps, de chapitre en chapitre, jusqu'à l'époque des dinosaures et des grands reptiles marins.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Du CE2 au CM2, de 8 à 12 ans.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Le programme de sciences du cycle 3 aborde la diversité du vivant, son évolution au fil des temps géologiques et les fossiles. Le jeu rend ces notions concrètes&nbsp;: qui mange qui, comment une queue, des yeux, des nageoires ou des mâchoires aident un animal à survivre, pourquoi un reptile marin doit remonter respirer. Les êtres rencontrés ont vraiment existé&nbsp;: ammonites, ichthyosaures, plésiosaures, T. rex…</p>
+      <h3>Comment jouer</h3>
+      <p>L'enfant se déplace avec les flèches ou du bout du doigt. Il mange ce qui est plus petit que lui et fuit ce qui est plus gros&nbsp;; les algues permettent de se cacher. L'ADN gagné sert à acheter des évolutions. Quand les missions d'un chapitre sont faites, des millions d'années passent. À la fin d'un niveau, il choisit son chemin, la mer ou la terre. La partie est sauvegardée automatiquement.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, cherchez ensemble les animaux rencontrés dans un livre sur les dinosaures, ou au muséum. En classe, le jeu illustre bien une séquence sur l'évolution&nbsp;; les élèves peuvent construire une frise de l'histoire de la vie.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

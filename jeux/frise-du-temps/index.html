@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body class="is-intro">
 
@@ -135,6 +136,8 @@
         <li><span>⭐</span><p><strong>1 point</strong> par carte bien placée. Si tu te trompes, la carte glisse à sa vraie place !</p></li>
       </ul>
 
+      <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
+
       <div class="eras-legend">
         <p class="eras-title">Les grandes périodes de l'histoire</p>
         <ol class="eras" id="erasLegend"></ol>
@@ -177,5 +180,23 @@
   <div class="confetti-layer" id="confetti" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">La Frise du Temps&nbsp;: un jeu pour apprendre les grandes dates de l'histoire</h2>
+      <p class="cab-guide-lead">Le Professeur Hibou a mélangé sa frise&nbsp;! L'enfant doit remettre dix grands événements à leur place, des dinosaures aux premiers pas sur la Lune.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>Du CE2 au CM2. Le mode Apprenti historien, où la date est écrite sur la carte, permet de débuter&nbsp;; le mode Grand historien, sans date, s'adresse aux élèves de CM1 et CM2 qui ont déjà étudié ces périodes.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>Au cycle 2, le programme demande de se repérer dans le temps et de situer quelques événements les uns par rapport aux autres. Au cycle 3, l'enfant découvre les grandes périodes de l'histoire&nbsp;: Préhistoire, Antiquité, Moyen Âge, Temps modernes et époque contemporaine. Le jeu fait manipuler ces repères et la frise chronologique elle-même.</p>
+      <h3>Comment jouer</h3>
+      <p>Pour chaque carte, l'enfant regarde l'image et lit la petite histoire de l'événement. Il touche ensuite un «&nbsp;+&nbsp;» sur la frise (ou y fait glisser l'image) pour choisir sa place, puis valide. Chaque carte bien placée rapporte 1 point&nbsp;; en cas d'erreur, la carte glisse à sa vraie place, ce qui permet d'apprendre en jouant. Une anecdote «&nbsp;Le savais-tu&nbsp;?&nbsp;» accompagne chaque événement.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, utilisez le bouton «&nbsp;Voir ma frise&nbsp;» en fin de partie et demandez à l'enfant de raconter l'histoire dans l'ordre. En classe, le jeu lance bien une séquence d'histoire&nbsp;; les élèves peuvent ensuite fabriquer une frise murale avec les événements découverts.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>

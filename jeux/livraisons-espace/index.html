@@ -28,6 +28,7 @@
 <!-- Même style que Mission Cosmos, plus ce qui est propre aux livraisons -->
 <link rel="stylesheet" href="../espace/style.css">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
 </head>
 <body>
 
@@ -147,6 +148,7 @@
         <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
       </div>
       <p class="save-note">💾 Ta partie est sauvegardée toute seule : tu peux revenir quand tu veux.</p>
+      <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
     </div>
   </div>
 
@@ -206,5 +208,23 @@
   <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Livraisons dans l'espace&nbsp;: un jeu pour découvrir le système solaire en construisant des bases</h2>
+      <p class="cab-guide-lead">Aux commandes de sa fusée, l'enfant livre des ressources rares aux habitants du système solaire pour bâtir, étape par étape, la Station spatiale, une base sur la Lune, une base sur Mars, une station sur Triton… puis un portail vers une autre étoile.</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>De 8 à 12 ans, du CE2 au CM2. Le jeu demande de lire les dialogues des personnages.</p>
+      <h3>Ce que l'enfant apprend</h3>
+      <p>En sciences, le jeu fait découvrir les planètes, leurs lunes (Titan, Triton…), leurs distances et leurs particularités, grâce à des fiches «&nbsp;Le savais-tu&nbsp;?&nbsp;». Il développe aussi l'organisation et l'anticipation&nbsp;: préparer un trajet sur la carte, gérer une soute de quatre places et dépenser son or avec intelligence.</p>
+      <h3>Comment jouer</h3>
+      <p>Le chef de chantier confie les missions de l'histoire. Les personnages marqués d'un «&nbsp;!&nbsp;» proposent des livraisons qui rapportent de l'or. Pour charger une ressource, il suffit de s'approcher de la bonne planète. Attention aux OVNI&nbsp;: un seul missile, et tout le chargement s'envole&nbsp;! L'or sert à améliorer et décorer sa fusée. La partie est sauvegardée automatiquement.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>À la maison, les parties sont plus longues que dans les autres jeux de la Cabane&nbsp;: la sauvegarde permet de jouer vingt minutes et de reprendre plus tard. Demandez à l'enfant d'expliquer le trajet qu'il a choisi. En classe, les fiches découvertes peuvent servir de point de départ pour un exposé sur une planète.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
 </body>
 </html>
