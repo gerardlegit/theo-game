@@ -332,6 +332,7 @@ export default {
   id: 'ocean-primitif',
   name: "L'océan primitif",
   icon: '🌊',
+  mapIcon: '🦠',
   intro: 'ocean',
   goal: "Tu es une minuscule cellule dans la soupe primitive. <b>Mange pour grandir</b>, fais évoluer ton corps, et deviens le roi de l'océan :<br>🦠 la cellule → 🐛 le ver → 🐟 le poisson → 👑 le maître des mers !",
   world,

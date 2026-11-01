@@ -95,7 +95,7 @@ service cloud.firestore {
 
     // Messages du formulaire « Laisser un commentaire » (page d'accueil) :
     // tout le monde peut en envoyer, seul le compte admin peut les lire
-    // et les effacer. Remplace REMPLACE_PAR_TON_UID (voir « Boîte à
+    // et les effacer. Remplace gdsaDs6qS7g4MUj9H25yWsd3Mbw1 (voir « Boîte à
     // messages » plus bas).
     match /messages/{messageId} {
       allow create: if request.resource.data.keys().hasAll(['type', 'name', 'message', 'createdAt'])
@@ -108,7 +108,7 @@ service cloud.firestore {
                     && request.resource.data.message.size() <= 1000
                     && request.resource.data.createdAt == request.time;
       allow read, delete: if request.auth != null
-                          && request.auth.uid == 'REMPLACE_PAR_TON_UID';
+                          && request.auth.uid == 'gdsaDs6qS7g4MUj9H25yWsd3Mbw1';
       allow update: if false;
     }
   }

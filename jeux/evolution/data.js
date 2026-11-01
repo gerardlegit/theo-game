@@ -39,6 +39,7 @@ export const LINES = {
   bigger: "Tu as grandi ! Ce qui te faisait peur devient… ton repas.",
   /* sur la terre ferme (niveau 2) */
   mud: "Beurk, de la boue ! Ça colle, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",
+  snow: "Brrr, de la neige profonde ! On s'enfonce, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",
   dry: [
     "Ta peau sèche ! Vite, trouve une mare 💧",
     "Attention, tu te dessèches ! Plonge dans l'eau !",

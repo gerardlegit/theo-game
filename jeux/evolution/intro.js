@@ -5,7 +5,7 @@
 //   8 → 12 s    elles s'assemblent, une enveloppe se forme… une cellule naît : toi !
 //   12 → 16 s   bien plus tard, une cellule géante s'approche : mange ou sois mangé !
 // Puis celles du niveau 2 : sur la terre (createLandIntro) ou dans la mer
-// (createSeaIntro).
+// (createSeaIntro), et celle du niveau 3, après la météorite (createMammalIntro).
 // ============================================================================
 
 const TAU = Math.PI * 2;
@@ -598,6 +598,165 @@ export function createSeaIntro({ sfx, drawHero }) {
       if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
       if (t > SEA_DURATION - 0.6) {
         ctx.fillStyle = `rgba(0, 0, 0, ${(t - (SEA_DURATION - 0.6)) / 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    },
+  };
+  return intro;
+}
+
+/* ============================================================================
+   L'animation du niveau 3 (environ 14 s) : vue du ciel, juste après la météorite.
+   0 → 4,5 s   tout est gris de cendres : les dinosaures ont disparu
+   4,5 → 9 s   la lumière revient, les fougères repoussent… une petite boule de
+               poils sort de son terrier
+   9 → 14 s    elle part explorer ; une grande ombre d'oiseau passe au-dessus
+   drawHero(ctx, x, y, r, angle, t, walk, mood) dessine le joueur en petit mammifère.
+   ============================================================================ */
+const MAMMAL_DURATION = 14;
+const MAMMAL_CAPTIONS = [
+  [0.3, 4.5, "Après la météorite, le ciel est noir et il fait froid. Les grands dinosaures ont tous disparu…"],
+  [4.7, 9, "Mais au fond d'un terrier, une petite boule de poils a survécu : c'est toi !"],
+  [9.2, 14, "Sans les dinosaures, la Terre est à prendre… mais de nouveaux chasseurs arrivent déjà !"],
+];
+
+/** Une couleur entre deux autres (#rrggbb) */
+function mixCol(a, b, k) {
+  const p = (s, i) => parseInt(s.slice(1 + i * 2, 3 + i * 2), 16);
+  const c = [0, 1, 2].map((i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * k));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+export function createMammalIntro({ sfx, drawHero }) {
+  let t = 0;
+  const cues = new Set();
+  const ash = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, v: 0.02 + Math.random() * 0.04 }));
+  const ferns = Array.from({ length: 24 }, () => ({ x: Math.random(), y: Math.random(), r: 0.025 + Math.random() * 0.035, a: Math.random() * TAU, at: 4.6 + Math.random() * 4 }));
+  const logs = Array.from({ length: 6 }, () => ({ x: 0.05 + Math.random() * 0.9, y: 0.1 + Math.random() * 0.85, l: 0.06 + Math.random() * 0.06, a: Math.random() * Math.PI }));
+
+  function cue(name, at, fn) {
+    if (t >= at && !cues.has(name)) { cues.add(name); fn(); }
+  }
+
+  const intro = {
+    done: false,
+    update(dt) {
+      t += dt;
+      cue('peek', 5.0, () => sfx.pickup());
+      cue('out', 6.3, () => sfx.phew());
+      cue('h1', 10.4, () => sfx.heart(false));
+      cue('h2', 11.1, () => sfx.heart(true));
+      cue('h3', 11.8, () => sfx.heart(true));
+      cue('alert', 12.2, () => sfx.alert());
+      if (t >= MAMMAL_DURATION) intro.done = true;
+    },
+    draw(ctx, w, h) {
+      const m = Math.min(w, h);
+      const life = clamp01((t - 4.5) / 3);          // les couleurs reviennent peu à peu
+      ctx.fillStyle = mixCol('#5A5650', '#7C7550', life);
+      ctx.fillRect(0, 0, w, h);
+      // des troncs brûlés, couchés par le souffle de la météorite
+      ctx.lineCap = 'round';
+      for (const lg of logs) {
+        const x = lg.x * w, y = lg.y * h, l = lg.l * m;
+        ctx.strokeStyle = '#2E2620';
+        ctx.lineWidth = m * 0.022;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.cos(lg.a) * l, y - Math.sin(lg.a) * l);
+        ctx.lineTo(x + Math.cos(lg.a) * l, y + Math.sin(lg.a) * l);
+        ctx.stroke();
+      }
+      // le squelette d'un grand dinosaure
+      const sx = w * 0.72, sy = h * 0.28, s = m * 0.2;
+      ctx.strokeStyle = 'rgba(235, 228, 210, 0.85)';
+      ctx.lineWidth = Math.max(2, s * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(sx - s * 1.2, sy + s * 0.15);
+      ctx.quadraticCurveTo(sx, sy - s * 0.1, sx + s * 0.8, sy);
+      for (let i = 0; i < 7; i++) {
+        const x = sx - s * 0.4 + i * s * 0.14;
+        for (const k of [-1, 1]) {
+          ctx.moveTo(x, sy - s * 0.02);
+          ctx.quadraticCurveTo(x + s * 0.06, sy + k * s * 0.18, x - s * 0.02, sy + k * s * 0.3);
+        }
+      }
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(235, 228, 210, 0.85)';
+      ctx.beginPath();
+      ctx.ellipse(sx + s * 0.95, sy - s * 0.02, s * 0.2, s * 0.11, 0.2, 0, TAU);
+      ctx.fill();
+      // les fougères repoussent les premières
+      for (const f of ferns) {
+        const k = clamp01((t - f.at) / 1.2);
+        if (k <= 0) continue;
+        const x = f.x * w, y = f.y * h, r = f.r * m * k;
+        ctx.strokeStyle = '#4FA853';
+        ctx.lineWidth = Math.max(2, r * 0.12);
+        for (let i = 0; i < 7; i++) {
+          const a = f.a + (i / 7) * TAU + Math.sin(t + i) * 0.05;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+          ctx.stroke();
+        }
+      }
+      // le terrier : un tas de terre et un trou noir
+      const bx = w * 0.3, by = h * 0.62, br = m * 0.07;
+      ctx.fillStyle = '#7A5A38';
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#1A120B';
+      ctx.beginPath();
+      ctx.arc(bx, by, br * 0.6, 0, TAU);
+      ctx.fill();
+      // le héros sort la tête… puis part explorer
+      if (t > 4.8) {
+        const pop = clamp01((t - 4.8) / 0.9);
+        const k2 = clamp01((t - 6.5) / 5.5);
+        const r = m * 0.055 * (0.45 + 0.55 * pop);
+        const x = bx + (w * 0.72 - bx) * ease(k2);
+        const y = by - br * 0.2 * pop - Math.sin(k2 * Math.PI) * h * 0.06;
+        const scared = t > 10.4;
+        drawHero(ctx, x + (scared ? Math.sin(t * 40) * 1.5 : 0), y, r, 0, t, t > 6.5 && t < 12 ? t * 3 : 0, scared ? 'scared' : 'happy');
+      }
+      // une grande ombre passe : un oiseau-terreur, au long cou et au gros bec
+      if (t > 10.2) {
+        const k = clamp01((t - 10.2) / 3.6);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.45 * Math.sin(k * Math.PI)})`;
+        const ox = w * (1.25 - k * 1.5), oy = h * 0.45;
+        ctx.beginPath();
+        for (const [dx, dy, rx, ry, a] of [
+          [0, 0, 0.16, 0.09, 0], [-0.17, -0.02, 0.1, 0.05, -0.3], [0.17, -0.1, 0.09, 0.035, -0.7],
+          [0.26, -0.2, 0.07, 0.05, 0], [0.36, -0.19, 0.08, 0.035, 0.15],
+        ]) {
+          ctx.moveTo(ox + (dx + rx * Math.cos(a)) * m * 2, oy + (dy + rx * Math.sin(a)) * m * 2);
+          ctx.ellipse(ox + dx * m * 2, oy + dy * m * 2, rx * m * 2, ry * m * 2, a, 0, TAU);
+        }
+        ctx.fill();
+      }
+      // les cendres tombent encore un peu, puis s'arrêtent
+      ctx.fillStyle = 'rgba(210, 210, 205, 0.7)';
+      for (const a of ash) {
+        ctx.globalAlpha = 1 - life * 0.9;
+        const y = ((a.y + t * a.v) % 1) * h;
+        const x = (a.x * w + Math.sin(t + a.x * 10) * 10) % w;
+        ctx.beginPath();
+        ctx.arc(x, y, a.s, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // au début, le ciel est noir de poussière ; à la fin, l'ombre du danger
+      const dark = 0.5 * (1 - life) + 0.55 * clamp01((t - 9.5) / 2);
+      const v = ctx.createRadialGradient(w / 2, h / 2, m * 0.2, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+      v.addColorStop(0, `rgba(0, 0, 0, ${dark * 0.4})`);
+      v.addColorStop(1, `rgba(0, 0, 0, ${dark})`);
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, w, h);
+      const cap = MAMMAL_CAPTIONS.find(([a, b]) => t >= a && t < b);
+      if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+      if (t > MAMMAL_DURATION - 0.6) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${(t - (MAMMAL_DURATION - 0.6)) / 0.6})`;
         ctx.fillRect(0, 0, w, h);
       }
     },

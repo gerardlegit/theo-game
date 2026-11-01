@@ -36,24 +36,32 @@
 //      trembler), roar (rugit en te repérant), hurt (texte quand il blesse).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
-//      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…) ou
-//      art-mer.js (reptiles marins, requins, tortues, ammonites…).
+//      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…),
+//      art-mer.js (reptiles marins, requins, tortues, ammonites…) ou
+//      art-mammiferes.js (mammouth, bison, renne, hyene, oiseau-terreur,
+//      titanoboa, oiseau…).
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
 //      dry = on sèche moins vite, cones = voir les regards, radar).
 //   5. "chapters" : époque ("ago", en millions d'années), forme du joueur
 //      ("form" : cellule, ver, poisson, tetrapode, reptile, dino, grand-dino,
-//      tyran, nothosaure, ichthyosaure, pliosaure, mosasaure) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
+//      tyran, nothosaure, ichthyosaure, pliosaure, mosasaure, musaraigne,
+//      miacis, proailurus, machairodus, homotherium) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
 //      ("size"), ADN pour grandir ("growth"), espèces présentes, évolutions
 //      débloquées et missions (eat / evolve / grow). Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).
-//   6. "ending" : la scène ("scene" : 'roi' = le joueur acclamé, 'meteorite'),
+//      "ago" peut descendre sous 1 (0,04 = il y a 40 000 ans). Le décor
+//      avec "from" / "to" n'existe que dans ces chapitres (neige, terriers…).
+//   6. "ending" : la scène ("scene" : 'roi' = le joueur acclamé, 'meteorite',
+//      'feu' = l'arrivée des humains et les peintures des grottes),
 //      la foule ("crowd"), les légendes ("captions"), le titre et les choix ;
 //      chaque choix nomme le niveau suivant ("level"). Tant qu'il n'existe
 //      pas, la fin annonce « bientôt » (texte "soon").
 //      Le niveau a aussi une icône ("icon"), une intro ('ocean' / 'terre' /
-//      'mer') et, si besoin, le numéro affiché ("num" : deux niveaux 2 qui
-//      partent du même choix).
+//      'mer' / 'mammiferes') et, si besoin, le numéro affiché ("num" : deux
+//      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur
+//      la carte des niveaux de l'écran de départ (elle se construit toute
+//      seule à partir des choix de fin).
 //   7. Ajouter le niveau à la liste ci-dessous. C'est tout : le moteur
 //      (script.js) ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -61,5 +69,6 @@
 import oceanPrimitif from './ocean-primitif.js';
 import versLesDinosaures from './vers-les-dinosaures.js';
 import monstresMarins from './monstres-marins.js';
+import voieDesMammiferes from './voie-des-mammiferes.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes];

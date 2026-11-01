@@ -729,7 +729,7 @@ FORMS.reptile = (ctx, p, parts, t, mood) => {
    Le décor de la terre ferme
    ============================================================================ */
 /** Une forme de flaque irrégulière (pour les mares et la boue) */
-function blob(d, k = 1) {
+export function blob(d, k = 1) {
   if (!d.blob) {
     const rnd = seeded(d.seed);
     d.blob = Array.from({ length: 14 }, (_, i) => {

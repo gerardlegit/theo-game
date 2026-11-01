@@ -1,6 +1,7 @@
 // ============================================================================
 // Évolution — le moteur du jeu. Le joueur est un être vivant qui nage dans
-// l'océan, puis marche sur la terre ferme : il mange ce qui est plus petit que
+// l'océan, puis marche sur la terre ferme (reptile, dinosaure, mammifère) ou
+// retourne dans la mer : il mange ce qui est plus petit que
 // lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
 // gros, et fait évoluer son corps.
 // Tout ce qui décrit un niveau (espèces, évolutions, chapitres, missions) est
@@ -15,8 +16,9 @@ import {
 import { drawCloudShadows, SIDE } from './art-terre.js';
 import './art-dinos.js';
 import './art-mer.js';
+import './art-mammiferes.js';
 import { LINES } from './data.js';
-import { createIntro, createLandIntro, createSeaIntro, drawCaptionBox } from './intro.js';
+import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 const SAVE_KEY = 'evolution-save';
@@ -134,6 +136,7 @@ let decor = [];                    // ce qui est posé au fond (rochers, éponge
 let hides = [];                    // les cachettes (algues, fougères)
 let covers = [];                   // ce qui se dessine par-dessus les créatures (cachettes, feuillages)
 let zones = [];                    // les mares et la boue
+let levelDecor = null;             // tout le décor du niveau ; zones / hides / covers = celui du chapitre
 let clouds = [];                   // (sur la terre) les ombres des nuages
 let motes = [];                    // particules en suspension dans l'eau
 let floorTile = null;
@@ -210,13 +213,19 @@ function turnToward(a, target, max) {
   return a + clamp(d, -max, max);
 }
 
-/** « 1,5 milliard d'années », « 520 millions d'années » */
+/** « 1,5 milliard d'années », « 520 millions d'années », « 40 000 ans » */
 function fmtAgo(ma, short = false) {
   if (ma >= 1000) {
     const g = Math.round(ma / 100) / 10;
     return `${String(g).replace('.', ',')} milliard${g >= 2 ? 's' : ''}${short ? '' : " d'années"}`;
   }
-  return `${Math.round(ma)} millions${short ? '' : " d'années"}`;
+  if (ma < 1) {
+    // moins d'un million d'années : on compte en milliers d'années
+    const k = Math.max(1, Math.round(ma * 1000));
+    return `${k >= 1000 ? Math.floor(k / 1000) + '\u00a0' + String(k % 1000).padStart(3, '0') : k}\u00a0000 ans`;
+  }
+  const n = Math.round(ma);
+  return `${n} million${n >= 2 ? 's' : ''}${short ? '' : " d'années"}`;
 }
 
 function thumbImg(url) {
@@ -271,6 +280,33 @@ function saveGame() {
 
 function clearSave() {
   try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignoré */ }
+}
+
+/* ---------- La carte : les niveaux terminés, les parties laissées en cours ----------
+   done[id] = les choix de fin déjà faits dans ce niveau ; paused[id] = la partie
+   mise de côté quand on part jouer un autre niveau depuis la carte.
+   « Nouvelle partie » ne l'efface pas : les niveaux terminés restent sur la carte. */
+const MAP_KEY = 'evolution-carte';
+const MAP_VERSION = 1;
+const blankProgress = () => ({ v: MAP_VERSION, done: {}, paused: {} });
+let progress = loadProgress();
+
+function loadProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(MAP_KEY));
+    if (data && data.v === MAP_VERSION && data.done && data.paused) return data;
+  } catch (e) { /* stockage indisponible ou abîmé */ }
+  return blankProgress();
+}
+
+function saveProgress() {
+  try { localStorage.setItem(MAP_KEY, JSON.stringify(progress)); } catch (e) { /* stockage indisponible */ }
+}
+
+function markDone(id, choice) {
+  const list = progress.done[id] || (progress.done[id] = []);
+  if (choice && !list.includes(choice)) list.push(choice);
+  saveProgress();
 }
 
 /* ---------- Les effets des évolutions ---------- */
@@ -443,6 +479,7 @@ function buildWorld() {
       if (item.hide || item.canopy) covers.push(item);
     }
   }
+  levelDecor = { zones, hides, covers };
   clouds = W.ground === 'land' ? Array.from({ length: 16 }, () => ({ x: rnd() * W.w - 2000, y: rnd() * W.h - 800, r: 300 + rnd() * 500 })) : [];
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
@@ -919,8 +956,10 @@ function enterZone(zone) {
   } else if (zone === 'air') {
     for (let i = 0; i < 8; i++) bubbleAt(p.x, p.y, p.size * 0.3);
   } else if (zone === 'mud') {
-    addFloater('Ça colle !', p.x, p.y - p.size * 1.6, '#C9A06A', 1);
-    sayOnce('mud', LINES.mud, 60, 1);
+    const snow = zones.some((z) => z.type === 'neige' && dist(z, p) < z.r);
+    addFloater(snow ? 'Brrr !' : 'Ça colle !', p.x, p.y - p.size * 1.6, snow ? '#E6F2FF' : '#C9A06A', 1);
+    if (snow) sayOnce('snow', LINES.snow, 60, 1);
+    else sayOnce('mud', LINES.mud, 60, 1);
   }
 }
 
@@ -1569,7 +1608,17 @@ function applySkin() {
   }
 }
 
+/** Les mares, la boue, la neige et les cachettes de ce chapitre (un terrier ne sert plus à un tigre) */
+function chapterDecor() {
+  const ch = game.chapter + 1;
+  const now = (d) => d.from <= ch && d.to >= ch;
+  zones = levelDecor.zones.filter(now);
+  hides = levelDecor.hides.filter(now);
+  covers = levelDecor.covers.filter(now);
+}
+
 function setupChapter(keepPos) {
+  chapterDecor();
   applySkin();
   $('waterIcon').textContent = meter().icon;
   waterItem.title = meter().title;
@@ -2171,7 +2220,8 @@ function bump(el) {
 
 let shown = {};
 function renderHud() {
-  const era = Math.round(CH.ago[0] + (CH.ago[1] - CH.ago[0]) * missionsProgress());
+  const raw = CH.ago[0] + (CH.ago[1] - CH.ago[0]) * missionsProgress();
+  const era = raw >= 1 ? Math.round(raw) : Math.round(raw * 1000) / 1000;
   const v = {
     adn: game.adn,
     size: Math.round(growthK() * 100),
@@ -2265,43 +2315,251 @@ function setupGame() {
 
 function showStartScreen() {
   const saved = loadGame();
-  const hasSave = saved && saved.started;
+  // (au niveau 2, on garde la partie même si on a quitté pendant l'animation de départ)
+  const hasSave = saved && (saved.started || saved.level > 0);
   game = hasSave ? saved : null;
   if (!game) newGame();
   setupGame();
-  const done = game.finished;
-  const choice = done && LV.ending.choices.find((c) => c.id === game.path);
+  rememberProgress();
+  const choice = game.finished && LV.ending.choices.find((c) => c.id === game.path);
   const next = nextLevel(choice);
-  $('startLevel').textContent = `Niveau ${levelNum(game.level)} — ${LV.name}`;
-  $('startGoal').innerHTML = LV.goal;
-  $('startBtn').textContent = done
-    ? (next >= 0 ? `${LEVELS[next].icon} Niveau ${levelNum(next)} : ${LEVELS[next].name}` : '🎬 Revoir la fin')
-    : hasSave ? `${LV.icon} Continuer (chapitre ${game.chapter + 1})` : `${LV.icon} Plonger !`;
-  $('newGameBtn').textContent = done ? '🔁 Recommencer au début' : '🆕 Nouvelle partie';
-  $('newGameBtn').hidden = !hasSave;
-  $('startDone').innerHTML = choice
-    ? `🏆 Bravo ! ${escapeHtml(LV.ending.done)}, puis tu as choisi : <b>${choice.icon} ${escapeHtml(choice.title)}</b>.<br>`
-      + (next >= 0 ? `Le niveau ${levelNum(next)} t'attend !` : `${escapeHtml(choice.soon)} : bientôt !`)
-    : '';
-  $('startDone').hidden = !done;
-  $('startGoal').hidden = done;
-  $('howTo').hidden = done;
+  mapHere = next >= 0 ? next : game.level;
+  mapSel = LEVELS[mapHere].id;
+  renderMap();
+  renderStartInfo();
   state = 'ready';
   startOverlay.hidden = false;
   setTimeout(() => $('startBtn').focus({ preventScroll: true }), 50);
 }
 
+/** Le texte et les boutons de l'écran de départ, pour le niveau choisi sur la carte */
+function renderStartInfo() {
+  const n = evoMap().nodes.get(mapSel);
+  const startBtn = $('startBtn'), newBtn = $('newGameBtn');
+  $('howTo').hidden = true;
+  $('startGoal').hidden = false;
+  $('startDone').hidden = false;
+  startBtn.hidden = false;
+  if (n.idx === mapHere) {
+    // le niveau où l'on en est : comme avant la carte
+    const hasSave = game.started;
+    const done = game.finished;
+    const choice = done && LV.ending.choices.find((c) => c.id === game.path);
+    const next = nextLevel(choice);
+    const shown = next >= 0 ? next : game.level;
+    $('startLevel').textContent = `Niveau ${levelNum(shown)} — ${LEVELS[shown].name}`;
+    $('startGoal').innerHTML = LV.goal;
+    startBtn.textContent = done
+      ? (next >= 0 ? `${LEVELS[next].icon} Niveau ${levelNum(next)} : ${LEVELS[next].name}` : '🎬 Revoir la fin')
+      : hasSave ? `${LV.icon} Continuer (chapitre ${game.chapter + 1})` : `${LV.icon} Plonger !`;
+    newBtn.textContent = done ? '🔁 Recommencer au début' : '🆕 Nouvelle partie';
+    newBtn.hidden = !hasSave;
+    $('startDone').innerHTML = choice
+      ? `🏆 Bravo ! ${escapeHtml(LV.ending.done)}, puis tu as choisi : <b>${choice.icon} ${escapeHtml(choice.title)}</b>.<br>`
+        + (next >= 0 ? `Le niveau ${levelNum(next)} t'attend !` : `${escapeHtml(choice.soon)} : bientôt !`)
+      : '';
+    $('startDone').hidden = !done;
+    $('startGoal').hidden = done;
+    $('howTo').hidden = done;
+    return;
+  }
+  // un autre niveau de la carte
+  const st = mapState(n);
+  const lv = LEVELS[n.idx];
+  const paused = progress.paused[n.id];
+  const keep = game.started && !game.finished
+    ? `<br>💾 Ta partie du niveau&nbsp;${levelNum(game.level)} reste sauvegardée.` : '';
+  $('startLevel').textContent = `Niveau ${n.num} — ${n.name}`;
+  $('startGoal').innerHTML = lv ? lv.goal : escapeHtml(n.soon.text);
+  newBtn.hidden = true;
+  if (st === 'soon') {
+    $('startDone').innerHTML = "🚧 Ce niveau n'existe pas encore&nbsp;: il arrive bientôt&nbsp;!";
+    startBtn.hidden = true;
+  } else if (st === 'locked') {
+    const p = n.parents[0], from = evoMap().nodes.get(p.id);
+    $('startDone').innerHTML = `🔒 Pour l'ouvrir, termine le niveau&nbsp;${from.num} «&nbsp;${escapeHtml(from.name)}&nbsp;», puis choisis <b>${p.choice.icon} ${escapeHtml(p.choice.title)}</b>.`;
+    startBtn.hidden = true;
+  } else if (paused) {
+    $('startDone').innerHTML = `💾 Ta partie t'attend au chapitre&nbsp;${paused.chapter + 1}.${keep}`;
+    startBtn.textContent = `${lv.icon} Reprendre (chapitre ${paused.chapter + 1})`;
+    newBtn.textContent = '🆕 Recommencer ce niveau';
+    newBtn.hidden = false;
+  } else if (st === 'done') {
+    $('startDone').innerHTML = `✅ Tu as déjà terminé ce niveau&nbsp;: tu peux le rejouer&nbsp;!${keep}`;
+    startBtn.textContent = '🔁 Rejouer ce niveau';
+  } else {
+    $('startDone').innerHTML = `🔓 Ce niveau est ouvert&nbsp;: à toi de jouer&nbsp;!${keep}`;
+    startBtn.textContent = `${lv.icon} Jouer !`;
+  }
+}
+
 function startGame() {
   if (state !== 'ready') return;
+  const n = evoMap().nodes.get(mapSel);
+  if (n.idx !== mapHere) {
+    // un autre niveau, choisi sur la carte
+    const st = mapState(n);
+    if (st === 'soon' || st === 'locked') return;
+    startOverlay.hidden = true;
+    enterFullscreen();
+    enterLevel(n.idx);
+    return;
+  }
   startOverlay.hidden = true;
   enterFullscreen();
   if (game.finished) {
     const next = nextLevel(LV.ending.choices.find((c) => c.id === game.path));
-    if (next >= 0) goToLevel(next); else startEnding();
+    if (next >= 0) enterLevel(next); else startEnding();
     return;
   }
   if (!game.started) { playIntro(); return; }
   beginPlay();
+}
+
+/* ---------- La carte de l'évolution (écran de départ) ----------
+   Elle se construit toute seule à partir des choix de fin des niveaux : une
+   colonne par numéro de niveau, une case par niveau (ou par niveau « bientôt »).
+   Un niveau terminé (✅) peut être rejoué ; ceux où il mène sont ouverts. */
+let mapHere = 0;                     // le niveau où l'on en est
+let mapSel = null;                   // l'id du niveau choisi sur la carte
+let mapCache = null;
+
+function evoMap() {
+  if (mapCache) return mapCache;
+  const nodes = new Map();
+  const root = { id: LEVELS[0].id, idx: 0, depth: 0, parents: [], kids: [] };
+  nodes.set(root.id, root);
+  const queue = [root];
+  while (queue.length) {
+    const n = queue.shift();
+    for (const c of LEVELS[n.idx].ending.choices) {
+      let k = nodes.get(c.level);
+      if (!k) {
+        k = { id: c.level, idx: LEVELS.findIndex((lv) => lv.id === c.level), depth: n.depth + 1, parents: [], kids: [], soon: c };
+        nodes.set(k.id, k);
+        if (k.idx >= 0) queue.push(k);
+      }
+      k.parents.push({ id: n.id, choice: c });
+      if (!n.kids.includes(k.id)) n.kids.push(k.id);
+    }
+  }
+  for (const n of nodes.values()) {
+    if (n.idx >= 0) {
+      Object.assign(n, { name: LEVELS[n.idx].name, icon: LEVELS[n.idx].mapIcon || LEVELS[n.idx].icon, num: levelNum(n.idx) });
+    } else {
+      // « Niveau 3 : La voie des airs »
+      const m = n.soon.soon.match(/(\d+)\s*:\s*(.+)/);
+      Object.assign(n, { name: m ? m[2] : n.soon.title, icon: n.soon.icon, num: m ? Number(m[1]) : n.depth + 1 });
+    }
+  }
+  // les lignes : chaque feuille a la sienne, un parent se met au milieu de ses enfants.
+  // Un niveau où mènent deux chemins se place au bord, du côté de son autre parent.
+  let leaf = 0;
+  const place = (n) => {
+    const kids = n.kids.map((id) => nodes.get(id)).filter((k) => k.depth === n.depth + 1);
+    const shared = (k) => (k.parents.length > 1 && k.row === undefined ? 1 : 0);
+    kids.sort((a, b) => shared(a) - shared(b));
+    for (const k of kids) if (k.row === undefined) place(k);
+    n.row = kids.length ? kids.reduce((s, k) => s + k.row, 0) / kids.length : leaf++;
+  };
+  place(root);
+  const all = [...nodes.values()];
+  mapCache = { nodes, rows: Math.max(1, leaf), cols: Math.max(...all.map((n) => n.depth)) + 1 };
+  return mapCache;
+}
+
+/** soon (pas encore construit), done (terminé), open (on peut y jouer), locked (fermé) */
+function mapState(n) {
+  if (n.idx < 0) return 'soon';
+  if (progress.done[n.id]) return 'done';
+  if (n.idx === mapHere || progress.paused[n.id] || n.parents.some((p) => progress.done[p.id])) return 'open';
+  return 'locked';
+}
+
+/** Les niveaux déjà terminés, retrouvés à partir de la partie (pour les sauvegardes d'avant la carte) */
+function rememberProgress() {
+  if (game.finished) markDone(LV.id, game.path);
+  // on est au niveau 3 : on a forcément terminé un niveau qui y mène
+  let n = evoMap().nodes.get(LV.id);
+  while (n && n.parents.length && !n.parents.some((p) => progress.done[p.id])) {
+    const p = n.parents[0];
+    markDone(p.id, p.choice.id);
+    n = evoMap().nodes.get(p.id);
+  }
+}
+
+function renderMap() {
+  const { nodes, rows, cols } = evoMap();
+  const X = (n) => ((n.depth + 0.5) / cols) * 100;
+  const Y = (n) => ((n.row + 0.5) / rows) * 100;
+  const all = [...nodes.values()];
+  let lines = '';
+  for (const n of all) {
+    for (const p of n.parents) {
+      const a = nodes.get(p.id), mx = (X(a) + X(n)) / 2;
+      const done = progress.done[p.id];
+      const cls = done && done.includes(p.choice.id) ? 'taken' : done ? 'open' : '';
+      lines += `<path class="${cls}" d="M${X(a)} ${Y(a)} C${mx} ${Y(a)} ${mx} ${Y(n)} ${X(n)} ${Y(n)}"/>`;
+    }
+  }
+  const heads = Array.from({ length: cols }, (_, d) => {
+    const n = all.find((k) => k.depth === d);
+    return `<span class="map-col" style="left:${((d + 0.5) / cols) * 100}%">Niveau ${n.num}</span>`;
+  }).join('');
+  const BADGE = { done: '✅', locked: '🔒', soon: '🚧' };
+  const SAY = { done: 'terminé', open: 'ouvert', locked: 'fermé', soon: 'bientôt' };
+  const cells = all.map((n) => {
+    const st = mapState(n);
+    const sel = n.id === mapSel;
+    const badge = progress.paused[n.id] && st !== 'done' ? '💾' : BADGE[st];
+    const cls = [`map-node is-${st}`, n.idx === mapHere ? 'is-here' : '', sel ? 'is-sel' : ''].join(' ');
+    return `<button type="button" class="${cls}" data-node="${n.id}" aria-pressed="${sel}"
+        aria-label="Niveau ${n.num} : ${escapeHtml(n.name)} (${SAY[st]})"
+        style="left:${X(n)}%; top:calc(var(--head) + (100% - var(--head)) * ${Y(n) / 100})">
+        <span class="map-dot">${n.icon}${badge ? `<span class="map-badge">${badge}</span>` : ''}${n.idx === mapHere ? '<span class="map-pin">📍</span>' : ''}</span>
+        <span class="map-name">${escapeHtml(n.name)}</span>
+      </button>`;
+  }).join('');
+  const map = $('evoMap');
+  map.style.setProperty('--rows', rows);
+  map.style.setProperty('--cols', cols);
+  map.innerHTML = `${heads}<svg class="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${cells}`;
+}
+
+$('evoMap').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-node]');
+  if (!btn || state !== 'ready') return;
+  mapSel = btn.dataset.node;
+  sfx.click();
+  renderMap();
+  renderStartInfo();
+  $('evoMap').querySelector(`[data-node="${mapSel}"]`).focus({ preventScroll: true });
+});
+
+/** On part jouer un niveau : la partie en cours est mise de côté, celle de ce niveau reprend */
+function enterLevel(i, fresh = false) {
+  const id = LEVELS[i].id;
+  if (game.started && !game.finished && game.level !== i) {
+    saveGame();
+    progress.paused[LEVELS[game.level].id] = JSON.parse(JSON.stringify(game));
+  }
+  const paused = !fresh && progress.paused[id];
+  delete progress.paused[id];
+  saveProgress();
+  if (paused && paused.v === SAVE_VERSION && paused.owned && paused.stats && paused.level === i) {
+    if (!LEVELS[i].chapters[paused.chapter]) paused.chapter = 0;
+    // les statistiques et les espèces déjà vues sont celles du joueur, pas du niveau
+    paused.stats = game.stats;
+    paused.seen = { ...paused.seen, ...game.seen };
+    endOverlay.hidden = true;
+    freeCanvas(endCanvas);
+    startOverlay.hidden = true;
+    game = paused;
+    setupGame();
+    beginPlay();
+    return;
+  }
+  goToLevel(i);
 }
 
 function beginPlay() {
@@ -2337,6 +2595,11 @@ function playIntro() {
         drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 10.4 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, spine }, 'nothosaure', {}, swim);
       },
     });
+  } else if (LV.intro === 'mammiferes') {
+    intro = createMammalIntro({
+      sfx,
+      drawHero: (c, x, y, r, angle, t, walk, mood) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, 'musaraigne', {}, t),
+    });
   } else if (LV.intro === 'terre') {
     intro = createLandIntro({
       sfx,
@@ -2367,25 +2630,32 @@ $('introSkip').addEventListener('click', (e) => { e.currentTarget.blur(); endInt
 
 /* ---------- La fin du niveau : le roi de l'océan, puis le grand choix ---------- */
 const LAND_END = ['fougeres', 'cycas', 'conifere'];   // le décor de la fin sur la terre
+const ICE_END = ['sapin-neige', 'herbes-gel', 'rocher'];  // le décor de la fin à l'âge de glace
 
 function startEnding() {
   state = 'ending';
   endT = 0;
   endCues.clear();
   const crowd = LV.ending.crowd || [];
-  endFx = Array.from({ length: LV.ending.scene === 'meteorite' ? 9 : 26 }, (_, i) => ({
+  const scene = LV.ending.scene;
+  endFx = Array.from({ length: scene === 'meteorite' || scene === 'feu' ? 9 : 26 }, (_, i) => ({
     a: (i / 26) * TAU, d: rand(0.6, 1.3), s: rand(0.5, 1), sp: pick(crowd), seed: Math.random() * 10,
     x: rand(0.08, 0.92), y: rand(0.3, 0.92), ang: rand(0, TAU),
   }));
   endDecor = [];
-  if (LV.ending.scene === 'meteorite') {
+  paintings = null;
+  if (scene === 'feu') {
+    // le troupeau, à gauche et au milieu (les humains arriveront par la droite)
+    endFx.forEach((f, i) => { f.x = rand(0.06, 0.62); f.y = 0.3 + (i / endFx.length) * 0.62; f.ang = rand(-0.4, 0.4) + (i % 2 ? Math.PI : 0); });
+  }
+  if (scene === 'meteorite' || scene === 'feu') {
     // des plantes (ou des algues et des coraux) tout autour, mais pas sur le roi (au centre)
-    const types = LV.world.ground === 'land' ? LAND_END : ['algues', 'corail', 'eponge'];
+    const types = scene === 'feu' ? ICE_END : LV.world.ground === 'land' ? LAND_END : ['algues', 'corail', 'eponge'];
     while (endDecor.length < 16) {
       const fx = Math.random(), fy = Math.random();
       if (Math.hypot(fx - 0.45, (fy - 0.6) * 0.6) < 0.2) continue;
       const i = endDecor.length;
-      const small = types === LAND_END ? false : i >= 7;   // dans la mer : de petits coraux et éponges
+      const small = types === LAND_END ? false : types === ICE_END ? i >= 12 : i >= 7;   // dans la mer : de petits coraux et éponges
       endDecor.push({ type: types[i < 7 ? 0 : i < 12 ? 1 : 2], fx, fy, fr: small ? rand(0.025, 0.045) : rand(0.05, 0.1), seed: i * 977 + 13 });
     }
   }
@@ -2404,7 +2674,7 @@ function startEnding() {
       <span class="choice-text">${escapeHtml(c.text)}</span>
     </button>`).join('');
   $('endResult').hidden = true;
-  if (LV.ending.scene === 'meteorite') {
+  if (scene === 'meteorite' || scene === 'feu') {
     sfx.roar(1.2);
     later(() => sfx.victory(), 600);
   } else {
@@ -2428,6 +2698,7 @@ $('endChoices').addEventListener('click', (e) => {
   game.path = c.id;
   game.finished = true;
   saveGame();
+  markDone(LV.id, c.id);
   sfx.chapter();
   confetti(60);
   endOverlay.classList.add('chosen');
@@ -2439,7 +2710,7 @@ $('endChoices').addEventListener('click', (e) => {
   const next = nextLevel(c);
   $('endNext').hidden = next < 0;
   $('endNext').textContent = next >= 0 ? `${LEVELS[next].icon} Niveau ${levelNum(next)} : ${LEVELS[next].name} ▶` : '';
-  $('endNext').onclick = () => goToLevel(next);
+  $('endNext').onclick = () => enterLevel(next);
   $('endSoon').hidden = next >= 0;
   $('endAgain').hidden = game.level === 0;
   setTimeout(() => $('endReplay').focus({ preventScroll: true }), 50);
@@ -2477,6 +2748,7 @@ $('endReplay').addEventListener('click', () => {
 
 function drawEnding(dt) {
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
+  if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
   endT += dt;
   if (endT > 2.4 && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
   const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
@@ -2721,6 +2993,304 @@ function drawMeteorEnding(dt) {
   if (cap && t < METEOR_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
 }
 
+/* ---------- La fin du niveau 3 : on règne sur l'âge de glace… puis les humains arrivent ----------
+   0 → 4 s       le joueur, couronné, rugit au milieu des mammouths et des bisons
+   4,2 → 7,6 s   la nuit tombe ; une lueur orange brille au loin
+   7,6 → 11,6 s  des humains arrivent avec leurs torches et allument un feu : tout le monde recule
+   11,8 → 15 s   le mur d'une grotte, éclairé par une torche : les animaux peints, des mains
+   15 s →        le texte et les deux chemins */
+const FIRE_TEXT_AT = 15;
+const CAVE_AT = 11.8;
+const SNOWFLAKES = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2.2, v: 0.03 + Math.random() * 0.05 }));
+const HUMANS = [{ y: 0.5, d: 0, k: 1 }, { y: 0.64, d: 0.45, k: 0.9 }, { y: 0.8, d: 0.9, k: 1.05 }];
+/* Les peintures de la grotte : [espèce, x, y, taille, couleur, apparition, tournée vers la gauche] */
+const PAINTINGS = [
+  ['mammouth', 0.3, 0.42, 0.085, '#8E2F1C', 12.2, false],
+  ['cheval', 0.7, 0.32, 0.06, '#2A1C14', 12.8, true],
+  ['bison', 0.7, 0.72, 0.065, '#A13D22', 13.3, true],
+  ['lion-des-cavernes', 0.3, 0.8, 0.05, '#2A1C14', 13.8, false],
+];
+const HANDS = [[0.1, 0.25, 12.5, '#A33A22'], [0.9, 0.55, 13.1, '#2A1C14'], [0.53, 0.88, 13.6, '#A33A22']];
+const WALL = Array.from({ length: 50 }, () => ({ x: Math.random(), y: Math.random(), r: 0.02 + Math.random() * 0.06, l: Math.random() < 0.5 }));
+let paintings = null;              // les peintures, dessinées une fois dans de petites toiles
+
+/** Une flamme qui danse (avec sa lueur) */
+function drawFlame(c, x, y, s, t) {
+  const f = 0.85 + Math.sin(t * 14 + x * 0.1) * 0.15;
+  c.globalCompositeOperation = 'lighter';
+  const g = c.createRadialGradient(x, y, 0, x, y, s * 7);
+  g.addColorStop(0, 'rgba(255, 170, 60, 0.45)');
+  g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(x, y, s * 7, 0, TAU);
+  c.fill();
+  c.globalCompositeOperation = 'source-over';
+  for (const [k, col] of [[1, '#FF7A1A'], [0.6, '#FFD45A']]) {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(x - s * 0.55 * k, y);
+    c.quadraticCurveTo(x - s * 0.5 * k, y - s * 0.9 * k * f, x + Math.sin(t * 9) * s * 0.15, y - s * 1.7 * k * f);
+    c.quadraticCurveTo(x + s * 0.5 * k, y - s * 0.9 * k * f, x + s * 0.55 * k, y);
+    c.arc(x, y, s * 0.55 * k, 0, Math.PI);
+    c.fill();
+  }
+}
+
+/** Un humain de l'âge de glace, à contre-jour, une torche à la main */
+function drawHuman(c, x, y, s, t) {
+  const step = Math.sin(t * 6);
+  c.fillStyle = '#1C1411';
+  c.strokeStyle = '#1C1411';
+  c.lineCap = 'round';
+  c.lineWidth = s * 0.17;
+  c.beginPath();
+  c.moveTo(x, y - s * 0.9);
+  c.lineTo(x + step * s * 0.25, y);
+  c.moveTo(x, y - s * 0.9);
+  c.lineTo(x - step * s * 0.25, y);
+  c.stroke();
+  // une tunique en fourrure
+  c.beginPath();
+  c.moveTo(x - s * 0.26, y - s * 0.8);
+  c.lineTo(x + s * 0.26, y - s * 0.8);
+  c.lineTo(x + s * 0.17, y - s * 1.7);
+  c.lineTo(x - s * 0.17, y - s * 1.7);
+  c.closePath();
+  c.fill();
+  c.beginPath();
+  c.arc(x, y - s * 1.92, s * 0.21, 0, TAU);
+  c.fill();
+  // un bras levé tient la torche, l'autre une lance
+  c.lineWidth = s * 0.12;
+  c.beginPath();
+  c.moveTo(x - s * 0.08, y - s * 1.6);
+  c.lineTo(x - s * 0.38, y - s * 2.05);
+  c.moveTo(x + s * 0.08, y - s * 1.6);
+  c.lineTo(x + s * 0.3, y - s * 1.15);
+  c.stroke();
+  c.lineWidth = s * 0.05;
+  c.beginPath();
+  c.moveTo(x + s * 0.45, y - s * 0.3);
+  c.lineTo(x + s * 0.15, y - s * 2.5);
+  c.stroke();
+  c.strokeStyle = '#5A3A20';
+  c.lineWidth = s * 0.08;
+  c.beginPath();
+  c.moveTo(x - s * 0.34, y - s * 1.98);
+  c.lineTo(x - s * 0.46, y - s * 2.4);
+  c.stroke();
+  drawFlame(c, x - s * 0.47, y - s * 2.42, s * 0.2, t + x);
+}
+
+/** Les peintures et les mains de la grotte, préparées une fois (couleur unie, comme de l'ocre) */
+function buildPaintings(m) {
+  const out = [];
+  for (const [id, , , k, col, , left] of PAINTINGS) {
+    const sp = SPECIES[id];
+    const r = m * k;
+    const W = Math.ceil(r * 4.4), H = Math.ceil(r * 4.4);
+    const cv = document.createElement('canvas');
+    cv.width = W;
+    cv.height = H;
+    const g = cv.getContext('2d');
+    if (sp) drawCreature(g, { sp, x: W * 0.47, y: H * 0.6, angle: left ? Math.PI : 0, face: left ? -1 : 1, size: r, seed: 1, mood: 'calm', mouth: 0, blink: 0, walk: 0.6, spine: null }, 0.3);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = col;
+    g.fillRect(0, 0, W, H);
+    out.push(cv);
+  }
+  for (const [, , , col] of HANDS) {
+    // une main « en négatif » : on souffle la couleur autour de la main posée sur la paroi
+    const R = Math.ceil(m * 0.07);
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = R * 2;
+    const g = cv.getContext('2d');
+    const grd = g.createRadialGradient(R, R, R * 0.2, R, R, R);
+    grd.addColorStop(0, col);
+    grd.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = grd;
+    g.globalAlpha = 0.75;
+    g.fillRect(0, 0, R * 2, R * 2);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath();
+    g.ellipse(R, R * 1.15, R * 0.3, R * 0.34, 0, 0, TAU);
+    g.fill();
+    g.lineCap = 'round';
+    g.lineWidth = R * 0.13;
+    g.beginPath();
+    for (const [a, l] of [[-2.4, 0.45], [-1.85, 0.6], [-1.57, 0.66], [-1.3, 0.6], [-1.05, 0.48]]) {
+      g.moveTo(R + Math.cos(a) * R * 0.2, R * 1.1 + Math.sin(a) * R * 0.2);
+      g.lineTo(R + Math.cos(a) * R * l * 1.25, R * 1.1 + Math.sin(a) * R * l * 1.25);
+    }
+    g.stroke();
+    out.push(cv);
+  }
+  return out;
+}
+
+function drawFireEnding(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('night', 4.2, () => sfx.sad());
+  cueEnd('steps', 7.6, () => sfx.alert());
+  cueEnd('fire', 8.4, () => sfx.dash());
+  cueEnd('h1', 9.2, () => sfx.heart(false));
+  cueEnd('h2', 9.9, () => sfx.heart(true));
+  cueEnd('cave', CAVE_AT + 0.3, () => sfx.evolve());
+  if (t > FIRE_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  const c = ectx;
+  const m = Math.min(w, h);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (t < CAVE_AT) {
+    // la steppe enneigée, ses sapins, et le troupeau
+    const T = 420;
+    for (let x = 0; x < w + T; x += T) for (let y = 0; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
+    for (const d of endDecor) {
+      d.x = d.fx * w;
+      d.y = d.fy * h;
+      d.r = d.fr * m;
+      drawDecor(c, d, t);
+    }
+    const fire = { x: w * 0.84, y: h * 0.62 };
+    const scare = t > 7.6;
+    for (const f of endFx) {
+      const sp = SPECIES[f.sp];
+      if (!sp) continue;
+      if (scare) {
+        // tout le monde s'éloigne du feu
+        f.ang = turnToward(f.ang, Math.PI + Math.sin(f.seed) * 0.3, dt * 3);
+        f.x += Math.cos(f.ang) * dt * 0.07;
+        f.y += Math.sin(f.ang) * dt * 0.07;
+      } else {
+        f.ang += Math.sin(t * 0.7 + f.seed) * dt * 0.3;
+        f.x += Math.cos(f.ang) * dt * 0.01;
+        f.y += Math.sin(f.ang) * dt * 0.006;
+      }
+      const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
+      drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: scare ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (scare ? 4 : 1) + f.seed, spine: null }, t + f.seed);
+    }
+    // toi, le roi de l'âge de glace… qui recule devant le feu
+    const size = m * 0.07;
+    const back = scare ? Math.min(1, (t - 7.6) / 3) : 0;
+    const px = w * (0.5 - back * 0.14), py = h * 0.6;
+    const roaring = t < 1.8 || (t > 3 && t < 3.6);
+    drawPlayer(c, { x: px, y: py, angle: 0, size, mouth: roaring ? 0.9 : 0.15, mood: scare ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t * (scare ? 2 : 0.6), spine: null }, CH.form, game.owned, t);
+    const fall = t > 8.6 ? Math.min(1, (t - 8.6) / 1) : 0;
+    c.globalAlpha = 1 - clamp((t - 9.8) / 1, 0, 1);
+    drawCrown(c, px + size * 0.9 - fall * size * 0.6, py - size * 1.35 + fall * size * 1.9, size * 0.55);
+    c.globalAlpha = 1;
+    for (const d of endDecor) if (d.type !== 'rocher') drawCover(c, d, t);
+    // la nuit tombe
+    const night = clamp((t - 4.2) / 2.5, 0, 1);
+    if (night > 0) {
+      c.fillStyle = `rgba(8, 16, 45, ${0.6 * night})`;
+      c.fillRect(0, 0, w, h);
+    }
+    // une lueur au loin… puis les humains, leurs torches et leur feu
+    if (t > 5.4) {
+      const k = clamp((t - 5.4) / 2, 0, 1);
+      c.globalCompositeOperation = 'lighter';
+      const g = c.createRadialGradient(w * 1.02, fire.y, 0, w * 1.02, fire.y, m * 0.45);
+      g.addColorStop(0, `rgba(255, 150, 50, ${0.35 * k})`);
+      g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+      c.globalCompositeOperation = 'source-over';
+    }
+    if (t > 8.4) {
+      const k = clamp((t - 8.4) / 0.6, 0, 1);
+      c.strokeStyle = '#4A2E18';
+      c.lineCap = 'round';
+      c.lineWidth = m * 0.016;
+      c.beginPath();
+      c.moveTo(fire.x - m * 0.04, fire.y + m * 0.01);
+      c.lineTo(fire.x + m * 0.04, fire.y - m * 0.01);
+      c.moveTo(fire.x - m * 0.04, fire.y - m * 0.01);
+      c.lineTo(fire.x + m * 0.04, fire.y + m * 0.01);
+      c.stroke();
+      drawFlame(c, fire.x, fire.y, m * 0.035 * k, t);
+      // des étincelles qui montent
+      c.fillStyle = 'rgba(255, 210, 120, 0.9)';
+      for (let i = 0; i < 8; i++) {
+        const u = (t * 0.6 + i / 8) % 1;
+        c.globalAlpha = (1 - u) * k;
+        c.beginPath();
+        c.arc(fire.x + Math.sin(i * 2.3 + t * 2) * m * 0.03, fire.y - u * m * 0.22, 1.5, 0, TAU);
+        c.fill();
+      }
+      c.globalAlpha = 1;
+    }
+    if (t > 7) {
+      for (const hm of HUMANS) {
+        const k = clamp((t - 7 - hm.d) / 2.6, 0, 1);
+        const x = w * (1.1 - 0.2 * (k * k * (3 - 2 * k))) + hm.d * m * 0.06;
+        drawHuman(c, x, h * hm.y, m * 0.055 * hm.k, k < 1 ? t : 0);
+      }
+    }
+    // il neige
+    c.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for (const f of SNOWFLAKES) {
+      const y = ((f.y + t * f.v) % 1) * h;
+      const x = (f.x * w + Math.sin(t + f.x * 10) * 14) % w;
+      c.beginPath();
+      c.arc(x, y, f.s, 0, TAU);
+      c.fill();
+    }
+    if (t > CAVE_AT - 0.6) {
+      c.fillStyle = `rgba(0, 0, 0, ${(t - (CAVE_AT - 0.6)) / 0.6})`;
+      c.fillRect(0, 0, w, h);
+    }
+  } else {
+    // le mur de la grotte, éclairé par une torche qui vacille
+    if (!paintings) paintings = buildPaintings(m);
+    const flick = 0.92 + Math.sin(t * 11) * 0.04 + Math.sin(t * 17) * 0.03;
+    const lx = w * 0.5, ly = h * 0.55;
+    const g = c.createRadialGradient(lx, ly, m * 0.05, lx, ly, Math.hypot(w, h) * 0.6 * flick);
+    g.addColorStop(0, '#D9B48A');
+    g.addColorStop(0.6, '#A57E58');
+    g.addColorStop(1, '#4A3324');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    for (const b of WALL) {
+      c.fillStyle = b.l ? 'rgba(255, 240, 210, 0.07)' : 'rgba(60, 35, 20, 0.08)';
+      c.beginPath();
+      c.ellipse(b.x * w, b.y * h, b.r * m * 1.6, b.r * m, b.x * 3, 0, TAU);
+      c.fill();
+    }
+    // les animaux peints apparaissent un à un, éclairés par la torche
+    PAINTINGS.forEach(([, x, y, , , at], i) => {
+      const k = clamp((t - at) / 0.8, 0, 1);
+      if (k <= 0) return;
+      const cv = paintings[i];
+      c.globalAlpha = 0.82 * k;
+      c.drawImage(cv, x * w - cv.width * 0.47, y * h - cv.height * 0.6);
+    });
+    HANDS.forEach(([x, y, at], i) => {
+      const k = clamp((t - at) / 0.5, 0, 1);
+      if (k <= 0) return;
+      const cv = paintings[PAINTINGS.length + i];
+      c.globalAlpha = k;
+      c.drawImage(cv, x * w - cv.width / 2, y * h - cv.height / 2);
+    });
+    c.globalAlpha = 1;
+    const v = c.createRadialGradient(lx, ly, m * 0.3, lx, ly, Math.hypot(w, h) * 0.62);
+    v.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    v.addColorStop(1, `rgba(20, 10, 5, ${0.6 / flick})`);
+    c.fillStyle = v;
+    c.fillRect(0, 0, w, h);
+    if (t < CAVE_AT + 0.8) {
+      c.fillStyle = `rgba(0, 0, 0, ${1 - (t - CAVE_AT) / 0.8})`;
+      c.fillRect(0, 0, w, h);
+    }
+  }
+  const cap = LV.ending.captions.find(([a0, b0]) => t >= a0 && t < b0);
+  if (cap && t < FIRE_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
 /** Ceux qui survivent : un petit oiseau, un petit mammifère, un crocodile (les trois chemins) */
 function drawSurvivors(c, w, h, m, t, pond) {
   const k = clamp((t - 11.8) / 1.5, 0, 1);
@@ -2963,6 +3533,21 @@ soundBtn.addEventListener('click', (e) => {
 /* ---------- Écran de départ ---------- */
 $('startBtn').addEventListener('click', (e) => { e.currentTarget.blur(); startGame(); });
 $('newGameBtn').addEventListener('click', () => {
+  const n = evoMap().nodes.get(mapSel);
+  if (n.idx !== mapHere) {
+    // une partie laissée en cours sur un autre niveau de la carte
+    openDialog(`
+      <p class="dlg-title">Recommencer ce niveau ?</p>
+      <p class="dlg-sub">Tu repartiras du chapitre 1 de «&nbsp;${escapeHtml(n.name)}&nbsp;».</p>
+      <div class="dlg-actions">
+        <button class="danger" data-act="yes">Oui, je recommence</button>
+        <button class="primary" data-act="close">Non, je garde ma partie</button>
+      </div>`, {
+      yes: () => { closeDialog(); startOverlay.hidden = true; enterFullscreen(); enterLevel(n.idx, true); },
+      close: closeDialog,
+    });
+    return;
+  }
   if (game.finished) { clearSave(); game = null; showStartScreen(); return; }
   openDialog(`
     <p class="dlg-title">Recommencer à zéro ?</p>
@@ -3022,7 +3607,9 @@ function botDir() {
     const a = worldT * 0.3 + p.walk * 0.01;
     return { x: Math.cos(a), y: Math.sin(a * 0.8) };
   }
-  const dx = best.x - p.x, dy = best.y - p.y, d = Math.hypot(dx, dy) || 1;
+  // on vise avec la gueule (une proie sous le ventre : on fait demi-tour)
+  const mo = mouthPoint(p);
+  const dx = best.x - mo.x, dy = best.y - mo.y, d = Math.hypot(dx, dy) || 1;
   return { x: dx / d, y: dy / d };
 }
 
@@ -3066,7 +3653,7 @@ async function init() {
   renderSoundBtn();
   try { await document.fonts.load('700 17px "Baloo 2"'); } catch (err) { /* police de secours */ }
   const params = new URLSearchParams(location.search);
-  if (DEBUG && params.has('reset')) clearSave();
+  if (DEBUG && params.has('reset')) { clearSave(); progress = blankProgress(); saveProgress(); }
   showStartScreen();
   // ?debug&niveau=2 : aller directement au début d'un niveau
   if (DEBUG && LEVELS[Number(params.get('niveau')) - 1]) {

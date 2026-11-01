@@ -18,24 +18,27 @@ const TAU = Math.PI * 2;
 const CLAW = '#EDE3CC';
 
 /* Quand un animal est tout petit à l'écran (caméra éloignée), on saute les
-   détails invisibles (rayures, dents, griffes, reflets) : le jeu reste fluide. */
+   détails invisibles (rayures, dents, griffes, reflets) : le jeu reste fluide.
+   Les outils de ce fichier (corps, pattes, griffes) servent aussi aux mammifères. */
 let fine = true;
-function setDetail(ctx, r) {
+export function setDetail(ctx, r) {
   const m = ctx.getTransform();
   fine = r * Math.hypot(m.a, m.b) > 34;
 }
+/** Les autres dessinateurs (art-mammiferes.js) suivent le même niveau de détail */
+export const isFine = () => fine;
 
 /* ============================================================================
    Petits outils
    ============================================================================ */
-function startSide(ctx, c) {
+export function startSide(ctx, c) {
   const face = c.face || (Math.cos(c.angle) >= 0 ? 1 : -1);
   ctx.save();
   ctx.translate(c.x, c.y);
   ctx.scale(face, 1);
 }
 
-function groundShadow(ctx, x0, x1, y, h) {
+export function groundShadow(ctx, x0, x1, y, h) {
   ctx.fillStyle = 'rgba(0, 25, 15, 0.22)';
   ctx.beginPath();
   ctx.ellipse((x0 + x1) / 2, y, Math.abs(x1 - x0) / 2, h, 0, 0, TAU);
@@ -43,7 +46,7 @@ function groundShadow(ctx, x0, x1, y, h) {
 }
 
 /** Le genou (ou le coude) d'un membre à deux os, de a vers b. dir = 1 : plié vers l'avant */
-function joint(ax, ay, bx, by, l1, l2, dir) {
+export function joint(ax, ay, bx, by, l1, l2, dir) {
   const dx = bx - ax, dy = by - ay;
   const d = Math.max(1e-6, Math.min(Math.hypot(dx, dy), (l1 + l2) * 0.999));
   const k = Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)));
@@ -52,7 +55,7 @@ function joint(ax, ay, bx, by, l1, l2, dir) {
 }
 
 /** Une « gélule » : deux cercles reliés par leurs tangentes (un os avec ses muscles) */
-function capsule(ctx, x1, y1, r1, x2, y2, r2) {
+export function capsule(ctx, x1, y1, r1, x2, y2, r2) {
   const a = Math.atan2(y2 - y1, x2 - x1);
   const d = Math.hypot(x2 - x1, y2 - y1) || 1e-6;
   const s = Math.asin(Math.max(-1, Math.min(1, (r1 - r2) / d)));
@@ -65,7 +68,7 @@ function capsule(ctx, x1, y1, r1, x2, y2, r2) {
 
 /** Un membre fait de plusieurs os : [x, y, épaisseur] (ou plusieurs chaînes d'os :
     la patte et ses orteils). Le contour d'abord, la couleur par-dessus */
-function limb(ctx, segs, col, dark, lw) {
+export function limb(ctx, segs, col, dark, lw) {
   ctx.beginPath();
   for (const chain of Array.isArray(segs[0][0]) ? segs : [segs]) {
     for (let i = 0; i + 1 < chain.length; i++) {
@@ -82,7 +85,7 @@ function limb(ctx, segs, col, dark, lw) {
 }
 
 /** Une griffe recourbée, de (x, y) dans la direction ang */
-function claw(ctx, x, y, len, ang, w, col = CLAW) {
+export function claw(ctx, x, y, len, ang, w, col = CLAW) {
   if (!fine) return;
   const cx = Math.cos(ang), cy = Math.sin(ang), nx = -cy, ny = cx;
   ctx.fillStyle = col;
@@ -99,7 +102,7 @@ function claw(ctx, x, y, len, ang, w, col = CLAW) {
 
 /** Le corps d'un seul tenant (queue → hanches → ventre → épaules → cou).
     pts : [x, y, épaisseur au-dessus, épaisseur en dessous], × r */
-function bodyPath(ctx, pts, r) {
+export function bodyPath(ctx, pts, r) {
   const poly = [];
   for (const p of pts) poly.push({ x: p[0] * r, y: (p[1] - p[2]) * r });
   for (let i = pts.length - 1; i >= 0; i--) poly.push({ x: pts[i][0] * r, y: (pts[i][1] + pts[i][3]) * r });
@@ -107,7 +110,7 @@ function bodyPath(ctx, pts, r) {
 }
 
 /** La hauteur du dos et du ventre à l'abscisse x (pour poser rayures, plaques, plumes) */
-function spineAt(pts, x) {
+export function spineAt(pts, x) {
   if (x <= pts[0][0]) return pts[0];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
@@ -120,7 +123,7 @@ function spineAt(pts, x) {
 }
 
 /** Dos plus sombre, ventre clair (comme la plupart des animaux) */
-function skinFill(ctx, r, top, bottom, col, belly) {
+export function skinFill(ctx, r, top, bottom, col, belly) {
   const g = ctx.createLinearGradient(0, top * r, 0, bottom * r);
   g.addColorStop(0, shade(col, -0.25));
   g.addColorStop(0.42, col);
@@ -130,7 +133,7 @@ function skinFill(ctx, r, top, bottom, col, belly) {
 }
 
 /** Remplit le corps, pose le motif (rayures, taches) par-dessus, puis le contour */
-function paintBody(ctx, pts, r, col, belly, dark, lw, P, stripe) {
+export function paintBody(ctx, pts, r, col, belly, dark, lw, P, stripe) {
   let top = 0, bottom = 0;
   for (const p of pts) { top = Math.min(top, p[1] - p[2]); bottom = Math.max(bottom, p[1] + p[3]); }
   bodyPath(ctx, pts, r);
@@ -514,7 +517,7 @@ function theroBody(P, sway) {
   ];
 }
 
-function theroLeg(ctx, P, r, gy, ph, col, dark, lw, far) {
+export function theroLeg(ctx, P, r, gy, ph, col, dark, lw, far) {
   const hip = { x: P.hip[0] * r + r * 0.05, y: (P.hip[1] + 0.1) * r };
   const L1 = P.thigh * r, L2 = P.shin * r, L3 = P.meta * r, w = P.legW * r;
   const sw = Math.sin(ph);
@@ -676,7 +679,7 @@ function drawTheropod(ctx, c, t, P, col, o = {}) {
 /* ============================================================================
    Les quadrupèdes : stégosaure, tricératops, ankylosaure, hadrosaures
    ============================================================================ */
-function pillarLeg(ctx, top, gy, L1, L2, w, ph, stride, lift, col, dark, lw, dir) {
+export function pillarLeg(ctx, top, gy, L1, L2, w, ph, stride, lift, col, dark, lw, dir) {
   const sw = Math.sin(ph);
   const fl = Math.max(0, Math.cos(ph)) * lift;
   const fx = top.x + sw * stride, fy = gy - fl;
@@ -707,7 +710,7 @@ function pillarLeg(ctx, top, gy, L1, L2, w, ph, stride, lift, col, dark, lw, dir
 }
 
 /** Le dessin des muscles de la cuisse et de l'épaule, sur le flanc */
-function muscles(ctx, hip, sh, r, wH, wF, dark) {
+export function muscles(ctx, hip, sh, r, wH, wF, dark) {
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
   ctx.lineWidth = Math.max(1, r * 0.025);
   ctx.lineCap = 'round';
