@@ -14,7 +14,8 @@
 //   2. "world" : la taille de la carte, le point de départ et le décor
 //      (types de décor dessinés dans art.js et art-terre.js ; "from"/"to" =
 //      chapitres ; hide = on s'y cache ; canopy = dessiné par-dessus les
-//      créatures ; zone 'water' / 'mud' = mare / boue ; atStart = le premier
+//      créatures ; zone 'water' / 'mud' / 'camp' / 'pen' = mare / boue /
+//      camp des humains / enclos des moutons ; atStart = le premier
 //      est posé au point de départ). ground: 'land' = sur la terre ferme.
 //      maxChasers = chasseurs en même temps ; speed = vitesse du joueur (×) ;
 //      noise = distance à laquelle on entend le joueur foncer ; penalty = ce qu'on perd en se faisant
@@ -30,10 +31,19 @@
 //        defender charge quand on s'approche trop (tricératops…)
 //        giant   écrase quand on passe dessous (brachiosaure)
 //        rival   un animal de ton espèce : de temps en temps, il te vole tes proies
+//        ally    un loup de ta meute : il te suit ; en meute, tu croques plus gros
+//        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te
+//                fait pas confiance (voir trust plus bas) ; on ne le mange jamais
+//        flock   un mouton : il s'écarte devant toi ; on le ramène dans l'enclos
 //      Options : habitat 'water' (reste dans sa mare, attrape à "reach"),
 //      flying (vole par-dessus le décor), cone (angle de vue : derrière lui,
 //      il ne te voit pas), pack (chasse en meute), stomp (pas qui font
-//      trembler), roar (rugit en te repérant), hurt (texte quand il blesse).
+//      trembler), roar (rugit en te repérant), hurt (texte quand il blesse),
+//      habitat 'camp' (un humain reste dans son camp), play (un enfant : il
+//      joue avec toi), near 'pen' (le troupeau broute près des enclos),
+//      eatsFlock (un loup sauvage qui croque les moutons), noEat (on ne peut
+//      pas le manger), trust (ce que la confiance gagne quand on le mange),
+//      barkLine (texte quand on aboie dessus).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
 //      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…),
@@ -42,23 +52,32 @@
 //      titanoboa, oiseau…).
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
-//      dry = on sèche moins vite, cones = voir les regards, radar).
+//      dry = on sèche moins vite, cones = voir les regards, radar ; et pour le
+//      loup : pack = l'aide de chaque loup de la meute, trust = la confiance
+//      monte plus vite, bark = on peut aboyer (touche B), treats = les humains
+//      lancent plus souvent à manger, herd = on rassemble les moutons de loin).
 //   5. "chapters" : époque ("ago", en millions d'années), forme du joueur
 //      ("form" : cellule, ver, poisson, tetrapode, reptile, dino, grand-dino,
 //      tyran, nothosaure, ichthyosaure, pliosaure, mosasaure, musaraigne,
-//      miacis, proailurus, machairodus, homotherium) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
+//      miacis, proailurus, machairodus, homotherium, louveteau, loup, chien,
+//      berger) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
 //      ("size"), ADN pour grandir ("growth"), espèces présentes, évolutions
-//      débloquées et missions (eat / evolve / grow). Sur la terre : dry
+//      débloquées et missions (eat / evolve / grow ; pour le loup : trust =
+//      la confiance des humains en %, bark = faire fuir en aboyant, herd =
+//      ramener dans l'enclos, play = jouer avec ; "text" change la phrase).
+//      trust: true = la jauge 🤝 de confiance des humains, treat = ce qu'ils
+//      te lancent à manger. Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).
 //      "ago" peut descendre sous 1 (0,04 = il y a 40 000 ans). Le décor
 //      avec "from" / "to" n'existe que dans ces chapitres (neige, terriers…).
 //   6. "ending" : la scène ("scene" : 'roi' = le joueur acclamé, 'meteorite',
-//      'feu' = l'arrivée des humains et les peintures des grottes),
+//      'feu' = l'arrivée des humains et les peintures des grottes, 'chien' =
+//      la veillée au village et le défilé des races de chiens),
 //      la foule ("crowd"), les légendes ("captions"), le titre et les choix ;
 //      chaque choix nomme le niveau suivant ("level"). Tant qu'il n'existe
 //      pas, la fin annonce « bientôt » (texte "soon").
 //      Le niveau a aussi une icône ("icon"), une intro ('ocean' / 'terre' /
-//      'mer' / 'mammiferes') et, si besoin, le numéro affiché ("num" : deux
+//      'mer' / 'mammiferes' / 'loup') et, si besoin, le numéro affiché ("num" : deux
 //      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur
 //      la carte des niveaux de l'écran de départ (elle se construit toute
 //      seule à partir des choix de fin).
@@ -70,5 +89,6 @@ import oceanPrimitif from './ocean-primitif.js';
 import versLesDinosaures from './vers-les-dinosaures.js';
 import monstresMarins from './monstres-marins.js';
 import voieDesMammiferes from './voie-des-mammiferes.js';
+import loupEtHumain from './loup-et-humain.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain];

@@ -66,6 +66,7 @@ body {
 .water-item .gold-bar i { background: linear-gradient(90deg, #4FB8E8, #9EE7FF); }
 .water-item.low { animation: lowWater .8s ease-in-out infinite; }
 .water-item.low .gold-bar i { background: #FF6B6B; }
+.water-item.trust .gold-bar i { background: linear-gradient(90deg, #FF8FA8, #FFC93C); }   /* la confiance des humains */
 @keyframes lowWater {
   50% { background: rgba(255, 80, 80, 0.45); transform: scale(1.06); }
 }
@@ -113,6 +114,13 @@ body {
   box-shadow: 0 5px 0 #1F3F57;
 }
 .pad-actions { display: flex; gap: .6rem; align-items: center; }
+/* Le bouton Aboie (le loup et l'humain) */
+.bark-btn { background: #F2A93B; box-shadow: 0 5px 0 #B87818; }
+.bark-btn.charging {
+  background: linear-gradient(90deg, #F2A93B var(--charge, 0%), #7A5A2A var(--charge, 0%));
+  box-shadow: 0 5px 0 #5A4018;
+}
+.pad-actions .bark-btn[hidden] { display: none; }
 .desk-help {
   text-align: center;
   color: var(--muted);

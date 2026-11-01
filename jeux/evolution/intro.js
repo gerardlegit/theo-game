@@ -5,7 +5,8 @@
 //   8 → 12 s    elles s'assemblent, une enveloppe se forme… une cellule naît : toi !
 //   12 → 16 s   bien plus tard, une cellule géante s'approche : mange ou sois mangé !
 // Puis celles du niveau 2 : sur la terre (createLandIntro) ou dans la mer
-// (createSeaIntro), et celle du niveau 3, après la météorite (createMammalIntro).
+// (createSeaIntro), celle du niveau 3, après la météorite (createMammalIntro),
+// et celle du niveau 4, la meute de loups sous la lune (createWolfIntro).
 // ============================================================================
 
 const TAU = Math.PI * 2;
@@ -757,6 +758,160 @@ export function createMammalIntro({ sfx, drawHero }) {
       if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
       if (t > MAMMAL_DURATION - 0.6) {
         ctx.fillStyle = `rgba(0, 0, 0, ${(t - (MAMMAL_DURATION - 0.6)) / 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    },
+  };
+  return intro;
+}
+
+/* ============================================================================
+   L'animation du niveau 4 (environ 14 s) : une nuit de l'âge de glace, de profil.
+   0 → 4,5 s   la meute hurle à la lune, sur une colline enneigée
+   4,5 → 9 s   le plus petit de la meute arrive en gambadant : c'est toi !
+   9 → 14 s    au loin, le feu des humains s'allume… le louveteau s'approche
+   drawHero(ctx, x, y, r, t, walk, mood) dessine le joueur en louveteau ;
+   drawAnimal(ctx, look, color, x, y, r, face, t, walk, mouth) un autre animal.
+   ============================================================================ */
+const WOLF_DURATION = 14;
+const WOLF_CAPTIONS = [
+  [0.3, 4.5, "Il y a 40 000 ans, c'est l'âge de glace. Dans la steppe gelée, une meute de loups hurle à la lune…"],
+  [4.7, 9, "Le plus petit de la meute, c'est toi : un louveteau curieux, qui ne tient pas en place !"],
+  [9.2, 14, "Au loin, une drôle de lumière : le feu des humains. Et si tu allais voir ?"],
+];
+const STARS = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random() * 0.5, s: 0.6 + Math.random() * 1.4, p: Math.random() * TAU }));
+const FLAKES = Array.from({ length: 50 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, v: 0.02 + Math.random() * 0.04 }));
+
+export function createWolfIntro({ sfx, drawHero, drawAnimal }) {
+  let t = 0;
+  const cues = new Set();
+
+  function cue(name, at, fn) {
+    if (t >= at && !cues.has(name)) { cues.add(name); fn(); }
+  }
+
+  const intro = {
+    done: false,
+    update(dt) {
+      t += dt;
+      cue('howl', 1.0, () => sfx.howl());
+      cue('howl2', 2.6, () => sfx.howl());
+      cue('pup', 5.0, () => sfx.pickup());
+      cue('fire', 9.6, () => sfx.phew());
+      if (t >= WOLF_DURATION) intro.done = true;
+    },
+    draw(ctx, w, h) {
+      const m = Math.min(w, h);
+      // le ciel de nuit, les étoiles, la lune
+      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.62);
+      sky.addColorStop(0, '#0B1430');
+      sky.addColorStop(1, '#2A3C66');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      for (const s of STARS) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + Math.sin(t * 2 + s.p) * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(s.x * w, s.y * h, s.s, 0, TAU);
+        ctx.fill();
+      }
+      const mx = w * 0.2, my = h * 0.2, mr = m * 0.09;
+      const glow = ctx.createRadialGradient(mx, my, mr * 0.8, mx, my, mr * 3);
+      glow.addColorStop(0, 'rgba(255, 250, 220, 0.35)');
+      glow.addColorStop(1, 'rgba(255, 250, 220, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#FFF8DC';
+      ctx.beginPath();
+      ctx.arc(mx, my, mr, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(200, 190, 160, 0.4)';
+      for (const [dx, dy, k] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.16], [-0.05, 0.35, 0.12]]) {
+        ctx.beginPath();
+        ctx.arc(mx + dx * mr, my + dy * mr, k * mr, 0, TAU);
+        ctx.fill();
+      }
+      // au loin, à droite : le feu des humains
+      const fire = clamp01((t - 9) / 1.5);
+      const fx = w * 0.86, fy = h * 0.6;
+      if (fire > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, m * 0.3);
+        g.addColorStop(0, `rgba(255, 160, 60, ${0.5 * fire})`);
+        g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // la colline enneigée
+      const hill = ctx.createLinearGradient(0, h * 0.55, 0, h);
+      hill.addColorStop(0, '#C9D8EA');
+      hill.addColorStop(1, '#7E92B2');
+      ctx.fillStyle = hill;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.66);
+      ctx.quadraticCurveTo(w * 0.3, h * 0.52, w * 0.55, h * 0.6);
+      ctx.quadraticCurveTo(w * 0.8, h * 0.66, w, h * 0.62);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fill();
+      if (fire > 0) {
+        // les humains autour du feu, en ombres chinoises
+        ctx.fillStyle = '#1C1411';
+        for (const [dx, k] of [[-0.05, 1], [0.045, 0.9], [0.075, 0.7]]) {
+          const x = fx + dx * w, s = m * 0.045 * k;
+          ctx.globalAlpha = fire;
+          ctx.beginPath();
+          ctx.arc(x, fy - s * 1.9, s * 0.22, 0, TAU);
+          ctx.moveTo(x - s * 0.26, fy - s * 0.5);
+          ctx.lineTo(x + s * 0.26, fy - s * 0.5);
+          ctx.lineTo(x + s * 0.17, fy - s * 1.65);
+          ctx.lineTo(x - s * 0.17, fy - s * 1.65);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillRect(x - s * 0.14, fy - s * 0.55, s * 0.1, s * 0.55);
+          ctx.fillRect(x + s * 0.04, fy - s * 0.55, s * 0.1, s * 0.55);
+        }
+        ctx.globalAlpha = 1;
+        const f = m * 0.018 * fire * (0.85 + Math.sin(t * 13) * 0.15);
+        ctx.fillStyle = '#FF7A1A';
+        ctx.beginPath();
+        ctx.ellipse(fx, fy - f * 0.8, f * 0.6, f * 1.2, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#FFE58A';
+        ctx.beginPath();
+        ctx.ellipse(fx, fy - f * 0.6, f * 0.3, f * 0.7, 0, 0, TAU);
+        ctx.fill();
+      }
+      // la meute, sur la colline (elle hurle, museau levé)
+      const howl = (t > 1 && t < 4.2) || (t > 2.6 && t < 5);
+      const r = m * 0.075;
+      for (const [x, y, k, face] of [[0.3, 0.6, 1, 1], [0.42, 0.58, 0.95, -1], [0.18, 0.64, 0.9, 1]]) {
+        drawAnimal(ctx, 'loup', '#8A8A88', w * x, h * y - r * 0.9 * k, r * k, face, t, 0, howl ? 0.7 : 0);
+      }
+      // le louveteau : il arrive en gambadant, il joue… puis il part vers le feu
+      if (t > 4.5) {
+        const k1 = clamp01((t - 4.5) / 2);
+        const k2 = clamp01((t - 9.6) / 4);
+        const x = w * (-0.05 + 0.4 * ease(k1) + 0.25 * ease(k2));
+        const hop = Math.abs(Math.sin(t * 6)) * (t < 9 ? m * 0.03 : m * 0.008);
+        const y = h * 0.72 - hop;
+        const walk = t < 6.5 || t > 9.6 ? t * 4 : 0;
+        drawHero(ctx, x, y, m * 0.05, t, walk, 'happy');
+      }
+      // il neige
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      for (const f of FLAKES) {
+        const y = ((f.y + t * f.v) % 1) * h;
+        const x = (f.x * w + Math.sin(t + f.x * 10) * 12) % w;
+        ctx.beginPath();
+        ctx.arc(x, y, f.s, 0, TAU);
+        ctx.fill();
+      }
+      const cap = WOLF_CAPTIONS.find(([a, b]) => t >= a && t < b);
+      if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+      if (t > WOLF_DURATION - 0.6) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${(t - (WOLF_DURATION - 0.6)) / 0.6})`;
         ctx.fillRect(0, 0, w, h);
       }
     },

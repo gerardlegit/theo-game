@@ -105,7 +105,8 @@ function mamEye(ctx, x, y, R, mood, blink, iris, dark, cute) {
          tilt, snout (hauteur du museau : 0,3 pointu → 0,9 carré), jaw, gape,
          eye [x, y] et eyeR (en part de L / D), iris, teeth, sabers (longueur
          des dents de sabre, × D), ear ('pointe', 'rond', 'petit', 'long',
-         'cheval', 'elephant') et earR, nose ('chat', 'chien', 'cheval',
+         'cheval', 'elephant', 'tombante' = qui pend, comme chez les chiens) et earR,
+         earCol, nose ('chat', 'chien', 'cheval',
          'groin'), noseCol, whiskers, dome (front bombé), flanges (joues
          osseuses), trunk (longueur de la trompe, × taille), tusks ('mammouth',
          'deino') et tuskL, horns ('rhino', 'bison', 'gazelle') et hornL,
@@ -115,6 +116,7 @@ function ear(ctx, H, L, D, col, dark, lw, far) {
   const k = H.earR || 1;
   const ox = far ? -0.07 * L : 0, oy = far ? -0.04 * D : 0;
   const inner = H.earIn || '#E2A39A';
+  if (H.earCol) col = H.earCol;
   ctx.fillStyle = far ? shade(col, -0.28) : col;
   ctx.strokeStyle = dark;
   ctx.lineWidth = lw;
@@ -137,6 +139,14 @@ function ear(ctx, H, L, D, col, dark, lw, far) {
       ctx.closePath();
       ctx.fill();
     }
+  } else if (H.ear === 'tombante') {
+    // une oreille molle qui pend le long de la tête (les chiens)
+    ctx.moveTo(bx - 0.1 * L, by + 0.02 * D);
+    ctx.quadraticCurveTo(bx - 0.28 * L, by + 0.3 * D * k, bx - 0.16 * L, by + 0.66 * D * k);
+    ctx.quadraticCurveTo(bx + 0.02 * L, by + 0.55 * D * k, bx + 0.1 * L, by + 0.02 * D);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   } else if (H.ear === 'long') {
     ctx.ellipse(bx - 0.08 * L, by - 0.42 * D * k, 0.1 * L, 0.46 * D * k, -0.35, 0, TAU);
     ctx.fill();
@@ -514,7 +524,9 @@ function mamMouth(H) {
          type ('fine', 'touffe', 'touffue', 'crin', 'pompon') }, stripes, spots,
          shaggy (longueur des longs poils sous le ventre), cape (avant du corps
          plus sombre), mane (crinière), ridge (poils dressés sur le dos), ruff
-         (poils clairs sous le cou), fluffy (fourrure ébouriffée) }
+         (poils clairs sous le cou), fluffy (fourrure ébouriffée), patches
+         ({ col, n } : de grandes taches, comme chez les chiens), wool (la
+         couleur de la laine du mouton), headCol (une tête d'une autre couleur) }
    ============================================================================ */
 function mamBody(P) {
   const [hx, hy] = P.hip, [sx, sy] = P.shoulder, d = P.depth;
@@ -732,6 +744,29 @@ function ridge(ctx, pts, r, x0, x1, h, col, dark, lw) {
   ctx.stroke();
 }
 
+/** La laine du mouton : des boucles tout autour du corps */
+function wool(ctx, pts, r, P, dark, lw) {
+  const x0 = pts[0][0] + 0.05, x1 = P.shoulder[0] + P.depth * 0.45;
+  const n = isFine() ? 9 : 5;
+  ctx.fillStyle = P.wool;
+  ctx.strokeStyle = shade(P.wool, -0.35);
+  ctx.lineWidth = Math.max(0.6, lw * 0.7);
+  for (const top of [false, true]) {
+    // toutes les boucles d'une rangée en un seul tracé (bien plus rapide)
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + (x1 - x0) * i / n;
+      const s = spineAt(pts, x);
+      const R = (top ? s[2] : s[3]) * 0.42;
+      const y = (top ? s[1] - s[2] * 0.62 : s[1] + s[3] * 0.55) * r;
+      ctx.moveTo((x + R) * r, y);
+      ctx.arc(x * r, y, R * r, 0, TAU);
+    }
+    ctx.stroke();
+    ctx.fill();
+  }
+}
+
 export function drawMammal(ctx, c, t, P, col, o = {}) {
   const r = c.size;
   setDetail(ctx, r);
@@ -754,7 +789,24 @@ export function drawMammal(ctx, c, t, P, col, o = {}) {
   mamLegs(ctx, P, r, gy, ph, shade(legCol, -0.3), dark, lw, true);
   const near = mamLegs(ctx, P, r, gy, ph, shade(legCol, 0.04), dark, lw, false);
   paintBody(ctx, pts, r, col, belly, dark, lw, P, stripe);
-  if (fine && P.legs !== 'colonne') muscles(ctx, near.hip, near.sh, r, near.wH * 0.75, near.wF * 0.75, dark);
+  const patches = o.patches || P.patches;
+  if (patches && fine) {
+    // de grandes taches (les chiens tachetés)
+    ctx.save();
+    bodyPath(ctx, pts, r);
+    ctx.clip();
+    ctx.fillStyle = patches.col;
+    for (let i = 0; i < patches.n; i++) {
+      const x = pts[1][0] + (P.shoulder[0] + 0.1 - pts[1][0]) * ((i * 0.618 + 0.2) % 1);
+      const s = spineAt(pts, x);
+      ctx.beginPath();
+      ctx.ellipse(x * r, (s[1] - s[2] * (0.35 - (i % 2) * 0.5)) * r, s[2] * r * 0.62, s[2] * r * 0.48, i, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  if (P.wool) wool(ctx, pts, r, P, dark, lw);
+  if (fine && P.legs !== 'colonne' && !P.wool) muscles(ctx, near.hip, near.sh, r, near.wH * 0.75, near.wF * 0.75, dark);
   if (fine) {
     if (P.cape) {
       // l'avant du corps, couvert d'une épaisse toison plus sombre (bison)
@@ -785,7 +837,7 @@ export function drawMammal(ctx, c, t, P, col, o = {}) {
     ridge(ctx, pts, r, P.shoulder[0] - 0.05, n1[0] + 0.02, P.depth * 0.32, shade(col, -0.45), dark, lw);
   }
   if (P.ridge) ridge(ctx, pts, r, P.hip[0] + 0.1, P.shoulder[0] + 0.15, P.depth * 0.22, shade(col, -0.3), dark, lw);
-  drawMamHead(ctx, H, r, c, t, col, belly, dark, lw, o);
+  drawMamHead(ctx, H, r, c, t, P.headCol || col, P.headCol ? shade(P.headCol, 0.25) : belly, P.headCol ? shade(P.headCol, -0.58) : dark, lw, o);
   ctx.restore();
 }
 
@@ -1257,12 +1309,16 @@ const BIRDS = {
 };
 
 /* ---------- Les looks, la position de la gueule, le cadrage des vignettes ---------- */
-for (const [id, P] of Object.entries(MAM)) {
-  LOOKS[id] = (ctx, c, t) => drawMammal(ctx, c, t, P, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
-  SIDE[id] = mamMouth(P.head);
-  const tall = -(P.head.y - P.head.D * 0.6);
-  FRAMES[id] = tall > 1.1 ? { r: 0.13, x: 0.46, y: 0.66 } : tall > 0.75 ? { r: 0.155, x: 0.47, y: 0.62 } : { r: 0.18, x: 0.47, y: 0.56 };
+/** Enregistre des mammifères décrits comme ceux de MAM (aussi pour art-loup.js) */
+export function addMammals(table) {
+  for (const [id, P] of Object.entries(table)) {
+    LOOKS[id] = (ctx, c, t) => drawMammal(ctx, c, t, P, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
+    SIDE[id] = mamMouth(P.head);
+    const tall = -(P.head.y - P.head.D * 0.6);
+    FRAMES[id] = tall > 1.1 ? { r: 0.13, x: 0.46, y: 0.66 } : tall > 0.75 ? { r: 0.155, x: 0.47, y: 0.62 } : { r: 0.18, x: 0.47, y: 0.56 };
+  }
 }
+addMammals(MAM);
 FRAMES.megaloceros = { r: 0.13, x: 0.5, y: 0.72 };
 FRAMES.mammouth = { r: 0.15, x: 0.45, y: 0.62 };
 for (const [id, P] of Object.entries(BIRDS)) {

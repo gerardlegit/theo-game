@@ -3,7 +3,8 @@
 // l'océan, puis marche sur la terre ferme (reptile, dinosaure, mammifère) ou
 // retourne dans la mer : il mange ce qui est plus petit que
 // lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
-// gros, et fait évoluer son corps.
+// gros, et fait évoluer son corps. Au niveau du loup, il chasse avec sa meute,
+// gagne la confiance des humains, aboie et rassemble les moutons.
 // Tout ce qui décrit un niveau (espèces, évolutions, chapitres, missions) est
 // dans levels/ : ce fichier ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -17,8 +18,9 @@ import { drawCloudShadows, SIDE } from './art-terre.js';
 import './art-dinos.js';
 import './art-mer.js';
 import './art-mammiferes.js';
+import { BREED_PARADE, campFire } from './art-loup.js';
 import { LINES } from './data.js';
-import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, drawCaptionBox } from './intro.js';
+import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 const SAVE_KEY = 'evolution-save';
@@ -65,6 +67,14 @@ const LUNGE = 1.35;
 const MAX_CHASERS = 2;              // (un niveau peut en mettre plus : world.maxChasers)
 const GIVE_UP_REST = 3;
 const FULL_REST = 6;               // après avoir mangé le joueur, il digère
+
+/* ---------- Le loup et l'humain : la meute, les humains, l'aboiement ---------- */
+const PACK_RANGE = 520;            // ta meute t'aide à chasser si elle est à moins de ça
+const SHOO_TRUST = 0.3;            // en dessous, les humains te chassent si tu t'approches trop
+const SAFE_TRUST = 0.5;            // au-dessus, leur camp est un refuge : le feu fait peur aux chasseurs
+const PLAY_TRUST = 0.4;            // à partir de là, les enfants viennent jouer avec toi
+const BARK_RECHARGE = 3;           // s entre deux aboiements
+const BARK_SCARE = 2.8;            // s pendant lesquelles un aboiement fait fuir
 
 /* ---------- Le niveau en cours (tout ce qui le décrit est dans levels/) ---------- */
 let LV = null;
@@ -116,6 +126,7 @@ const ictx = introCanvas.getContext('2d');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const dashBtn = $('dashBtn');
+const barkBtn = $('barkBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 const portraitMQ = window.matchMedia('(orientation: portrait)');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -166,6 +177,9 @@ let endFx = [];
 let endDecor = [];
 const endCues = new Set();
 let wasChased = false;
+let packNear = 0;                  // les loups de ta meute tout près de toi
+let boneT = 0;                     // avant le prochain os lancé par les humains
+let heartFxT = 0;
 let missionsShown = '';
 let clock = 0;                     // temps de jeu (pour les petits délais de l'histoire)
 const timers = [];
@@ -240,7 +254,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {} };
 }
 
 function newGame() {
@@ -311,7 +325,10 @@ function markDone(id, choice) {
 
 /* ---------- Les effets des évolutions ---------- */
 function recalc() {
-  const s = { speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false };
+  const s = {
+    speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false,
+    pack: 0.25, trust: 1, bark: false, treats: 1, herd: 1,
+  };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
     if (!e) continue;
@@ -325,6 +342,11 @@ function recalc() {
     if (e.dry !== undefined) s.dry = Math.min(s.dry, e.dry);
     if (e.cones) s.cones = true;
     if (e.radar) s.radar = true;
+    if (e.pack) s.pack = Math.max(s.pack, e.pack);
+    if (e.trust) s.trust = Math.max(s.trust, e.trust);
+    if (e.bark) s.bark = true;
+    if (e.treats) s.treats = Math.max(s.treats, e.treats);
+    if (e.herd) s.herd = Math.max(s.herd, e.herd);
   }
   stats = s;
 }
@@ -344,9 +366,11 @@ const METER_WATER = {
 };
 const meter = () => LV.world.meter || METER_WATER;
 
-/* Qui peut manger qui ? */
+/* Qui peut manger qui ? (en meute, on attrape plus gros que soi ; jamais un humain, un mouton ou un ami) */
 function canEat(c) {
-  return c.size <= player.size * stats.ratio && (!c.sp.armored || stats.armored);
+  const k = c.sp.kind;
+  if (k === 'ally' || k === 'human' || k === 'flock' || c.sp.noEat) return false;
+  return c.size <= player.size * (stats.ratio + packNear * stats.pack) && (!c.sp.armored || stats.armored);
 }
 function isDanger(c) {
   return (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c);
@@ -536,15 +560,27 @@ function spawnCreature(id, initial = false) {
   const minD = initial ? (hunter ? half * 1.05 : sp.size + 120) : half + sp.size * 2;
   for (let tries = 0; tries < 14; tries++) {
     let x, y, home = null;
-    if (sp.habitat === 'water') {
-      // les poissons et les crocodiles ne vivent que dans les mares
-      const ponds = zones.filter((z) => z.zone === 'water' && z.r > sp.size * 1.6 && dist(z, player) < far + z.r);
+    if (sp.habitat) {
+      // les poissons et les crocodiles ne vivent que dans les mares (les humains, dans leur camp)
+      const ponds = zones.filter((z) => z.zone === sp.habitat && z.r > sp.size * 1.6 && dist(z, player) < far + z.r);
       if (!ponds.length) return null;
       home = pick(ponds);
       const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * home.r * 0.55;
       x = home.x + Math.cos(a) * d;
       y = home.y + Math.sin(a) * d;
       if (dist({ x, y }, player) < (hunter ? half * 0.8 : sp.size + 100)) continue;
+    } else if (sp.near && zones.some((z) => z.zone === sp.near)) {
+      // il broute près d'un enclos (le troupeau du village)
+      const z = nearestZone(player.x + rand(-1, 1) * far, player.y + rand(-1, 1) * far, sp.near);
+      const a = Math.random() * TAU, d = z.r + rand(250, 800);
+      x = z.x + Math.cos(a) * d;
+      y = z.y + Math.sin(a) * d;
+      const dp = dist({ x, y }, player);
+      if (dp < minD || dp > far * 1.3 || zoneAt(x, y)) continue;
+    } else if (sp.kind === 'ally') {
+      // ta meute est autour de toi
+      x = player.x + rand(-1, 1) * (player.size * 3 + 80);
+      y = player.y + rand(-1, 1) * (player.size * 3 + 80);
     } else {
       const a = Math.random() * TAU;
       const d = rand(minD, far);
@@ -559,22 +595,28 @@ function spawnCreature(id, initial = false) {
       // une meute : les autres apparaissent juste à côté
       const px = k ? x + rand(-1, 1) * sp.size * 2.5 : x, py = k ? y + rand(-1, 1) * sp.size * 2.5 : y;
       const vary = sp.kind === 'hunter' ? 1 : rand(0.9, 1.1);
-      const c = {
-        id, sp, x: px, y: py, vx: 0, vy: 0, angle: Math.random() * TAU,
-        size: sp.size * vary, spine: null, home,
-        state: 'wander', timer: 0, rest: 0, lunge: 0, wx: px, wy: py,
-        seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
-        mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
-        walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0,
-        side: SIDE[sp.look] || null, face: 1,
-      };
-      resetSpine(c, SPINES[sp.look] ? sp.look : null);
+      const c = makeCreature(id, px, py, home, sp.size * vary);
       creatures.push(c);
       if (!leader) leader = c;
     }
     return leader;
   }
   return null;
+}
+
+function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
+  const sp = SPECIES[id];
+  const c = {
+    id, sp, x, y, vx: 0, vy: 0, angle: Math.random() * TAU,
+    size, spine: null, home,
+    state: 'wander', timer: 0, rest: 0, lunge: 0, wx: x, wy: y,
+    seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
+    mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
+    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, playT: 0,
+    side: SIDE[sp.look] || null, face: 1,
+  };
+  resetSpine(c, SPINES[sp.look] ? sp.look : null);
+  return c;
 }
 
 function populate() {
@@ -593,7 +635,7 @@ function maintainPopulation(dt) {
   const far = half * 1.7;
   creatures = creatures.filter((c) => c.state === 'chase' || dist(c, player) < far * 1.35);
   const counts = {};
-  for (const c of creatures) counts[c.id] = (counts[c.id] || 0) + 1;
+  for (const c of creatures) if (!c.penned) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
     let missing = n - (counts[id] || 0);
     while (missing > 0) {
@@ -645,6 +687,8 @@ window.addEventListener('keydown', (e) => {
     if (!e.repeat) activateDash();
   } else if (e.code === 'KeyE' || e.code === 'KeyV') {
     openEvolutions();
+  } else if (e.code === 'KeyB') {
+    if (!e.repeat) activateBark();
   }
 });
 
@@ -670,6 +714,7 @@ document.querySelectorAll('.dpad button').forEach((btn) => {
   btn.addEventListener('pointercancel', release);
 });
 dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateDash(); });
+barkBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateBark(); });
 
 // Garder le doigt (ou la souris) appuyé : on nage vers lui. Double-tape : sprint !
 function updatePointer(e) {
@@ -734,6 +779,7 @@ function activateDash() {
     }
     if (heard) sayOnce('noise', LINES.noise, 45, 2);
   }
+  if (CH.trust) startleHumans();
   for (let i = 0; i < 10; i++) bubbleAt(player.x - Math.cos(player.angle) * player.size, player.y - Math.sin(player.angle) * player.size, player.size * 0.25);
 }
 
@@ -745,6 +791,53 @@ function renderDashBtn() {
   shownCharge = k;
   dashBtn.style.setProperty('--charge', `${k * 100}%`);
   dashBtn.classList.toggle('charging', k < 1);
+}
+
+/* L'aboiement (le loup et l'humain) : les chasseurs proches s'enfuient… et les proies aussi */
+function activateBark() {
+  const p = player;
+  if (state !== 'playing' || isBlocked() || !p || p.dead || !stats.bark || p.barkT > 0) return;
+  p.barkT = BARK_RECHARGE;
+  p.mouth = 1;
+  sfx.bark();
+  shake = Math.max(shake, 0.1);
+  addFloater('WOUF !', p.x, p.y - p.size * 1.8, '#FFFFFF', 1.3);
+  const R = 480 + p.size * 2;
+  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.55, size: R, color: '#FFFFFF', ring: true });
+  let hunters = 0;
+  for (const c of creatures) {
+    const k = c.sp.kind;
+    if (k === 'ally' || k === 'food' || k === 'human' || dist(c, p) > R + c.size) continue;
+    c.scaredT = BARK_SCARE;
+    c.barkX = p.x;
+    c.barkY = p.y;
+    if (k === 'hunter') {
+      hunters++;
+      c.rest = Math.max(c.rest, 3);
+    }
+    if (!c.barked) {
+      // chaque animal ne compte qu'une fois pour les missions
+      c.barked = true;
+      game.barked = game.barked || {};
+      game.barked[c.id] = (game.barked[c.id] || 0) + 1;
+      if (c.sp.barkLine) addFloater(c.sp.barkLine, c.x, c.y - c.size * 1.6, '#FFE58A', 1);
+    }
+  }
+  if (hunters) {
+    const camp = nearestZone(p.x, p.y, 'camp');
+    if (camp && dist(camp, p) < 1400) sayOnce('barkHunter', LINES.barkHunter, 40, 2);
+  }
+  checkMissions();
+}
+
+let shownBark = -1;
+function renderBarkBtn() {
+  const k = !stats.bark ? -2 : Math.round((1 - (player.barkT || 0) / BARK_RECHARGE) * 20) / 20;
+  if (k === shownBark) return;
+  shownBark = k;
+  barkBtn.hidden = k === -2;
+  barkBtn.style.setProperty('--charge', `${Math.max(0, k) * 100}%`);
+  barkBtn.classList.toggle('charging', k < 1);
 }
 
 /* ---------- Ammo, le guide ---------- */
@@ -935,6 +1028,9 @@ function updatePlayer(dt) {
   // caché dans les algues (ou les fougères) ?
   const wasHidden = p.hidden;
   p.hidden = hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
+  // près du feu des humains qui te font confiance, aucun chasseur n'ose venir
+  p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
+  p.barkT = Math.max(0, (p.barkT || 0) - dt);
   if (p.hidden && !wasHidden && creatures.some((c) => c.state === 'chase')) sayOnce('hidden', LINES.hidden, 20, 2);
   // la bouche s'ouvre quand il y a quelque chose à croquer devant
   let wantMouth = 0;
@@ -1003,6 +1099,12 @@ function respawn() {
   p.invul = INVUL_TIME;
   p.size = targetSize();
   resetSpine(p, formLook());
+  // ta meute te retrouve
+  for (const c of creatures) {
+    if (c.sp.kind !== 'ally') continue;
+    c.x = p.x + rand(-1, 1) * (p.size * 3 + 80);
+    c.y = p.y + rand(-1, 1) * (p.size * 3 + 80);
+  }
   flash = { a: 0.6, color: '255,255,255' };
   for (let i = 0; i < 16; i++) bubbleAt(p.x, p.y, p.size * 0.5);
   sfx.pickup();
@@ -1021,6 +1123,7 @@ function updateCreatures(dt) {
   const maxChasers = W.maxChasers || MAX_CHASERS;
   const hearR = Math.hypot(viewW, viewH) * 0.9;     // on entend les grands pas jusque-là
   let chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'alert').length;
+  packNear = p.dead ? 0 : creatures.filter((c) => c.sp.kind === 'ally' && dist(c, p) < PACK_RANGE).length;
   for (const c of creatures) {
     const sp = c.sp;
     const dx = p.x - c.x, dy = p.y - c.y;
@@ -1036,7 +1139,22 @@ function updateCreatures(dt) {
     const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
     let mouthTarget = 0;
 
-    if (sp.kind === 'food' || sp.kind === 'stinger') {
+    if (c.scaredT > 0) {
+      // un aboiement : il file sans demander son reste
+      c.scaredT -= dt;
+      if (c.state === 'chase' || c.state === 'alert') chasers--;
+      if (c.state !== 'wander') c.state = 'wander';
+      const a = Math.atan2(c.y - c.barkY, c.x - c.barkX);
+      steer(c, Math.cos(a), Math.sin(a), sp.speed * 0.9, dt);
+      c.mood = 'scared';
+      c.fleeing = true;
+    } else if (sp.kind === 'ally') {
+      updateAlly(c, dt);
+    } else if (sp.kind === 'human') {
+      updateHuman(c, d, dx, dy, dt);
+    } else if (sp.kind === 'flock') {
+      updateFlock(c, d, dt);
+    } else if (sp.kind === 'food' || sp.kind === 'stinger') {
       // dérive tranquille
       c.angle += Math.sin(worldT * 0.5 + c.seed * 3) * dt * 0.6;
       steer(c, Math.cos(c.angle), Math.sin(c.angle), sp.speed, dt);
@@ -1054,10 +1172,10 @@ function updateCreatures(dt) {
       c.fleeing = false;
       c.mood = 'angry';
       if (c.state === 'wander') {
-        wander(c, sp.speed * 0.42, dt);
+        if (!prowl(c, dt)) wander(c, sp.speed * 0.42, dt);
         // il ne voit que devant lui (cône), sauf tout près ; mais il entend quand on court
         const inView = !sp.cone || Math.abs(angleDiff(c.angle, Math.atan2(dy, dx))) <= sp.cone / 2 || d < sp.sense * 0.3;
-        const sees = !p.hidden && p.invul <= 0 && reachable && c.rest <= 0 && ((d < sp.sense && inView) || c.noiseT > 0);
+        const sees = !p.hidden && !p.safe && p.invul <= 0 && reachable && c.rest <= 0 && ((d < sp.sense && inView) || c.noiseT > 0);
         if (sees && chasers < maxChasers) {
           spot(c);
           chasers += 1 + callPack(c);
@@ -1083,7 +1201,7 @@ function updateCreatures(dt) {
           mouthTarget = 0.5 + 0.5 * Math.abs(Math.sin(worldT * 9));
           if (Math.random() < dt * 2.5 && onScreen(c, 0)) sfx.snap();
         }
-        if (p.hidden || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
+        if (p.hidden || p.safe || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
       }
     } else if (sp.kind === 'rival') {
       // un animal de ton espèce : de temps en temps, il a faim et file vers une proie… la tienne !
@@ -1133,7 +1251,7 @@ function updateCreatures(dt) {
       if (c.state === 'chase' || c.state === 'alert' || c.state === 'charge') loseTrack(c, false);
       c.fleeing = false;
       c.mood = sp.kind === 'hunter' ? 'angry' : 'calm';
-      wander(c, sp.speed * (sp.kind === 'giant' ? 0.6 : 0.35), dt);
+      if (!prowl(c, dt)) wander(c, sp.speed * (sp.kind === 'giant' ? 0.6 : 0.35), dt);
     }
 
     // les chasseurs (et les rivaux) grignotent les petites bêtes qui passent devant leur gueule
@@ -1143,7 +1261,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * most || o.sp.kind === 'rival') continue;
+          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally'].includes(o.sp.kind)) continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
@@ -1154,6 +1272,10 @@ function updateCreatures(dt) {
               if (sp.kind === 'rival') {
                 addFloater('Volé !', c.x, c.y - c.size * 1.4, '#FFB36B', 1.1);
                 sayOnce('stolen', LINES.stolen, 40, 1);
+              }
+              if (o.sp.kind === 'flock') {
+                addFloater(`${o.sp.name} croqué !`, o.x, o.y - o.size * 1.4, '#FF8A8A', 1.1);
+                sayOnce('flockEaten', LINES.flockEaten, 30, 2);
               }
             }
             break;
@@ -1207,6 +1329,225 @@ function rivalTarget(c) {
     if (score < bd) { bd = score; best = o; }
   }
   return best;
+}
+
+/** Un loup de ta meute : il te suit, un peu derrière toi (chacun à sa place) */
+function updateAlly(c, dt) {
+  const p = player;
+  c.fleeing = false;
+  c.mood = 'happy';
+  c.size += (p.size * 0.92 - c.size) * (1 - Math.exp(-dt));
+  if (p.dead) { wander(c, c.sp.speed * 0.3, dt); return; }
+  const slot = c.seed * 2.4;
+  const back = p.size * 2.2 + 70;
+  const a = p.angle + Math.PI + Math.sin(slot) * 1.1;
+  const tx = p.x + Math.cos(a) * back, ty = p.y + Math.sin(a) * back;
+  const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+  if (d < 25) { steer(c, 0, 0, 0, dt); return; }
+  steer(c, dx / d, dy / d, maxSpeed() * (d > 500 ? 1.6 : d > 150 ? 1.1 : 0.6), dt);
+}
+
+/** Un humain, dans son camp. S'il ne te connaît pas encore, il te chasse quand tu
+    t'approches trop ; s'il te fait confiance, il te laisse venir, et les enfants
+    viennent jouer avec toi. */
+function updateHuman(c, d, dx, dy, dt) {
+  const p = player;
+  const trust = game.trust || 0;
+  c.fleeing = false;
+  c.playT = Math.max(0, c.playT - dt);
+  if (c.state === 'charge') {
+    c.mood = 'angry';
+    c.timer -= dt;
+    steer(c, dx / d, dy / d, c.sp.speed * 2.2, dt);
+    if (c.timer <= 0 || p.dead) { c.state = 'wander'; c.rest = 4; }
+    return;
+  }
+  if (c.state === 'alert') {
+    c.mood = 'angry';
+    steer(c, 0, 0, 0, dt);
+    c.angle = turnToward(c.angle, Math.atan2(dy, dx), 6 * dt);
+    c.timer -= dt;
+    if (c.timer <= 0) {
+      c.state = 'charge';
+      c.timer = 1.4;
+      addFloater(c.sp.hurt || 'Ouste !', c.x, c.y - c.size * 2.4, '#FFB36B', 1.2);
+    }
+    return;
+  }
+  if (c.state !== 'wander') c.state = 'wander';
+  c.mood = trust >= SHOO_TRUST ? 'happy' : 'calm';
+  // tu avances vers lui alors qu'il ne te connaît pas : « Ouste ! » (si tu restes immobile, il peut venir tout près)
+  const toward = -(p.vx * dx + p.vy * dy) / d;
+  if (!p.dead && p.invul <= 0 && c.rest <= 0 && trust < SHOO_TRUST && d < c.sp.sense && toward > maxSpeed() * 0.25) {
+    shoo(c);
+    return;
+  }
+  if (c.sp.play && !c.played && trust >= PLAY_TRUST && !p.dead && d < 650 && d > p.size + c.size) {
+    // un enfant vient jouer avec toi
+    steer(c, dx / d, dy / d, c.sp.speed * 0.8, dt);
+    c.mood = 'happy';
+    return;
+  }
+  wander(c, c.sp.speed * 0.3, dt);
+}
+
+/** « Ouste ! » : tu t'approches d'un humain qui ne te connaît pas encore */
+function shoo(c) {
+  c.state = 'alert';
+  c.timer = 0.5;
+  c.mark = '!';
+  c.markT = 1;
+  if (onScreen(c, 40)) {
+    sfx.alert();
+    sayOnce('shoo', LINES.shoo, 25, 2);
+  }
+}
+
+/** Un mouton (ou une chèvre) : il broute, reste près des autres et s'écarte devant toi.
+    Une fois dans l'enclos, il y reste. */
+function updateFlock(c, d, dt) {
+  const p = player;
+  c.fleeing = false;
+  c.mood = 'calm';
+  if (c.penned) { wander(c, c.sp.speed * 0.15, dt); return; }
+  let fx = 0, fy = 0;
+  const herdR = (c.sp.sense + p.size * 2) * stats.herd;
+  if (!p.dead && d < herdR) {
+    const k = (herdR - d) / herdR;
+    fx += (c.x - p.x) / d * (0.6 + k);
+    fy += (c.y - p.y) / d * (0.6 + k);
+  }
+  // les loups sauvages leur font peur, à eux aussi
+  for (const o of creatures) {
+    if (o.sp.kind !== 'hunter') continue;
+    const od = dist(o, c) || 1;
+    if (od < 380) { fx += (c.x - o.x) / od * 1.2; fy += (c.y - o.y) / od * 1.2; }
+  }
+  if (fx || fy) {
+    // ils restent groupés : un peu vers le milieu du troupeau
+    let cx = 0, cy = 0, n = 0;
+    for (const o of creatures) {
+      if (o === c || o.id !== c.id || o.penned || dist(o, c) > 350) continue;
+      cx += o.x;
+      cy += o.y;
+      n++;
+    }
+    if (n) {
+      const gx = cx / n - c.x, gy = cy / n - c.y, gd = Math.hypot(gx, gy) || 1;
+      fx += gx / gd * 0.35;
+      fy += gy / gd * 0.35;
+    }
+    const f = Math.hypot(fx, fy) || 1;
+    steer(c, fx / f, fy / f, c.sp.speed * Math.min(1, 0.55 + f * 0.4), dt);
+    c.mood = 'scared';
+  } else {
+    wander(c, c.sp.speed * 0.15, dt);
+  }
+  // le voilà dans l'enclos !
+  for (const z of zones) {
+    if (z.zone !== 'pen' || dist(c, z) > z.r * 0.7) continue;
+    c.penned = true;
+    c.home = z;
+    game.penned = game.penned || {};
+    game.penned[c.id] = (game.penned[c.id] || 0) + 1;
+    sfx.pickup();
+    addFloater('Dans l’enclos !', c.x, c.y - c.size * 1.6, '#7CF0A0', 1.1);
+    sayOnce('penned', LINES.penned, 60, 1);
+    checkMissions();
+    break;
+  }
+}
+
+/** Un loup sauvage rôde autour des moutons qui ne sont pas à l'abri… */
+function prowl(c, dt) {
+  if (!c.sp.eatsFlock) return false;
+  let best = null, bd = c.sp.sense * 1.5;
+  for (const o of creatures) {
+    if (o.sp.kind !== 'flock' || o.penned) continue;
+    const d = dist(o, c);
+    if (d < bd) { bd = d; best = o; }
+  }
+  if (!best) return false;
+  const dx = best.x - c.x, dy = best.y - c.y, d = Math.hypot(dx, dy) || 1;
+  steer(c, dx / d, dy / d, c.sp.speed * 0.6, dt);
+  c.mood = 'angry';
+  return true;
+}
+
+/* ---------- La confiance des humains (le loup et l'humain) ----------
+   Elle monte quand tu restes près d'eux sans foncer, et quand tu manges ce
+   qu'ils te lancent ; elle baisse quand tu fonces près d'eux (ils ont peur). */
+function gainTrust(k) {
+  const before = game.trust || 0;
+  game.trust = clamp(before + k, 0, 1);
+  for (const [lim, line] of [[SHOO_TRUST, 'trustShoo'], [SAFE_TRUST, 'trustSafe'], [1, 'trustFull']]) {
+    if (before < lim && game.trust >= lim) say(LINES[line], 2, 6000);
+  }
+  if (Math.floor(before * 100) !== Math.floor(game.trust * 100)) checkMissions();
+}
+
+function updateTrust(dt) {
+  const p = player;
+  if (!CH.trust || p.dead) return;
+  let near = null, nd = Infinity;
+  for (const c of creatures) {
+    if (c.sp.kind !== 'human' || c.state !== 'wander') continue;
+    const d = dist(c, p);
+    if (d < nd) { nd = d; near = c; }
+  }
+  if (!near || nd > 460 || p.dash > 0) return;
+  const trust = game.trust || 0;
+  gainTrust(dt * 0.016 * stats.trust * (nd < 300 ? 1.5 : 1));
+  sayOnce('trustHint', LINES.trustHint, 120, 1);
+  heartFxT -= dt;
+  if (heartFxT <= 0) {
+    heartFxT = 1.4;
+    addFloater('❤', near.x, near.y - near.size * 2.4, '#FF8FA8', 0.8);
+  }
+  // de temps en temps, il te lance quelque chose à manger
+  if (trust >= 0.15 && CH.treat) {
+    boneT -= dt * stats.treats;
+    if (boneT <= 0) {
+      boneT = rand(6, 9);
+      const k = rand(0.35, 0.6);
+      creatures.push(makeCreature(CH.treat, near.x + (p.x - near.x) * k + rand(-40, 40), near.y + (p.y - near.y) * k + rand(-40, 40)));
+      addFloater(pick(LINES.treat), near.x, near.y - near.size * 2.4, '#FFE58A', 1);
+      sfx.pickup();
+    }
+  }
+}
+
+/** Tu as foncé près des humains : ils ont eu peur */
+function startleHumans() {
+  let scared = false;
+  for (const c of creatures) {
+    if (c.sp.kind !== 'human' || dist(c, player) > 460) continue;
+    scared = true;
+    if ((game.trust || 0) < SHOO_TRUST && c.state === 'wander') shoo(c);
+    else { c.mark = '!'; c.markT = 0.8; }
+  }
+  if (!scared) return;
+  gainTrust(-0.08);
+  addFloater('Ils ont eu peur !', player.x, player.y - player.size * 2, '#FFB36B', 1);
+  sayOnce('startle', LINES.startle, 20, 2);
+}
+
+/** Un enfant joue avec toi (une seule fois chacun) */
+function playWith(c) {
+  if ((game.trust || 0) < PLAY_TRUST) {
+    c.playT = 3;
+    sayOnce('childShy', LINES.childShy, 30, 1);
+    return;
+  }
+  c.played = true;
+  c.playT = 1e9;
+  game.played = game.played || {};
+  game.played[c.id] = (game.played[c.id] || 0) + 1;
+  sfx.phew();
+  burst(c.x, c.y - c.size, 12, ['#FF8FA8', '#FFFFFF', '#FFD24A'], c.size * 4, Math.max(3, c.size * 0.12));
+  addFloater('Ouaf ! ❤', player.x, player.y - player.size * 2, '#FF8FA8', 1.3);
+  sayOnce('played', LINES.played, 30, 1);
+  checkMissions();
 }
 
 /** Un chasseur te repère : « ! », et il rugit s'il est gros */
@@ -1331,9 +1672,11 @@ function updateContacts() {
       stung(c);
       continue;
     }
-    // 5. on se cogne (sauf contre ce qui vole, très haut)
+    // 5. un enfant qui joue avec toi
+    if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
+    // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && c.sp.kind !== 'giant') {
+    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && c.sp.kind !== 'giant' && c.sp.kind !== 'ally') {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
@@ -1373,6 +1716,12 @@ function playerEats(c) {
   addFloater(`+${sp.adn} 🧬`, c.x, c.y - c.size, '#FFE58A', 0.8 + big * 0.5);
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
+  if (sp.trust) gainTrust(sp.trust);
+  if (c.size > p.size * stats.ratio) {
+    // trop gros pour toi tout seul : c'est ta meute qui t'a aidé
+    addFloater('Merci la meute !', p.x, p.y - p.size * 2.2, '#9EE7FF', 1.1);
+    sayOnce('packHelp', LINES.packHelp, 90, 2);
+  }
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
     addFloater('CROC !', c.x, c.y - c.size * 1.8, '#FF6F91', 1.4);
@@ -1463,6 +1812,7 @@ function loseLife(by, cause) {
 function hurtsByContact(c, d) {
   const p = player;
   const k = c.sp.kind;
+  if (k === 'human') return c.state === 'charge' && d < c.size * 0.9 + p.size * 0.6;
   if (k === 'giant') {
     // sous les pattes du géant (le milieu de son corps)
     const mid = c.spine && !c.side ? c.spine[Math.floor(c.spine.length / 2)] : c;
@@ -1497,7 +1847,8 @@ function stung(c) {
   shake = kind === 'giant' ? 0.6 : 0.35;
   flash = { a: 0.35, color: kind === 'stinger' ? '255,120,255' : '255,160,90' };
   addFloater(c.sp.hurt || 'Aïe !', p.x, p.y - p.size * 1.6, kind === 'stinger' ? '#F6A6FF' : '#FFB36B', 1.3);
-  sayOnce('hurt-' + kind, kind === 'giant' ? LINES.crushed : kind === 'defender' ? LINES.horned : LINES.stung, 25, 2);
+  sayOnce('hurt-' + kind, kind === 'giant' ? LINES.crushed : kind === 'defender' ? LINES.horned : kind === 'human' ? LINES.shooed : LINES.stung, 25, 2);
+  if (kind === 'human') gainTrust(-0.04);
   buzz(60);
 }
 
@@ -1507,7 +1858,21 @@ function missionInfo(m) {
     const sp = SPECIES[m.species];
     const cur = Math.min(m.n, game.eaten[m.species] || 0);
     const name = m.n > 1 ? sp.plural : sp.proper ? sp.name : sp.name.toLowerCase();
-    return { text: `Croque ${m.n} ${name}`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp), revenge: m.revenge };
+    return { text: m.text || `Croque ${m.n} ${name}`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp), revenge: m.revenge };
+  }
+  if (m.type === 'trust') {
+    // la confiance des humains (en %)
+    const cur = Math.floor((game.trust || 0) * 100 + 1e-6);
+    return { text: m.text || `Confiance des humains : ${m.n} %`, cur: Math.min(cur, m.n), max: m.n, done: cur >= m.n, img: speciesThumb(m.species, SPECIES[m.species]), pct: true };
+  }
+  if (m.type === 'bark' || m.type === 'herd' || m.type === 'play') {
+    // aboyer sur, ramener dans l'enclos, jouer avec…
+    const sp = SPECIES[m.species];
+    const got = { bark: game.barked, herd: game.penned, play: game.played }[m.type] || {};
+    const cur = Math.min(m.n, got[m.species] || 0);
+    const name = m.n > 1 ? sp.plural : sp.name.toLowerCase();
+    const text = { bark: `Fais fuir ${m.n} ${name}`, herd: `Ramène ${m.n} ${name} dans l’enclos`, play: `Joue avec ${m.n} ${name}` }[m.type];
+    return { text: m.text || text, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp) };
   }
   if (m.type === 'evolve') {
     const e = EVOS[m.part];
@@ -1620,8 +1985,9 @@ function chapterDecor() {
 function setupChapter(keepPos) {
   chapterDecor();
   applySkin();
-  $('waterIcon').textContent = meter().icon;
-  waterItem.title = meter().title;
+  $('waterIcon').textContent = CH.trust ? '🤝' : meter().icon;
+  waterItem.title = CH.trust ? LINES.trustTitle : meter().title;
+  shownBark = -1;
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   const x = keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
   const y = keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
@@ -1751,6 +2117,7 @@ function update(dt) {
   updatePlayer(dt);
   updateCreatures(dt);
   updateContacts();
+  updateTrust(dt);
   maintainPopulation(dt);
   updateDrops(dt);
   updateFx(dt);
@@ -1981,7 +2348,14 @@ function drawFx() {
   for (const p of particles) {
     const k = p.life / p.max;
     ctx.globalAlpha = 1 - k;
-    if (p.bubble) {
+    if (p.ring) {
+      // l'onde d'un aboiement
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 6 / zoom;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (0.2 + k * 0.8), 0, TAU);
+      ctx.stroke();
+    } else if (p.bubble) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.lineWidth = Math.max(0.6, p.size * 0.15);
       ctx.beginPath();
@@ -2088,16 +2462,50 @@ function drawDanger() {
   ctx.fillRect(0, 0, cssW, cssH);
 }
 
-/** Flèche au bord de l'écran vers la plus proche proie d'une mission */
-function drawTargetArrow() {
-  if (player.dead) return;
-  const wanted = CH.missions.filter((m) => m.type === 'eat' && !missionInfo(m).done).map((m) => m.species);
+/** La créature la plus proche qui convient */
+function nearestCreature(ok) {
   let best = null, bd = Infinity;
   for (const c of creatures) {
-    if (!wanted.includes(c.id) || !canEat(c)) continue;
+    if (!ok(c)) continue;
     const d = dist(c, player);
     if (d < bd) { bd = d; best = c; }
   }
+  return best;
+}
+
+/** Où aller pour la prochaine mission : une proie, un troupeau, l'enclos, les humains… */
+function missionTarget() {
+  const todo = CH.missions.filter((m) => !missionInfo(m).done);
+  const eat = todo.filter((m) => m.type === 'eat').map((m) => m.species);
+  const at = (c) => c && { x: c.x, y: c.y, size: c.size, img: speciesThumb(c.id, c.sp) };
+  const prey = nearestCreature((c) => eat.includes(c.id) && canEat(c));
+  if (prey) return at(prey);
+  for (const m of todo) {
+    if (m.type === 'bark' && stats.bark) {
+      const t = nearestCreature((c) => c.id === m.species && !c.barked);
+      if (t) return at(t);
+    }
+    if (m.type === 'herd') {
+      // un mouton en vue : la flèche montre l'enclos
+      const t = nearestCreature((c) => c.id === m.species && !c.penned);
+      const pen = t && nearestZone(t.x, t.y, 'pen');
+      if (t && pen && onScreen(t, -20)) return { x: pen.x, y: pen.y, size: pen.r * 0.5, icon: '🏡' };
+      if (t) return at(t);
+    }
+    if (m.type === 'trust' || m.type === 'play' || (m.type === 'eat' && m.species === CH.treat)) {
+      const h = nearestCreature((c) => c.sp.kind === 'human' && (m.type !== 'play' || (c.id === m.species && !c.played)));
+      if (h) return at(h);
+      const camp = nearestZone(player.x, player.y, 'camp');
+      if (camp) return { x: camp.x, y: camp.y, size: camp.r * 0.5, icon: '🔥' };
+    }
+  }
+  return null;
+}
+
+/** Flèche au bord de l'écran vers la prochaine mission (une proie, l'enclos, le camp…) */
+function drawTargetArrow() {
+  if (player.dead) return;
+  const best = missionTarget();
   if (!best || onScreen(best, -20)) return;
   const s = worldToScreen(best.x, best.y);
   const cx = cssW / 2, cy = cssH / 2;
@@ -2125,8 +2533,15 @@ function drawTargetArrow() {
   ctx.closePath();
   ctx.fill();
   ctx.rotate(-a);
-  const img = thumbImg(speciesThumb(best.id, best.sp));
-  if (img.complete) ctx.drawImage(img, -19, -19, 38, 38);
+  if (best.img) {
+    const img = thumbImg(best.img);
+    if (img.complete) ctx.drawImage(img, -19, -19, 38, 38);
+  } else {
+    ctx.font = "22px 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(best.icon, 0, 1);
+  }
   ctx.restore();
 }
 
@@ -2155,7 +2570,8 @@ function drawMinimap() {
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
   for (const z of zones) {
     const m = toM(z.x, z.y);
-    mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : z.zone === 'air' ? 'rgba(225, 250, 255, 0.7)' : 'rgba(140, 100, 60, 0.6)';
+    mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : z.zone === 'air' ? 'rgba(225, 250, 255, 0.7)'
+      : z.zone === 'camp' ? 'rgba(255, 150, 60, 0.85)' : z.zone === 'pen' ? 'rgba(240, 215, 120, 0.85)' : 'rgba(140, 100, 60, 0.6)';
     mctx.beginPath();
     mctx.arc(m.x, m.y, Math.max(2, z.r * k * 0.85), 0, TAU);
     mctx.fill();
@@ -2183,6 +2599,12 @@ function drawMinimap() {
       mctx.fillStyle = '#FFD24A';
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);
+      mctx.fill();
+    } else if (c.sp.kind === 'human' || c.sp.kind === 'ally' || (c.sp.kind === 'flock' && !c.penned)) {
+      // les humains (orange), ta meute (bleu), les moutons à rassembler (blanc)
+      mctx.fillStyle = c.sp.kind === 'human' ? '#FFB36B' : c.sp.kind === 'ally' ? '#9EE7FF' : '#FFFFFF';
+      mctx.beginPath();
+      mctx.arc(m.x, m.y, 2.5, 0, TAU);
       mctx.fill();
     }
   }
@@ -2228,7 +2650,7 @@ function renderHud() {
     era,
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
-    water: drying() ? Math.round(player.wet * 50) : -1,
+    water: drying() ? Math.round(player.wet * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
   };
   if (v.adn !== shown.adn) adnEl.textContent = v.adn;
   if (v.size !== shown.size) sizeBar.style.width = `${v.size}%`;
@@ -2241,7 +2663,8 @@ function renderHud() {
   if (v.water !== shown.water) {
     waterItem.hidden = v.water < 0;
     waterBar.style.width = `${Math.max(0, v.water) * 2}%`;
-    waterItem.classList.toggle('low', v.water >= 0 && v.water < 15);
+    waterItem.classList.toggle('low', drying() && v.water >= 0 && v.water < 15);
+    waterItem.classList.toggle('trust', !!CH.trust);
   }
   shown = v;
 }
@@ -2300,7 +2723,10 @@ function loop(now) {
   updateCamera(dt);
   draw();
   renderHud();
-  if (player) renderDashBtn();
+  if (player) {
+    renderDashBtn();
+    renderBarkBtn();
+  }
   updateAmmo(now);
 }
 
@@ -2496,7 +2922,7 @@ function renderMap() {
   let lines = '';
   for (const n of all) {
     for (const p of n.parents) {
-      const a = nodes.get(p.id), mx = (X(a) + X(n)) / 2;
+      const a = nodes.get(p.id), mx = X(a) === X(n) ? X(a) + 100 / cols * 0.4 : (X(a) + X(n)) / 2;
       const done = progress.done[p.id];
       const cls = done && done.includes(p.choice.id) ? 'taken' : done ? 'open' : '';
       lines += `<path class="${cls}" d="M${X(a)} ${Y(a)} C${mx} ${Y(a)} ${mx} ${Y(n)} ${X(n)} ${Y(n)}"/>`;
@@ -2600,6 +3026,12 @@ function playIntro() {
       sfx,
       drawHero: (c, x, y, r, angle, t, walk, mood) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, 'musaraigne', {}, t),
     });
+  } else if (LV.intro === 'loup') {
+    intro = createWolfIntro({
+      sfx,
+      drawHero: (c, x, y, r, t, walk, mood) => drawPlayer(c, { x, y, angle: 0, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, 'louveteau', {}, t),
+      drawAnimal: (c, look, color, x, y, r, face, t, walk, mouth) => drawCreature(c, { sp: { look, color, belly: '#E8E4DA' }, x, y, angle: face > 0 ? 0 : Math.PI, face, size: r, seed: x % 7, mood: 'calm', mouth, blink: 0, walk, spine: null }, t),
+    });
   } else if (LV.intro === 'terre') {
     intro = createLandIntro({
       sfx,
@@ -2638,7 +3070,7 @@ function startEnding() {
   endCues.clear();
   const crowd = LV.ending.crowd || [];
   const scene = LV.ending.scene;
-  endFx = Array.from({ length: scene === 'meteorite' || scene === 'feu' ? 9 : 26 }, (_, i) => ({
+  endFx = Array.from({ length: scene === 'meteorite' || scene === 'feu' || scene === 'chien' ? 9 : 26 }, (_, i) => ({
     a: (i / 26) * TAU, d: rand(0.6, 1.3), s: rand(0.5, 1), sp: pick(crowd), seed: Math.random() * 10,
     x: rand(0.08, 0.92), y: rand(0.3, 0.92), ang: rand(0, TAU),
   }));
@@ -2677,6 +3109,8 @@ function startEnding() {
   if (scene === 'meteorite' || scene === 'feu') {
     sfx.roar(1.2);
     later(() => sfx.victory(), 600);
+  } else if (scene === 'chien') {
+    sfx.howl();
   } else {
     sfx.victory();
     confetti(120);
@@ -2721,6 +3155,7 @@ function goToLevel(i) {
   endOverlay.hidden = true;
   freeCanvas(endCanvas);
   game.adn = 0;                      // un nouveau niveau : on repart de zéro
+  game.trust = 0;
   startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
@@ -2749,6 +3184,7 @@ $('endReplay').addEventListener('click', () => {
 function drawEnding(dt) {
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
+  if (LV.ending.scene === 'chien') { drawDogEnding(dt); return; }
   endT += dt;
   if (endT > 2.4 && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
   const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
@@ -3291,6 +3727,122 @@ function drawFireEnding(dt) {
   if (cap && t < FIRE_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
 }
 
+/* ---------- La fin du niveau 4 : le chien, meilleur ami de l'humain ----------
+   0 → 8,8 s    la nuit, au village : le feu, les humains… et toi, qui viens te
+                coucher près d'un enfant
+   8,8 → 14 s   le défilé, en plein jour : le loup, puis les chiens d'aujourd'hui
+   14 s →       le texte et le chemin suivant */
+const DOG_TEXT_AT = 14;
+const PARADE_AT = 8.8;
+const VILLAGE = { type: 'village', x: 0, y: 0, r: 0, seed: 1, v: 1 };
+/* Les humains autour du feu : [x, y, look, couleur, tourné vers la gauche] */
+const FOLK = [[0.68, 0.5, 'chasseur', '#6E5238', true], [0.62, 0.74, 'humain', '#8A6A48', true], [0.36, 0.42, 'humain', '#9A7A52', false]];
+
+function drawDogEnding(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('wouf', 4.5, () => sfx.bark());
+  cueEnd('parade', PARADE_AT + 0.3, () => { sfx.victory(); confetti(80); });
+  if (t > DOG_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  const c = ectx;
+  const m = Math.min(w, h);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (t < PARADE_AT) {
+    // le village, la nuit, autour du feu
+    const T = 420;
+    for (let x = 0; x < w + T; x += T) for (let y = 0; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
+    Object.assign(VILLAGE, { x: w * 0.5, y: h * 0.55, r: m * 0.42 });
+    drawDecor(c, VILLAGE, t);
+    c.fillStyle = 'rgba(8, 16, 45, 0.5)';
+    c.fillRect(0, 0, w, h);
+    campFire(c, VILLAGE.x, VILLAGE.y, VILLAGE.r * 0.07, t);
+    const r = m * 0.075;
+    for (const [fx, fy, look, color, left] of FOLK) {
+      drawCreature(c, { sp: { look, color }, x: w * fx, y: h * fy, angle: left ? Math.PI : 0, face: left ? -1 : 1, size: r * 0.9, seed: fx * 10, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: 0, spine: null }, t);
+    }
+    // toi : tu arrives… et tu t'arrêtes près de l'enfant
+    const k = clamp(t / 3.2, 0, 1);
+    const px = w * (-0.1 + 0.46 * (1 - (1 - k) ** 2)), py = h * 0.68;
+    if (t > 1.6) {
+      const kk = clamp((t - 1.6) / 2.2, 0, 1);
+      drawCreature(c, { sp: { look: 'enfant', color: '#B08A5A' }, x: w * (0.62 - 0.1 * kk), y: py + r * 0.05, angle: Math.PI, face: -1, size: r * 0.7, seed: 3, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: kk < 1 ? t * 2 : 0, spine: null }, t);
+    }
+    drawPlayer(c, { x: px, y: py, angle: 0, size: r, mouth: t > 4.4 && t < 4.9 ? 0.8 : 0, mood: 'happy', blink: 0, speed: 0.3, walk: k < 1 ? t * 3 : 0, spine: null }, CH.form, game.owned, t);
+    // des cœurs qui montent
+    if (t > 5) {
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = `${Math.round(r * 0.5)}px 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`;
+      for (let i = 0; i < 5; i++) {
+        const u = ((t - 5) * 0.45 + i / 5) % 1;
+        c.globalAlpha = Math.min(1, (t - 5) * 2) * (1 - u);
+        c.fillText('❤', px + r * 1.2 + Math.sin(i * 2.1 + t * 2) * r * 0.5, py - r * 1.4 - u * r * 2.4);
+      }
+      c.globalAlpha = 1;
+    }
+    const v = c.createRadialGradient(w / 2, h * 0.55, m * 0.3, w / 2, h * 0.55, Math.hypot(w, h) * 0.62);
+    v.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    v.addColorStop(1, 'rgba(5, 8, 25, 0.6)');
+    c.fillStyle = v;
+    c.fillRect(0, 0, w, h);
+    if (t > PARADE_AT - 0.6) {
+      c.fillStyle = `rgba(255, 255, 255, ${(t - (PARADE_AT - 0.6)) / 0.6})`;
+      c.fillRect(0, 0, w, h);
+    }
+  } else {
+    // le défilé : en tête, le loup… puis tous les chiens d'aujourd'hui
+    const u = t - PARADE_AT;
+    const g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#BFE6F5');
+    g.addColorStop(0.4, '#DDF2D0');
+    g.addColorStop(1, '#8CC46A');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = 'rgba(205, 175, 115, 0.6)';
+    c.fillRect(0, h * 0.62, w, h * 0.14);
+    const n = BREED_PARADE.length;
+    const base = Math.min(m * 0.07, w / (n * 2.4));
+    const gy = h * 0.72;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    BREED_PARADE.forEach((d, i) => {
+      const k = clamp((u - i * 0.28) / 1.3, 0, 1);
+      if (k <= 0) return;
+      const e = 1 - (1 - k) ** 3;
+      const size = base * d.k;
+      const x = w * (0.07 + 0.86 * i / (n - 1)) + (1 - e) * w * 1.1;
+      drawCreature(c, { sp: { look: d.look, color: d.color, belly: d.belly }, x, y: gy - d.ground * size, angle: Math.PI, face: -1, size, seed: i, mood: 'happy', mouth: 0, blink: 0, walk: k < 1 ? u * 4 : 0, spine: null }, t);
+      c.globalAlpha = k;
+      c.font = `800 ${Math.max(10, Math.round(base * 0.36))}px 'Baloo 2', sans-serif`;
+      c.lineWidth = 3;
+      c.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      const ly = gy + base * (i % 2 ? 0.75 : 0.4);
+      c.strokeText(d.name, x, ly);
+      c.fillStyle = i === 0 ? '#5E3A12' : '#2E2A4D';
+      c.fillText(d.name, x, ly);
+      c.globalAlpha = 1;
+    });
+    if (u < 0.6) {
+      c.fillStyle = `rgba(255, 255, 255, ${1 - u / 0.6})`;
+      c.fillRect(0, 0, w, h);
+    }
+    // le ciel s'assombrit sous le texte de la fin (sinon, on ne le lit pas)
+    const dim = clamp((t - DOG_TEXT_AT + 0.6) / 0.8, 0, 1);
+    if (dim > 0) {
+      const v = c.createLinearGradient(0, 0, 0, h * 0.62);
+      v.addColorStop(0, `rgba(12, 32, 52, ${0.78 * dim})`);
+      v.addColorStop(0.8, `rgba(12, 32, 52, ${0.5 * dim})`);
+      v.addColorStop(1, 'rgba(12, 32, 52, 0)');
+      c.fillStyle = v;
+      c.fillRect(0, 0, w, h * 0.62);
+    }
+  }
+  const cap = LV.ending.captions.find(([a0, b0]) => t >= a0 && t < b0);
+  if (cap && t < DOG_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
 /** Ceux qui survivent : un petit oiseau, un petit mammifère, un crocodile (les trois chemins) */
 function drawSurvivors(c, w, h, m, t, pond) {
   const k = clamp((t - 11.8) / 1.5, 0, 1);
@@ -3579,8 +4131,10 @@ function botDir() {
       return { x: 0, y: 0 };
     }
   }
+  // (le loup et l'humain) un chasseur sur qui il faut aboyer : on ne le fuit pas tant qu'on peut aboyer
+  const barkAt = stats.bark && p.barkT <= 0 ? CH.missions.filter((m) => m.type === 'bark' && !missionInfo(m).done).map((m) => m.species) : [];
   for (const c of creatures) {
-    if (!isThreat(c)) continue;
+    if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked)) continue;
     // un poisson géant ne peut rien contre nous si on reste au bord de sa mare
     if (c.home && dist(p, c.home) > c.home.r * (c.sp.reach || 0.85) + p.size + 150) continue;
     if (!botCareful && c.state !== 'chase') continue;
@@ -3591,6 +4145,8 @@ function botDir() {
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
   if (threat > 0.15) {
+    // (le loup et l'humain) un aboiement fait fuir les chasseurs
+    if (stats.bark && p.barkT <= 0 && creatures.some((c) => c.sp.kind === 'hunter' && dist(c, p) < 420 + p.size * 2)) activateBark();
     if (threat > 0.55 && p.charge >= 1) activateDash();
     const d = Math.hypot(fx, fy) || 1;
     return { x: fx / d, y: fy / d };
@@ -3602,6 +4158,11 @@ function botDir() {
     const d = dist(c, p) * (wanted.includes(c.id) ? 0.12 : 1);
     if (d < bd) { bd = d; best = c; }
   }
+  // (le loup et l'humain) les missions sans proie : les humains, l'aboiement, les moutons
+  if (!best || !wanted.includes(best.id)) {
+    const job = botJob();
+    if (job) return job;
+  }
   if (!best) {
     // rien à manger en vue : on explore (en restant près de l'eau si la peau sèche)
     const a = worldT * 0.3 + p.walk * 0.01;
@@ -3611,6 +4172,42 @@ function botDir() {
   const mo = mouthPoint(p);
   const dx = best.x - mo.x, dy = best.y - mo.y, d = Math.hypot(dx, dy) || 1;
   return { x: dx / d, y: dy / d };
+}
+
+/** (?debug) Ce que fait le pilote automatique pour les missions sans proie */
+function botJob() {
+  const p = player;
+  const go = (x, y, stop = 0) => {
+    const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1;
+    return d <= stop ? { x: 0, y: 0 } : { x: dx / d, y: dy / d };
+  };
+  for (const m of CH.missions) {
+    if (missionInfo(m).done) continue;
+    if (m.type === 'bark' && stats.bark) {
+      const t = nearestCreature((c) => c.id === m.species && !c.barked);
+      if (t) {
+        if (dist(t, p) < 420 + p.size * 2) activateBark();
+        return go(t.x, t.y);
+      }
+    }
+    if (m.type === 'herd') {
+      // se placer derrière le mouton, du côté opposé à l'enclos
+      const t = nearestCreature((c) => c.id === m.species && !c.penned);
+      const pen = t && nearestZone(t.x, t.y, 'pen');
+      if (t && pen) {
+        const dx = t.x - pen.x, dy = t.y - pen.y, d = Math.hypot(dx, dy) || 1;
+        return go(t.x + dx / d * (t.size + p.size + 40), t.y + dy / d * (t.size + p.size + 40));
+      }
+    }
+    if (m.type === 'trust' || m.type === 'play' || (m.type === 'eat' && m.species === CH.treat)) {
+      const h = nearestCreature((c) => c.sp.kind === 'human' && (m.type !== 'play' || (c.id === m.species && !c.played)));
+      const trust = game.trust || 0;
+      if (h) return go(h.x, h.y, m.type === 'play' && trust >= PLAY_TRUST ? 0 : trust < SHOO_TRUST ? h.sp.sense + 50 : 140);
+      const camp = nearestZone(p.x, p.y, 'camp');
+      if (camp) return go(camp.x, camp.y);
+    }
+  }
+  return null;
 }
 
 function simulate(seconds, careful = true, log = []) {
@@ -3665,6 +4262,7 @@ async function init() {
     // pour tester : ?debug, puis __evo.chapter(3), __evo.adn(500)…
     window.__evo = {
       get game() { return game; }, get player() { return player; }, get creatures() { return creatures; }, get state() { return state; },
+      get zones() { return zones; },
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },
       adn(n) { game.adn += n; },
       grow() { game.earned = CH.growth; },

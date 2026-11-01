@@ -136,6 +136,18 @@ export const sfx = {
     [48, 55, 60, 64, 67].forEach((n) => tone(NOTE(n), 1.3, 2, { vol: 0.05 }));
   }),
   click: () => play(() => tone(NOTE(76), 0, 0.06, { type: 'triangle', vol: 0.07 })),
+  /* un aboiement : « wouf wouf ! » */
+  bark: () => play(() => {
+    for (const st of [0, 0.2]) {
+      noise(st, 0.13, { vol: 0.28, freq: 650, to: 320, q: 1.2 });
+      tone(320, st, 0.14, { type: 'sawtooth', vol: 0.08, to: 170 });
+    }
+  }),
+  /* le hurlement des loups, au loin */
+  howl: () => play(() => {
+    tone(NOTE(60), 0, 2.4, { type: 'sine', vol: 0.12, to: NOTE(69) });
+    tone(NOTE(67), 0.9, 1.8, { type: 'triangle', vol: 0.05, to: NOTE(62) });
+  }),
 
   /* ---- sur la terre ferme ---- */
   /* boum… un grand pas qui fait trembler le sol (k = 0 loin … 1 tout près) */
