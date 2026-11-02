@@ -17,7 +17,8 @@
 //      créatures ; zone 'water' / 'mud' / 'camp' / 'pen' = mare / boue /
 //      camp des humains / enclos des moutons ; atStart = le premier
 //      est posé au point de départ). ground: 'land' = sur la terre ferme.
-//      maxChasers = chasseurs en même temps ; speed = vitesse du joueur (×) ;
+//      noGrow = manger ne fait pas grandir ("size" fixe) ; mudSpeed = ce que
+//      laisse la boue ou la neige ; maxChasers = chasseurs en même temps ; speed = vitesse du joueur (×) ;
 //      noise = distance à laquelle on entend le joueur foncer ; penalty = ce qu'on perd en se faisant
 //      manger (part de l'ADN, part de la croissance) ; meter = la jauge qui
 //      baisse (voir monstres-marins.js : l'air, rempli dans les zones 'air'
@@ -31,7 +32,8 @@
 //        defender charge quand on s'approche trop (tricératops…)
 //        giant   écrase quand on passe dessous (brachiosaure)
 //        rival   un animal de ton espèce : de temps en temps, il te vole tes proies
-//        ally    un loup de ta meute : il te suit ; en meute, tu croques plus gros
+//        ally    un loup de ta meute : il te suit et attaque avec toi
+//        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches
 //        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te
 //                fait pas confiance (voir trust plus bas) ; on ne le mange jamais
 //        flock   un mouton : il s'écarte devant toi ; on le ramène dans l'enclos
@@ -43,7 +45,8 @@
 //      joue avec toi), near 'pen' (le troupeau broute près des enclos),
 //      eatsFlock (un loup sauvage qui croque les moutons), noEat (on ne peut
 //      pas le manger), trust (ce que la confiance gagne quand on le mange),
-//      barkLine (texte quand on aboie dessus).
+//      barkLine (texte quand on aboie dessus), hp + need (une barre de vie : il
+//      faut "need" loups pour l'attaquer), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
 //      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…),
@@ -53,7 +56,7 @@
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
 //      dry = on sèche moins vite, cones = voir les regards, radar ; et pour le
-//      loup : pack = l'aide de chaque loup de la meute, trust = la confiance
+//      loup : howl = les loups seuls viennent vers toi, trust = la confiance
 //      monte plus vite, bark = on peut aboyer (touche B), treats = les humains
 //      lancent plus souvent à manger, herd = on rassemble les moutons de loin).
 //   5. "chapters" : époque ("ago", en millions d'années), forme du joueur
@@ -62,10 +65,12 @@
 //      miacis, proailurus, machairodus, homotherium, louveteau, loup, chien,
 //      berger) et ses couleurs ("skin" : body, belly, dark, stripe), tailles
 //      ("size"), ADN pour grandir ("growth"), espèces présentes, évolutions
-//      débloquées et missions (eat / evolve / grow ; pour le loup : trust =
+//      débloquées et missions (eat / evolve / grow ; pour le loup : pack =
+//      rassembler une meute, trust =
 //      la confiance des humains en %, bark = faire fuir en aboyant, herd =
 //      ramener dans l'enclos, play = jouer avec ; "text" change la phrase).
-//      trust: true = la jauge 🤝 de confiance des humains, treat = ce qu'ils
+//      pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
+//      confiance des humains, treat = ce qu'ils
 //      te lancent à manger. Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).
 //      "ago" peut descendre sous 1 (0,04 = il y a 40 000 ans). Le décor

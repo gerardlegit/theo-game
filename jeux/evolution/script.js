@@ -69,7 +69,9 @@ const GIVE_UP_REST = 3;
 const FULL_REST = 6;               // après avoir mangé le joueur, il digère
 
 /* ---------- Le loup et l'humain : la meute, les humains, l'aboiement ---------- */
-const PACK_RANGE = 520;            // ta meute t'aide à chasser si elle est à moins de ça
+const PACK_RANGE = 700;            // un loup compte dans la meute s'il est à moins de ça de toi
+const PACK_MAX = 8;                // au plus, dans ta meute
+const HUNT_BITE = 4;               // la vie (sur 100) qu'enlève chaque loup, par seconde
 const SHOO_TRUST = 0.3;            // en dessous, les humains te chassent si tu t'approches trop
 const SAFE_TRUST = 0.5;            // au-dessus, leur camp est un refuge : le feu fait peur aux chasseurs
 const PLAY_TRUST = 0.4;            // à partir de là, les enfants viennent jouer avec toi
@@ -178,6 +180,7 @@ let endDecor = [];
 const endCues = new Set();
 let wasChased = false;
 let packNear = 0;                  // les loups de ta meute tout près de toi
+let huntTarget = null;             // le renne que la meute attaque
 let boneT = 0;                     // avant le prochain os lancé par les humains
 let heartFxT = 0;
 let missionsShown = '';
@@ -254,7 +257,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {} };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0 };
 }
 
 function newGame() {
@@ -327,7 +330,7 @@ function markDone(id, choice) {
 function recalc() {
   const s = {
     speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false,
-    pack: 0.25, trust: 1, bark: false, treats: 1, herd: 1,
+    howl: false, trust: 1, bark: false, treats: 1, herd: 1,
   };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
@@ -342,7 +345,7 @@ function recalc() {
     if (e.dry !== undefined) s.dry = Math.min(s.dry, e.dry);
     if (e.cones) s.cones = true;
     if (e.radar) s.radar = true;
-    if (e.pack) s.pack = Math.max(s.pack, e.pack);
+    if (e.howl) s.howl = true;
     if (e.trust) s.trust = Math.max(s.trust, e.trust);
     if (e.bark) s.bark = true;
     if (e.treats) s.treats = Math.max(s.treats, e.treats);
@@ -351,7 +354,8 @@ function recalc() {
   stats = s;
 }
 
-const growthK = () => clamp(game.earned / CH.growth, 0, 1);
+// (world.noGrow : dans ce niveau, manger ne fait pas grandir)
+const growthK = () => (LV.world.noGrow ? 0 : clamp(game.earned / CH.growth, 0, 1));
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
 const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1) * (LV.world.speed || 1);
 const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1);
@@ -366,14 +370,16 @@ const METER_WATER = {
 };
 const meter = () => LV.world.meter || METER_WATER;
 
-/* Qui peut manger qui ? (en meute, on attrape plus gros que soi ; jamais un humain, un mouton ou un ami) */
+/* Qui peut manger qui ? (jamais un humain, un mouton ou un ami) */
 function canEat(c) {
   const k = c.sp.kind;
-  if (k === 'ally' || k === 'human' || k === 'flock' || c.sp.noEat) return false;
-  return c.size <= player.size * (stats.ratio + packNear * stats.pack) && (!c.sp.armored || stats.armored);
+  if (k === 'ally' || k === 'stray' || k === 'human' || k === 'flock' || c.sp.noEat) return false;
+  return c.size <= player.size * stats.ratio && (!c.sp.armored || stats.armored);
 }
+/* Une meute assez grande fait fuir ce chasseur (packFear = le nombre de loups qu'il faut) */
+const fearsPack = (c) => !!CH.pack && !!c.sp.packFear && packNear >= c.sp.packFear;
 function isDanger(c) {
-  return (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c);
+  return (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c) && !fearsPack(c);
 }
 /* Tout ce qui peut faire mal : chasseurs, méduses, herbivores qui chargent, géants qui écrasent */
 function isThreat(c) {
@@ -612,7 +618,7 @@ function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
     state: 'wander', timer: 0, rest: 0, lunge: 0, wx: x, wy: y,
     seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
     mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
-    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, playT: 0,
+    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, playT: 0, hp: sp.hp || 0,
     side: SIDE[sp.look] || null, face: 1,
   };
   resetSpine(c, SPINES[sp.look] ? sp.look : null);
@@ -624,6 +630,11 @@ function populate() {
   for (const [id, n] of Object.entries(CH.species)) {
     for (let i = 0; i < n; i += SPECIES[id].pack || 1) spawnCreature(id, true);
   }
+  // la meute déjà rassemblée est autour de toi
+  if (CH.pack) {
+    const ally = Object.keys(SPECIES).find((id) => SPECIES[id].kind === 'ally');
+    for (let i = 0; i < (game.packN || 0); i++) creatures.push(makeCreature(ally, player.x + rand(-150, 150), player.y + rand(-150, 150), null, player.size * 0.92));
+  }
 }
 
 /** Garde le bon nombre de créatures autour du joueur (elles apparaissent hors de l'écran) */
@@ -633,7 +644,7 @@ function maintainPopulation(dt) {
   spawnT = 0.3;
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
-  creatures = creatures.filter((c) => c.state === 'chase' || dist(c, player) < far * 1.35);
+  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
   for (const c of creatures) if (!c.penned) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
@@ -821,6 +832,7 @@ function activateBark() {
       game.barked = game.barked || {};
       game.barked[c.id] = (game.barked[c.id] || 0) + 1;
       if (c.sp.barkLine) addFloater(c.sp.barkLine, c.x, c.y - c.size * 1.6, '#FFE58A', 1);
+      if (k === 'hunter' || c.sp.barkLine) deed(10, c.x, c.y - c.size * 2);
     }
   }
   if (hunters) {
@@ -979,7 +991,7 @@ function updatePlayer(dt) {
   // dans l'eau ou dans la boue, on avance moins vite (sauf le tétrapode, qui nage bien)
   const zone = zoneAt(p.x, p.y);
   if (zone !== p.zone) enterZone(zone);
-  const zk = zone === 'mud' ? 0.4 : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
+  const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
   const ms = maxSpeed() * zk;
   const dashing = p.dash > 0;
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
@@ -1054,7 +1066,7 @@ function enterZone(zone) {
   } else if (zone === 'mud') {
     const snow = zones.some((z) => z.type === 'neige' && dist(z, p) < z.r);
     addFloater(snow ? 'Brrr !' : 'Ça colle !', p.x, p.y - p.size * 1.6, snow ? '#E6F2FF' : '#C9A06A', 1);
-    if (snow) sayOnce('snow', LINES.snow, 60, 1);
+    if (snow && !LV.world.mudSpeed) sayOnce('snow', LINES.snow, 60, 1);
     else sayOnce('mud', LINES.mud, 60, 1);
   }
 }
@@ -1124,6 +1136,7 @@ function updateCreatures(dt) {
   const hearR = Math.hypot(viewW, viewH) * 0.9;     // on entend les grands pas jusque-là
   let chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'alert').length;
   packNear = p.dead ? 0 : creatures.filter((c) => c.sp.kind === 'ally' && dist(c, p) < PACK_RANGE).length;
+  if (CH.pack) updateHunt();
   for (const c of creatures) {
     const sp = c.sp;
     const dx = p.x - c.x, dy = p.y - c.y;
@@ -1133,7 +1146,7 @@ function updateCreatures(dt) {
     c.noiseT = Math.max(0, c.noiseT - dt);
     if (c.markT <= 0) c.mark = null;
     c.blink = ((worldT + c.seed) % 4.3) < 0.12 ? 1 : 0;
-    const edible = !p.dead && canEat(c);
+    const edible = !p.dead && (canEat(c) || fearsPack(c));
     const danger = !p.dead && isDanger(c);
     // un poisson (ou un crocodile) ne te suit pas hors de sa mare
     const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
@@ -1148,6 +1161,10 @@ function updateCreatures(dt) {
       steer(c, Math.cos(a), Math.sin(a), sp.speed * 0.9, dt);
       c.mood = 'scared';
       c.fleeing = true;
+    } else if (c === huntTarget) {
+      updateHunted(c, dt);
+    } else if (sp.kind === 'stray') {
+      updateStray(c, d, dx, dy, dt);
     } else if (sp.kind === 'ally') {
       updateAlly(c, dt);
     } else if (sp.kind === 'human') {
@@ -1261,7 +1278,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally', 'stray'].includes(o.sp.kind)) continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
@@ -1288,7 +1305,7 @@ function updateCreatures(dt) {
 
     // la boue colle, l'eau ralentit ceux qui marchent
     const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
-    const zk = zone === 'mud' ? 0.4 : zone === 'water' ? 0.6 : 1;
+    const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
     c.x += c.vx * dt * zk;
     c.y += c.vy * dt * zk;
     if (c.home) keepInPond(c);
@@ -1338,6 +1355,14 @@ function updateAlly(c, dt) {
   c.mood = 'happy';
   c.size += (p.size * 0.92 - c.size) * (1 - Math.exp(-dt));
   if (p.dead) { wander(c, c.sp.speed * 0.3, dt); return; }
+  if (huntTarget) {
+    // toute la meute attaque !
+    const hx = huntTarget.x - c.x, hy = huntTarget.y - c.y, hd = Math.hypot(hx, hy) || 1;
+    c.mood = 'angry';
+    steer(c, hx / hd, hy / hd, maxSpeed() * 1.2, dt);
+    if (hd < (huntTarget.size + c.size) * 0.8 && Math.random() < dt * 3) c.chomp = 0.3;
+    return;
+  }
   const slot = c.seed * 2.4;
   const back = p.size * 2.2 + 70;
   const a = p.angle + Math.PI + Math.sin(slot) * 1.1;
@@ -1345,6 +1370,107 @@ function updateAlly(c, dt) {
   const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
   if (d < 25) { steer(c, 0, 0, 0, dt); return; }
   steer(c, dx / d, dy / d, maxSpeed() * (d > 500 ? 1.6 : d > 150 ? 1.1 : 0.6), dt);
+}
+
+/** Une bonne action rapporte de l'ADN (dans ce niveau, manger n'est pas le seul moyen d'évoluer) */
+function deed(n, x, y) {
+  game.adn += n;
+  addFloater(`+${n} 🧬`, x, y, '#FFE58A', 0.9);
+  bump(adnItem);
+}
+
+/** Un loup solitaire : il se promène ; touche-le, et il rejoint ta meute */
+function updateStray(c, d, dx, dy, dt) {
+  const p = player;
+  c.fleeing = false;
+  c.mood = 'happy';
+  if (p.dead) { wander(c, c.sp.speed, dt); return; }
+  // il entend ton hurlement et vient vers toi
+  if (stats.howl && d < 900 && game.packN < PACK_MAX) steer(c, dx / d, dy / d, c.sp.speed * 2.5, dt);
+  else wander(c, c.sp.speed, dt);
+  if (d >= c.size + p.size + 50 || game.packN >= PACK_MAX) return;
+  c.id = c.sp.joins;
+  c.sp = SPECIES[c.id];
+  game.packN++;
+  game.packMax = Math.max(game.packMax || 0, game.packN);
+  sfx.howl();
+  addFloater('Un loup de plus !', c.x, c.y - c.size * 2, '#7CF0A0', 1.2);
+  deed(12, c.x, c.y - c.size * 2.8);
+  sayOnce('packJoin', LINES.packJoin, 60, 1);
+  shown.size = null;
+  checkMissions();
+}
+
+/** Tu t'es fait croquer : un loup de ta meute s'enfuit (il redevient solitaire, pas loin) */
+function loseWolf() {
+  if (!(game.packN > 0)) return;
+  const c = creatures.find((o) => o.sp.kind === 'ally');
+  const stray = Object.keys(SPECIES).find((id) => SPECIES[id].kind === 'stray');
+  game.packN--;
+  shown.size = null;
+  if (c) {
+    c.id = stray;
+    c.sp = SPECIES[stray];
+    addFloater('Un loup s’enfuit !', c.x, c.y - c.size * 2, '#FFB36B', 1.1);
+  }
+  later(() => say(LINES.packLost, 2, 5000), 1500);
+}
+
+/** La meute se lance quand tu arrives près d'un renne, si elle est assez grande */
+function updateHunt() {
+  const p = player;
+  if (huntTarget && (huntTarget.dead || p.dead || dist(huntTarget, p) > 1500)) {
+    // il s'échappe : il reprend des forces
+    huntTarget.hp = huntTarget.sp.hp;
+    huntTarget = null;
+  }
+  if (huntTarget || p.dead) return;
+  for (const c of creatures) {
+    if (!c.sp.hp || dist(c, p) > c.size + p.size + 220) continue;
+    if (packNear < c.sp.need) {
+      if (sayOnce('packSmall', LINES.packSmall, 25, 2)) addFloater(`Il faut ${c.sp.need} loups !`, c.x, c.y - c.size * 2.6, '#FFD24A', 1.2);
+      continue;
+    }
+    huntTarget = c;
+    sfx.howl();
+    sayOnce('huntGo', LINES.huntGo, 40, 2);
+    return;
+  }
+}
+
+/** Le renne attaqué : il s'enfuit, plus lentement ; chaque loup qui le touche lui enlève de la vie */
+function updateHunted(c, dt) {
+  const p = player;
+  c.mood = 'scared';
+  c.fleeing = true;
+  const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1;
+  const zig = Math.sin(worldT * 3 + c.seed) * 0.5;
+  const a = Math.atan2(dy, dx) + zig;
+  steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.7, dt);
+  let bites = d < (c.size + p.size) * 0.9 ? 1 : 0;
+  for (const o of creatures) {
+    if (o.sp.kind === 'ally' && dist(o, c) < (c.size + o.size) * 0.9) bites++;
+  }
+  if (!bites) return;
+  c.hp -= bites * HUNT_BITE * dt;
+  if (Math.random() < dt * 4) {
+    sfx.snap();
+    burst(c.x + rand(-1, 1) * c.size * 0.6, c.y + rand(-1, 1) * c.size * 0.5, 3, ['#FFFFFF', '#E8D9A0'], c.size * 2, Math.max(2, c.size * 0.06));
+  }
+  if (c.hp > 0) return;
+  // la meute a gagné !
+  c.dead = true;
+  huntTarget = null;
+  game.eaten[c.id] = (game.eaten[c.id] || 0) + 1;
+  game.stats.eaten++;
+  sfx.victory();
+  shake = Math.max(shake, 0.4);
+  confetti(30);
+  burst(c.x, c.y, 24, [c.sp.color, '#FFFFFF', '#FFE58A'], c.size * 5, Math.max(3, c.size * 0.1));
+  addFloater('Tous ensemble !', c.x, c.y - c.size * 2, '#7CF0A0', 1.5);
+  deed(c.sp.adn, c.x, c.y - c.size * 1.2);
+  if (c.sp.eatLine) say(c.sp.eatLine, 2, 5000);
+  checkMissions();
 }
 
 /** Un humain, dans son camp. S'il ne te connaît pas encore, il te chasse quand tu
@@ -1453,6 +1579,7 @@ function updateFlock(c, d, dt) {
     sfx.pickup();
     addFloater('Dans l’enclos !', c.x, c.y - c.size * 1.6, '#7CF0A0', 1.1);
     sayOnce('penned', LINES.penned, 60, 1);
+    deed(12, c.x, c.y - c.size * 2.4);
     checkMissions();
     break;
   }
@@ -1480,6 +1607,12 @@ function prowl(c, dt) {
 function gainTrust(k) {
   const before = game.trust || 0;
   game.trust = clamp(before + k, 0, 1);
+  // tous les 10 % gagnés une première fois : un peu d'ADN
+  const tens = Math.floor(game.trust * 10 + 1e-6);
+  if (tens > (game.trustBest || 0)) {
+    deed((tens - (game.trustBest || 0)) * 8, player.x, player.y - player.size * 2.6);
+    game.trustBest = tens;
+  }
   for (const [lim, line] of [[SHOO_TRUST, 'trustShoo'], [SAFE_TRUST, 'trustSafe'], [1, 'trustFull']]) {
     if (before < lim && game.trust >= lim) say(LINES[line], 2, 6000);
   }
@@ -1497,7 +1630,7 @@ function updateTrust(dt) {
   }
   if (!near || nd > 460 || p.dash > 0) return;
   const trust = game.trust || 0;
-  gainTrust(dt * 0.016 * stats.trust * (nd < 300 ? 1.5 : 1));
+  gainTrust(dt * (LV.world.noGrow ? 0.01 : 0.016) * stats.trust * (nd < 300 ? 1.5 : 1));
   sayOnce('trustHint', LINES.trustHint, 120, 1);
   heartFxT -= dt;
   if (heartFxT <= 0) {
@@ -1547,6 +1680,7 @@ function playWith(c) {
   burst(c.x, c.y - c.size, 12, ['#FF8FA8', '#FFFFFF', '#FFD24A'], c.size * 4, Math.max(3, c.size * 0.12));
   addFloater('Ouaf ! ❤', player.x, player.y - player.size * 2, '#FF8FA8', 1.3);
   sayOnce('played', LINES.played, 30, 1);
+  deed(20, c.x, c.y - c.size * 2.6);
   checkMissions();
 }
 
@@ -1717,11 +1851,6 @@ function playerEats(c) {
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (sp.trust) gainTrust(sp.trust);
-  if (c.size > p.size * stats.ratio) {
-    // trop gros pour toi tout seul : c'est ta meute qui t'a aidé
-    addFloater('Merci la meute !', p.x, p.y - p.size * 2.2, '#9EE7FF', 1.1);
-    sayOnce('packHelp', LINES.packHelp, 90, 2);
-  }
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
     addFloater('CROC !', c.x, c.y - c.size * 1.8, '#FF6F91', 1.4);
@@ -1798,7 +1927,8 @@ function loseLife(by, cause) {
       drops.push({ x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: Math.max(8, p.size * 0.35), adn: share, life: DROP_LIFE, seed: Math.random() * 10 });
     }
   }
-  game.earned = Math.max(0, game.earned - CH.growth * pen.growth);
+  game.earned = Math.max(0, game.earned - (CH.growth || 0) * pen.growth);
+  if (CH.pack) loseWolf();
   game.stats.deaths++;
   if (botInput) botDeaths[cause === 'dry' ? 'jauge' : by ? by.sp.look : '?'] = (botDeaths[cause === 'dry' ? 'jauge' : by ? by.sp.look : '?'] || 0) + 1;
   p.dead = true;
@@ -1859,6 +1989,11 @@ function missionInfo(m) {
     const cur = Math.min(m.n, game.eaten[m.species] || 0);
     const name = m.n > 1 ? sp.plural : sp.proper ? sp.name : sp.name.toLowerCase();
     return { text: m.text || `Croque ${m.n} ${name}`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp), revenge: m.revenge };
+  }
+  if (m.type === 'pack') {
+    // rassembler une meute (le plus grand nombre de loups atteint)
+    const cur = Math.min(m.n, game.packMax || 0);
+    return { text: m.text || `Rassemble une meute de ${m.n} loups`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, SPECIES[m.species]) };
   }
   if (m.type === 'trust') {
     // la confiance des humains (en %)
@@ -1988,6 +2123,10 @@ function setupChapter(keepPos) {
   $('waterIcon').textContent = CH.trust ? '🤝' : meter().icon;
   waterItem.title = CH.trust ? LINES.trustTitle : meter().title;
   shownBark = -1;
+  huntTarget = null;
+  $('sizeIcon').textContent = CH.pack ? '🐺' : '📏';
+  $('sizeLabel').textContent = CH.pack ? 'Meute' : 'Taille';
+  $('sizeItem').title = CH.pack ? LINES.packTitle : 'Ta taille : mange pour grandir';
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   const x = keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
   const y = keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
@@ -2261,6 +2400,7 @@ function draw() {
 
   // marques au-dessus des créatures
   for (const c of list) {
+    if (CH.pack) drawPackMark(c);
     if (c.mark) {
       const pop = Math.min(1, (1.1 - c.markT) * 6 + 0.3);
       drawAlert(ctx, c.x, c.y - c.size * 1.5 - 14 / zoom, 15 / zoom, c.mark, pop);
@@ -2282,6 +2422,35 @@ function draw() {
     ctx.fillRect(0, 0, cssW, cssH);
   }
   drawMinimap();
+}
+
+/** La meute : un loup seul à rejoindre (un anneau doré), la barre de vie du renne */
+function drawPackMark(c) {
+  if (c.sp.kind === 'stray') {
+    ctx.strokeStyle = `rgba(255, 210, 74, ${0.6 + Math.sin(worldT * 5) * 0.3})`;
+    ctx.lineWidth = 4 / zoom;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.size * 1.7, 0, TAU);
+    ctx.stroke();
+    return;
+  }
+  if (!c.sp.hp) return;
+  const w = c.size * 1.7, h = 12 / zoom, x = c.x - w / 2, y = c.y - c.size * 1.9;
+  ctx.fillStyle = 'rgba(8, 30, 45, 0.85)';
+  ctx.fillRect(x - 2 / zoom, y - 2 / zoom, w + 4 / zoom, h + 4 / zoom);
+  ctx.fillStyle = c.hp > c.sp.hp * 0.35 ? '#7CF0A0' : '#FF6B6B';
+  ctx.fillRect(x, y, w * clamp(c.hp / c.sp.hp, 0, 1), h);
+  if (c === huntTarget) return;
+  // combien de loups il faut pour l'attaquer
+  ctx.font = `800 ${18 / zoom}px 'Baloo 2', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 4 / zoom;
+  ctx.strokeStyle = 'rgba(8, 30, 45, 0.85)';
+  const label = `🐺 ${packNear}/${c.sp.need}`;
+  ctx.strokeText(label, c.x, y - 4 / zoom);
+  ctx.fillStyle = packNear >= c.sp.need ? '#7CF0A0' : '#FFD24A';
+  ctx.fillText(label, c.x, y - 4 / zoom);
 }
 
 /** (Gros cerveau) Ce que voient les chasseurs : un cône devant eux */
@@ -2481,6 +2650,15 @@ function missionTarget() {
   const prey = nearestCreature((c) => eat.includes(c.id) && canEat(c));
   if (prey) return at(prey);
   for (const m of todo) {
+    const hunt = m.type === 'eat' && SPECIES[m.species].hp;
+    if (m.type === 'pack' || (hunt && (game.packN || 0) < SPECIES[m.species].need)) {
+      const t = nearestCreature((c) => c.sp.kind === 'stray');
+      if (t) return at(t);
+    }
+    if (hunt) {
+      const t = nearestCreature((c) => c.id === m.species);
+      if (t) return at(t);
+    }
     if (m.type === 'bark' && stats.bark) {
       const t = nearestCreature((c) => c.id === m.species && !c.barked);
       if (t) return at(t);
@@ -2600,6 +2778,11 @@ function drawMinimap() {
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);
       mctx.fill();
+    } else if (c.sp.kind === 'stray' || (CH.pack && c.sp.hp)) {
+      mctx.fillStyle = '#FFD24A';
+      mctx.beginPath();
+      mctx.arc(m.x, m.y, 3, 0, TAU);
+      mctx.fill();
     } else if (c.sp.kind === 'human' || c.sp.kind === 'ally' || (c.sp.kind === 'flock' && !c.penned)) {
       // les humains (orange), ta meute (bleu), les moutons à rassembler (blanc)
       mctx.fillStyle = c.sp.kind === 'human' ? '#FFB36B' : c.sp.kind === 'ally' ? '#9EE7FF' : '#FFFFFF';
@@ -2646,14 +2829,19 @@ function renderHud() {
   const era = raw >= 1 ? Math.round(raw) : Math.round(raw * 1000) / 1000;
   const v = {
     adn: game.adn,
-    size: Math.round(growthK() * 100),
+    size: !LV.world.noGrow ? Math.round(growthK() * 100) : CH.pack ? Math.min(100, Math.round((game.packN || 0) / CH.pack * 100)) : -1,
     era,
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
     water: drying() ? Math.round(player.wet * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
   };
   if (v.adn !== shown.adn) adnEl.textContent = v.adn;
-  if (v.size !== shown.size) sizeBar.style.width = `${v.size}%`;
+  if (v.size !== shown.size) {
+    $('sizeItem').hidden = v.size < 0;
+    sizeBar.style.width = `${Math.max(0, v.size)}%`;
+    $('packCount').hidden = !CH.pack;
+    if (CH.pack) $('packCount').textContent = `${game.packN || 0}/${CH.pack}`;
+  }
   if (v.era !== shown.era) eraEl.textContent = phoneMQ.matches ? fmtAgo(era, true) : `il y a ${fmtAgo(era)}`;
   if (v.shields !== shown.shields) {
     shieldItem.hidden = stats.shield === 0;
@@ -2786,7 +2974,7 @@ function renderStartInfo() {
       : '';
     $('startDone').hidden = !done;
     $('startGoal').hidden = done;
-    $('howTo').hidden = done;
+    $('howTo').hidden = done || !!LV.world.noGrow;
     return;
   }
   // un autre niveau de la carte
@@ -3156,6 +3344,7 @@ function goToLevel(i) {
   freeCanvas(endCanvas);
   game.adn = 0;                      // un nouveau niveau : on repart de zéro
   game.trust = 0;
+  game.trustBest = 0;
   startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
@@ -4183,6 +4372,15 @@ function botJob() {
   };
   for (const m of CH.missions) {
     if (missionInfo(m).done) continue;
+    const hunt = m.type === 'eat' && SPECIES[m.species].hp;
+    if (m.type === 'pack' || (hunt && (game.packN || 0) < SPECIES[m.species].need)) {
+      const t = nearestCreature((c) => c.sp.kind === 'stray');
+      if (t) return go(t.x, t.y);
+    }
+    if (hunt) {
+      const t = nearestCreature((c) => c.id === m.species);
+      if (t) return go(t.x, t.y);
+    }
     if (m.type === 'bark' && stats.bark) {
       const t = nearestCreature((c) => c.id === m.species && !c.barked);
       if (t) {

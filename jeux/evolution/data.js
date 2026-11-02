@@ -76,7 +76,11 @@ export const LINES = {
   horned: "Aïe ! Les herbivores savent se défendre, eux aussi !",
   crushed: "Écrasé ! Ne passe jamais sous les pattes d'un géant…",
   // le loup et l'humain
-  packHelp: "Avec ta meute, tu peux chasser des proies plus grosses que toi ! Reste près d'elle.",
+  packTitle: "Ta meute : va toucher les loups entourés d'un anneau doré pour qu'ils te rejoignent",
+  packJoin: "Un loup de plus dans ta meute ! Cherche les autres : ils ont un anneau doré.",
+  packSmall: "Ce renne est trop fort pour vous ! Regarde au-dessus de lui : il te faut plus de loups.",
+  huntGo: "Hou-hou-hou ! Toute la meute attaque : regarde sa barre de vie descendre !",
+  packLost: "Oh non, un loup de ta meute s'est enfui ! Va vite le rechercher.",
   trustTitle: "La confiance des humains : reste près d'eux, sans foncer !",
   trustHint: "Doucement… Ne bouge plus : laisse les humains venir à toi. Ils vont s'habituer.",
   shoo: "Ouste ! Ils ne te connaissent pas encore : ne t'approche pas, attends sans bouger. C'est eux qui viendront !",

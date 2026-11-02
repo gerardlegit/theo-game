@@ -8,7 +8,9 @@
 // Ici, on ne fait pas que manger : il faut rester calme près des humains (la
 // jauge 🤝), aboyer pour faire fuir les lions et les loups sauvages, jouer
 // avec les enfants et ramener les moutons dans l'enclos.
-// Mêmes réglages que les niveaux 2 et 3 (vitesse, chasseurs).
+// Manger ne fait pas grandir (world.noGrow) : on gagne par ses actions, et
+// chaque bonne action rapporte de l'ADN pour évoluer. Au chapitre 1, ta force,
+// c'est la taille de ta meute : tous ensemble, vous attaquez les rennes.
 // Le moteur (script.js) ne connaît aucune espèce par son nom : tout est ici.
 // Pour créer un niveau : voir levels/index.js.
 // ============================================================================
@@ -20,17 +22,19 @@ const world = {
   h: 8000,
   start: { x: 2200, y: 4000 },
   maxChasers: 4,
-  speed: 1.3,
+  speed: 1.9,
+  noGrow: true,                    // ici, manger ne fait pas grandir : on gagne par ses actions
+  mudSpeed: 0.85,                  // la neige ne ralentit qu'un peu
   noise: 560,                      // un sprint s'entend jusque-là (et fait peur aux humains)
   penalty: { adn: 0.3, growth: 0.06 },
   decor: [
     { type: 'mare', count: 20, r: [190, 480], zone: 'water' },
-    { type: 'neige', count: 26, r: [150, 360], zone: 'mud', to: 3 },
+    { type: 'neige', count: 14, r: [150, 320], zone: 'mud', to: 3 },
     { type: 'camp', count: 16, r: [270, 320], zone: 'camp', from: 2, to: 4 },
     { type: 'village', count: 14, r: [300, 340], zone: 'camp', from: 5 },
     { type: 'enclos', count: 14, r: [250, 290], zone: 'pen', from: 5 },
-    { type: 'herbes-gel', count: 85, r: [130, 340], hide: true, to: 4, atStart: true },
-    { type: 'herbes', count: 90, r: [130, 340], hide: true, from: 5 },
+    { type: 'herbes-gel', count: 50, r: [110, 240], hide: true, to: 4, atStart: true },
+    { type: 'herbes', count: 55, r: [110, 240], hide: true, from: 5 },
     { type: 'sapin-neige', count: 75, r: [90, 190], canopy: true, to: 4 },
     { type: 'feuillu', count: 60, r: [90, 190], canopy: true, from: 5 },
     { type: 'rocher', count: 110, r: [18, 90] },
@@ -42,7 +46,12 @@ const world = {
 /* Les êtres vivants (les options sont les mêmes qu'au niveau 2 : voir vers-les-dinosaures.js ;
    les nouvelles sont expliquées dans levels/index.js : ally, human, flock, play, trust…) */
 const species = {
-  /* ---- Ta meute : elle te suit, et t'aide à chasser plus gros que toi ---- */
+  /* ---- Ta meute : les loups seuls te rejoignent, et elle te suit partout ---- */
+  'loup-solitaire': {
+    name: 'Loup solitaire', plural: 'loups solitaires', kind: 'stray', look: 'loup', color: '#A09C96', belly: '#EFEAE0', joins: 'loup-de-la-meute',
+    size: 34, speed: 90, sense: 0, adn: 12,
+    fact: "Un jeune loup quitte parfois sa famille pour trouver une autre meute. Tout seul, il a du mal à se nourrir : il a besoin des autres !",
+  },
   'loup-de-la-meute': {
     name: 'Loup de ta meute', plural: 'loups de ta meute', kind: 'ally', look: 'loup', color: '#8E8C88', belly: '#E8E4DA',
     size: 40, speed: 200, sense: 0, adn: 0,
@@ -57,38 +66,38 @@ const species = {
   },
   lievre: {
     name: 'Lièvre variable', plural: 'lièvres variables', kind: 'prey', look: 'palaeolagus', color: '#E6E4DE',
-    size: 16, speed: 170, sense: 200, adn: 5,
+    size: 16, speed: 240, sense: 200, adn: 5,
     fact: "Le lièvre variable change de couleur : brun en été, tout blanc en hiver pour se cacher dans la neige !",
   },
   marmotte: {
     name: 'Marmotte', plural: 'marmottes', kind: 'prey', look: 'marmotte', color: '#9A7A52',
-    size: 22, speed: 120, sense: 200, adn: 7,
+    size: 22, speed: 160, sense: 200, adn: 7,
     fact: "La marmotte siffle très fort pour prévenir les autres d'un danger. L'hiver, elle dort six mois dans son terrier !",
   },
   renne: {
-    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'renne', color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !',
-    size: 85, speed: 200, sense: 360, adn: 30,
+    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'renne', color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !', noEat: true, hp: 100, need: 5,
+    size: 85, speed: 240, sense: 360, adn: 40,
     eatLine: "Bravo ! Tout seul, tu n'aurais jamais attrapé un renne… mais en meute, tout est possible !",
     fact: "Chez les rennes, même les femelles ont des bois ! Les loups et les humains de l'âge de glace chassaient les mêmes troupeaux.",
   },
   bison: {
-    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'bison', color: '#6E4E36',
-    size: 105, speed: 220, sense: 360, adn: 36,
+    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'bison', color: '#6E4E36', noEat: true,
+    size: 105, speed: 260, sense: 360, adn: 36,
     fact: "Le bison des steppes avait des cornes deux fois plus grandes que celles des bisons d'aujourd'hui. Les humains l'ont peint dans les grottes !",
   },
   saiga: {
     name: 'Saïga', plural: 'saïgas', kind: 'prey', look: 'gazelle', color: '#C9A877',
-    size: 48, speed: 230, sense: 340, adn: 16,
+    size: 48, speed: 310, sense: 340, adn: 16,
     fact: "La saïga est une antilope au drôle de nez tout gonflé : il réchauffe l'air glacé avant qu'il n'arrive dans ses poumons !",
   },
   bouquetin: {
     name: 'Bouquetin', plural: 'bouquetins', kind: 'prey', look: 'chevre', color: '#8E7A60',
-    size: 52, speed: 230, sense: 340, adn: 18,
+    size: 52, speed: 310, sense: 340, adn: 18,
     fact: "Le bouquetin grimpe sur les rochers les plus raides grâce à ses sabots, durs dehors et souples dessous, comme des chaussons d'escalade !",
   },
   chevreuil: {
     name: 'Chevreuil', plural: 'chevreuils', kind: 'prey', look: 'gazelle', color: '#A8683A',
-    size: 46, speed: 240, sense: 340, adn: 22,
+    size: 46, speed: 320, sense: 340, adn: 22,
     fact: "Quand la glace a fondu, les forêts ont poussé, et les chevreuils sont arrivés. Au moindre bruit, ils bondissent et disparaissent !",
   },
   os: {
@@ -117,29 +126,29 @@ const species = {
   /* ---- Le troupeau (chapitre 5) : on le ramène dans l'enclos ---- */
   mouton: {
     name: 'Mouton', plural: 'moutons', kind: 'flock', look: 'mouton', color: '#E8E2D4', pack: 4, near: 'pen',
-    size: 40, speed: 170, sense: 170, adn: 0,
+    size: 40, speed: 230, sense: 170, adn: 0,
     fact: "Le mouton descend d'un mouton sauvage, le mouflon. Il a été apprivoisé il y a environ 10 000 ans, avec la chèvre : ce sont les débuts de l'élevage !",
   },
   chevre: {
     name: 'Chèvre', plural: 'chèvres', kind: 'flock', look: 'chevre', color: '#C9B08A', pack: 3, near: 'pen',
-    size: 36, speed: 190, sense: 160, adn: 0,
+    size: 36, speed: 260, sense: 160, adn: 0,
     fact: "La chèvre a été l'un des tout premiers animaux de la ferme. Elle donne du lait, de la viande et des poils pour se tenir chaud.",
   },
 
   /* ---- Les dangers ---- */
   'hyene-des-cavernes': {
-    name: 'Hyène des cavernes', plural: 'hyènes des cavernes', kind: 'hunter', look: 'hyene', color: '#8A7A5A', pack: 2,
-    size: 95, speed: 240, sense: 340, cone: 2.4, adn: 25,
+    name: 'Hyène des cavernes', plural: 'hyènes des cavernes', kind: 'hunter', look: 'hyene', color: '#8A7A5A', pack: 2, packFear: 3,
+    size: 95, speed: 290, sense: 340, cone: 2.4, adn: 25,
     fact: "Les hyènes des cavernes vivaient en groupe dans les grottes. Elles volaient souvent les proies des loups… et des humains !",
   },
   'lion-des-cavernes': {
-    name: 'Lion des cavernes', plural: 'lions des cavernes', kind: 'hunter', look: 'lion-des-cavernes', color: '#C9A46E', roar: true,
-    size: 150, speed: 300, sense: 420, cone: 2.3, adn: 40,
+    name: 'Lion des cavernes', plural: 'lions des cavernes', kind: 'hunter', look: 'lion-des-cavernes', color: '#C9A46E', roar: true, packFear: 5,
+    size: 150, speed: 340, sense: 420, cone: 2.3, adn: 40,
     fact: "Le lion des cavernes était plus grand que les lions d'aujourd'hui. Mais il avait peur du feu des humains… et des aboiements !",
   },
   'loup-sauvage': {
     name: 'Loup sauvage', plural: 'loups sauvages', kind: 'hunter', look: 'loup', color: '#6E6A66', pack: 2, eatsFlock: true, noEat: true,
-    size: 90, speed: 290, sense: 400, cone: 2.4, adn: 0,
+    size: 90, speed: 340, sense: 400, cone: 2.4, adn: 0,
     fact: "Les loups sauvages n'ont pas disparu : ce sont tes cousins ! Le chien de berger protège le troupeau… contre ses propres cousins.",
   },
   mammouth: {
@@ -162,52 +171,52 @@ const species = {
 /* Les évolutions : celles du loup, puis celles du chien (oreilles, queue, taches) */
 const evolutions = {
   flair: {
-    name: 'Flair', ch: 1, cost: 20, effect: { vision: 1.3, radar: true },
+    name: 'Flair', ch: 1, cost: 15, effect: { vision: 1.3, radar: true },
     short: 'Tu sens les proies et les dangers de loin',
     fact: "Le nez d'un loup est des milliers de fois plus puissant que le tien : il sent un renne à plus d'un kilomètre !",
   },
   hurlement: {
-    name: 'Hurlement', ch: 1, cost: 45, effect: { pack: 0.35 },
-    short: 'Ta meute t’aide encore mieux : vous attrapez des proies plus grosses',
+    name: 'Hurlement', ch: 1, cost: 30, effect: { howl: true },
+    short: 'Les loups solitaires t’entendent et viennent vers toi',
     fact: "Les loups hurlent pour appeler leur meute et se retrouver. Un hurlement s'entend à plus de 10 kilomètres !",
   },
   'pelage-epais': {
-    name: 'Pelage épais', ch: 2, cost: 60, effect: { shield: 1 },
+    name: 'Pelage épais', ch: 2, cost: 30, effect: { shield: 1 },
     short: 'Ta fourrure te protège : tu encaisses un coup',
     fact: "Le loup a deux couches de poils : un duvet tout doux contre le froid, et de longs poils qui laissent glisser la neige.",
   },
   calme: {
-    name: 'Caractère calme', ch: 2, cost: 90, effect: { trust: 1.5 },
+    name: 'Caractère calme', ch: 2, cost: 40, effect: { trust: 1.5 },
     short: 'Les humains te font confiance plus vite',
     fact: "Les loups les moins peureux et les moins agressifs osaient s'approcher des humains. Leurs petits sont devenus les premiers chiens !",
   },
   aboiement: {
-    name: 'Aboiement', ch: 3, cost: 140, effect: { bark: true },
+    name: 'Aboiement', ch: 3, cost: 60, effect: { bark: true },
     short: 'Aboie (touche B) : les chasseurs s’enfuient',
     fact: "Les loups aboient très peu : ils hurlent. Les chiens, eux, aboient pour prévenir leurs humains d'un danger !",
   },
   endurance: {
-    name: 'Endurance', ch: 3, cost: 180, effect: { dash: true },
+    name: 'Endurance', ch: 3, cost: 100, effect: { dash: true },
     short: 'Ton sprint se recharge plus vite',
     fact: "Les loups peuvent trotter toute une nuit sans s'arrêter : plus de 50 kilomètres !",
   },
   'oreilles-tombantes': {
-    name: 'Oreilles tombantes', ch: 4, cost: 200, effect: { treats: 2 },
+    name: 'Oreilles tombantes', ch: 4, cost: 60, effect: { treats: 2 },
     short: 'Les humains craquent : ils te donnent plus souvent à manger',
     fact: "Quand on apprivoise un animal pendant des générations, ses oreilles deviennent souvent toutes molles. On l'a vu chez des renards apprivoisés, en Russie !",
   },
   'queue-tire-bouchon': {
-    name: 'Queue en tire-bouchon', ch: 4, cost: 240, effect: { trust: 2 },
+    name: 'Queue en tire-bouchon', ch: 4, cost: 80, effect: { trust: 2 },
     short: 'Ta queue frétille : les humains savent que tu es gentil',
     fact: "Le loup porte sa queue basse. Chez beaucoup de chiens, elle remonte et s'enroule : une autre trace de l'apprivoisement !",
   },
   'pelage-tachete': {
-    name: 'Pelage tacheté', ch: 5, cost: 220, effect: { shield: 2 },
+    name: 'Pelage tacheté', ch: 5, cost: 100, effect: { shield: 2 },
     short: 'Les humains te reconnaissent de loin et te protègent : tu encaisses deux coups',
     fact: "Les loups sauvages sont gris. Les chiens, eux, ont toutes les couleurs : noirs, blancs, roux, tachetés… encore un effet de l'apprivoisement !",
   },
   'instinct-berger': {
-    name: 'Instinct de berger', ch: 5, cost: 260, effect: { herd: 1.6 },
+    name: 'Instinct de berger', ch: 5, cost: 120, effect: { herd: 1.6 },
     short: 'Tu rassembles les moutons de plus loin',
     fact: "Le chien de berger tourne autour du troupeau, comme un loup qui chasse… mais il ne croque pas les moutons : il les ramène !",
   },
@@ -220,24 +229,23 @@ const chapters = [
     ago: [0.04, 0.035],
     form: 'louveteau',
     skin: { body: '#8E8A86', belly: '#EFEAE0', dark: '#3E3A36', stripe: '#6A6662' },
-    size: [24, 44],
-    growth: 130,
+    size: [36, 36],
+    pack: 5,                         // la meute à rassembler (jauge en haut de l'écran)
     vision: 1.2,
     fog: 0.55,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#DCE6EC', motes: 'rgba(255, 255, 255, 0.9)' },
-    species: { 'loup-de-la-meute': 3, campagnol: 9, lievre: 10, marmotte: 6, renne: 4, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, mammouth: 1 },
+    species: { 'loup-solitaire': 4, campagnol: 6, lievre: 6, marmotte: 4, renne: 4, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, mammouth: 1 },
     unlock: ['flair', 'hurlement'],
-    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, et voici ta meute ! Seul, tu n'attrapes que des lièvres… mais avec les autres loups tout près de toi, vous pouvez chasser un renne, bien plus gros que vous !",
+    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, tout seul dans la steppe. Va toucher les loups solitaires (ils ont un anneau doré) : ils te suivront. Avec 5 loups, ta meute pourra attaquer un renne : tous ensemble, vous viderez sa barre de vie !",
     missions: [
-      { type: 'evolve', part: 'flair' },
-      { type: 'eat', species: 'lievre', n: 5 },
+      { type: 'pack', species: 'loup-solitaire', n: 3 },
       { type: 'evolve', part: 'hurlement' },
-      { type: 'eat', species: 'renne', n: 1, text: 'Chasse 1 renne avec ta meute' },
-      { type: 'grow' },
+      { type: 'pack', species: 'loup-solitaire', n: 5 },
+      { type: 'eat', species: 'renne', n: 3, text: 'Attaque 3 rennes avec ta meute' },
     ],
     tips: [
-      "Reste près de ta meute : ensemble, vous attrapez des proies bien plus grosses !",
-      "Les hyènes des cavernes volent les proies des loups… et elles chassent à deux. Prudence !",
+      "Chaque loup solitaire rejoint ta meute dès que tu le touches. Suis la flèche !",
+      "Avec 3 loups, les hyènes te laissent tranquille. Avec 5, même le lion s'enfuit !",
       "Ne passe pas sous les pattes des mammouths !",
     ],
   },
@@ -246,22 +254,20 @@ const chapters = [
     ago: [0.032, 0.03],
     form: 'loup',
     skin: { body: '#8A8682', belly: '#ECE6DA', dark: '#3A3632', stripe: '#66625E' },
-    size: [44, 66],
-    growth: 240,
+    size: [58, 58],
     trust: true,
     treat: 'os',
     vision: 1.2,
     fog: 0.55,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#D6E0E6', motes: 'rgba(255, 255, 255, 0.9)' },
-    species: { 'loup-de-la-meute': 2, humain: 4, chasseur: 3, lievre: 9, marmotte: 7, renne: 4, bison: 3, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, 'rhino-laineux': 1 },
+    species: { humain: 4, chasseur: 3, lievre: 8, marmotte: 6, renne: 2, bison: 2, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, 'rhino-laineux': 1 },
     unlock: ['pelage-epais', 'calme'],
-    intro: "Une drôle d'odeur flotte dans l'air : de la fumée, et de la viande grillée ! Ce sont les humains, autour de leur feu. Ils ne te connaissent pas : si tu marches vers eux, ils te chasseront. Reste près du camp sans bouger, sans foncer… et laisse-les s'habituer à toi.",
+    intro: "Tu as grandi, et tu pars seul explorer. Une drôle d'odeur flotte dans l'air : de la fumée, et de la viande grillée ! Ce sont les humains, autour de leur feu. Ils ne te connaissent pas : si tu marches vers eux, ils te chasseront. Reste près du camp sans bouger, sans foncer… et laisse-les s'habituer à toi.",
     missions: [
       { type: 'evolve', part: 'pelage-epais' },
-      { type: 'trust', species: 'humain', n: 50, text: 'Approche les humains : confiance 50 %' },
+      { type: 'trust', species: 'humain', n: 60, text: 'Approche les humains : confiance 60 %' },
       { type: 'evolve', part: 'calme' },
-      { type: 'eat', species: 'os', n: 4, text: 'Mange 4 os lancés par les humains' },
-      { type: 'grow' },
+      { type: 'eat', species: 'os', n: 6, text: 'Mange 6 os lancés par les humains' },
     ],
     tips: [
       "Tu vois la jauge 🤝 ? C'est la confiance des humains. Elle monte quand tu restes près d'eux sans bouger.",
@@ -274,8 +280,7 @@ const chapters = [
     ago: [0.028, 0.025],
     form: 'loup',
     skin: { body: '#A89A86', belly: '#F2EADC', dark: '#4A4034', stripe: '#7A6E5E' },
-    size: [56, 74],
-    growth: 300,
+    size: [62, 62],
     trust: true,
     treat: 'os',
     vision: 1.25,
@@ -283,18 +288,17 @@ const chapters = [
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#D2DCDF', motes: 'rgba(255, 255, 255, 0.85)' },
     species: { humain: 4, chasseur: 3, enfant: 2, lievre: 10, marmotte: 6, saiga: 8, renne: 5, 'lion-des-cavernes': 3, 'hyene-des-cavernes': 1, mammouth: 1 },
     unlock: ['aboiement', 'endurance'],
-    intro: "Tu as quitté ta meute : désormais, tu vis près des humains. Ils ont besoin de toi ! Avec ton flair, tu trouves les rennes pour les chasseurs. Et la nuit, les lions des cavernes rôdent autour du camp… Apprends à aboyer pour les faire fuir !",
+    intro: "Désormais, tu vis près des humains. Ils ont besoin de toi ! Avec ton flair, tu trouves les rennes pour les chasseurs. Et la nuit, les lions des cavernes rôdent autour du camp… Apprends à aboyer pour les faire fuir !",
     missions: [
       { type: 'evolve', part: 'aboiement' },
-      { type: 'bark', species: 'renne', n: 2, text: 'Aboie pour montrer 2 rennes aux chasseurs' },
-      { type: 'bark', species: 'lion-des-cavernes', n: 2, text: 'Fais fuir 2 lions des cavernes' },
+      { type: 'bark', species: 'renne', n: 4, text: 'Aboie pour montrer 4 rennes aux chasseurs' },
+      { type: 'bark', species: 'lion-des-cavernes', n: 3, text: 'Fais fuir 3 lions des cavernes' },
       { type: 'trust', species: 'humain', n: 100, text: 'Deviens l’ami des humains : 100 %' },
-      { type: 'grow' },
     ],
     tips: [
       "Appuie sur B (ou sur le bouton Aboie) : les lions et les hyènes s'enfuient !",
       "Un renne en vue ? Aboie : les chasseurs sauront où il est.",
-      "Tu n'as plus ta meute : les rennes sont trop gros pour toi tout seul.",
+      "Chaque bonne action te rapporte de l'ADN 🧬 pour évoluer.",
     ],
   },
   {
@@ -302,8 +306,7 @@ const chapters = [
     ago: [0.015, 0.012],
     form: 'chien',
     skin: { body: '#C8A070', belly: '#F8E8CE', dark: '#5A3E1E', stripe: '#9A7448' },
-    size: [60, 78],
-    growth: 380,
+    size: [62, 62],
     trust: true,
     treat: 'os',
     vision: 1.3,
@@ -314,10 +317,9 @@ const chapters = [
     intro: "Des milliers d'années ont passé. Tes descendants vivent avec les humains, génération après génération… et leur corps change : tu n'es plus tout à fait un loup. Tu es devenu un chien ! Les enfants veulent jouer avec toi.",
     missions: [
       { type: 'evolve', part: 'oreilles-tombantes' },
-      { type: 'play', species: 'enfant', n: 3 },
+      { type: 'play', species: 'enfant', n: 4 },
       { type: 'evolve', part: 'queue-tire-bouchon' },
-      { type: 'eat', species: 'os', n: 5, text: 'Mange 5 friandises des humains' },
-      { type: 'grow' },
+      { type: 'eat', species: 'os', n: 8, text: 'Mange 8 friandises des humains' },
     ],
     tips: [
       "Va toucher un enfant du bout du museau : il va jouer avec toi !",
@@ -330,8 +332,7 @@ const chapters = [
     ago: [0.01, 0.008],
     form: 'berger',
     skin: { body: '#B0703A', belly: '#F8EADA', dark: '#4A2A12', stripe: '#8A5228', patch: '#FBF6EC' },
-    size: [62, 84],
-    growth: 640,
+    size: [66, 66],
     trust: true,
     treat: 'os',
     vision: 1.35,
@@ -342,10 +343,10 @@ const chapters = [
     intro: "La glace a fondu : partout, l'herbe et les forêts repoussent. Les humains construisent des villages, ils sèment des graines… et ils élèvent des moutons et des chèvres ! Ton travail : ramener le troupeau dans l'enclos, et le protéger des loups sauvages.",
     missions: [
       { type: 'evolve', part: 'pelage-tachete' },
-      { type: 'herd', species: 'mouton', n: 6 },
+      { type: 'herd', species: 'mouton', n: 10 },
       { type: 'evolve', part: 'instinct-berger' },
-      { type: 'bark', species: 'loup-sauvage', n: 3, text: 'Chasse 3 loups sauvages loin du troupeau' },
-      { type: 'herd', species: 'chevre', n: 4 },
+      { type: 'bark', species: 'loup-sauvage', n: 5, text: 'Chasse 5 loups sauvages loin du troupeau' },
+      { type: 'herd', species: 'chevre', n: 6 },
     ],
     tips: [
       "Les moutons s'écartent devant toi : place-toi derrière eux pour les pousser vers l'enclos 🏡",
@@ -357,7 +358,7 @@ const chapters = [
 
 /* Ce que dit Ammo, ton guide, dans ce niveau */
 const lines = {
-  start: "Wouf ! Tu es un louveteau, et voici ta meute ! Reste près d'elle : ensemble, vous chassez des proies bien plus grosses que vous.",
+  start: "Bloub ! Tu es tout seul, petit louveteau… Va toucher les loups à l'anneau doré : ta meute va grandir !",
 };
 
 /* La fin : le chien est devenu le meilleur ami de l'humain… puis le défilé des chiens d'aujourd'hui */
@@ -388,7 +389,7 @@ export default {
   num: 4,
   icon: '🐺',
   intro: 'loup',
-  goal: "Tu es un louveteau de l'âge de glace. <b>Chasse avec ta meute, apprivoise les humains… et deviens leur meilleur ami</b> :<br>🐺 le louveteau → 🔥 le loup près du feu → 🐕 le premier chien → 🐑 le chien de berger !",
+  goal: "Tu es un louveteau de l'âge de glace. <b>Rassemble ta meute, apprivoise les humains… et deviens leur meilleur ami</b> :<br>🐺 le louveteau → 🔥 le loup près du feu → 🐕 le premier chien → 🐑 le chien de berger !",
   world,
   species,
   evolutions,
