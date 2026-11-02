@@ -75,6 +75,7 @@ export const LINES = {
   defender: "Il baisse la tête… Il va charger ! Écarte-toi !",
   horned: "Aïe ! Les herbivores savent se défendre, eux aussi !",
   crushed: "Écrasé ! Ne passe jamais sous les pattes d'un géant…",
+  stunned: "Bam ! Il est assommé pendant 2 secondes : file, ou profites-en !",
   // le loup et l'humain
   packTitle: "Ta meute : va toucher les loups entourés d'un anneau doré pour qu'ils te rejoignent",
   packJoin: "Un loup de plus dans ta meute ! Cherche les autres : ils ont un anneau doré.",
@@ -91,7 +92,7 @@ export const LINES = {
   trustFull: "Les humains t'adorent ! Tu fais partie de la famille.",
   treat: ['Tiens !', 'Attrape !', 'Pour toi !'],
   barkHunter: "Wouf ! Le chasseur s'enfuit… et les humains accourent avec des torches !",
-  penned: "Bravo, berger ! Les moutons s'écartent devant toi : pousse-les vers l'enclos.",
+  penned: "Bravo ! Il est rentré ! Va chercher les autres : place-toi derrière eux et pousse-les vers la porte.",
   flockEaten: "Un loup sauvage a croqué un mouton ! Aboie pour le faire fuir.",
   played: [
     "Ouaf ! Les enfants adorent jouer avec toi !",

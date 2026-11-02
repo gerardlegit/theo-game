@@ -15,9 +15,15 @@
 //      (types de décor dessinés dans art.js et art-terre.js ; "from"/"to" =
 //      chapitres ; hide = on s'y cache ; canopy = dessiné par-dessus les
 //      créatures ; zone 'water' / 'mud' / 'camp' / 'pen' = mare / boue /
-//      camp des humains / enclos des moutons ; atStart = le premier
+//      camp des humains / enclos des moutons (sa barrière bloque tout le
+//      monde ; sa porte : gate = sa direction, gateW = sa largeur, en radians,
+//      et seuls le joueur et les moutons la passent) ; at = à cet endroit
+//      précis ; clear = rien d'autre ne pousse dessus ; atStart = le premier
 //      est posé au point de départ). ground: 'land' = sur la terre ferme.
 //      noGrow = manger ne fait pas grandir ("size" fixe) ; mudSpeed = ce que
+//      strike = un coup qui assomme les adversaires proches 2 s (name, icon,
+//      type 'queue' / 'griffe', from = à partir de ce chapitre, intro = le texte
+//      qui l'annonce).
 //      laisse la boue ou la neige ; maxChasers = chasseurs en même temps ; speed = vitesse du joueur (×) ;
 //      noise = distance à laquelle on entend le joueur foncer ; penalty = ce qu'on perd en se faisant
 //      manger (part de l'ADN, part de la croissance) ; meter = la jauge qui
@@ -36,7 +42,8 @@
 //        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches
 //        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te
 //                fait pas confiance (voir trust plus bas) ; on ne le mange jamais
-//        flock   un mouton : il s'écarte devant toi ; on le ramène dans l'enclos
+//        flock   un mouton : il s'écarte devant toi ; on le pousse par la porte de l'enclos
+//        shepherd le berger : il attend à la porte (chapitre : shepherd = son espèce)
 //      Options : habitat 'water' (reste dans sa mare, attrape à "reach"),
 //      flying (vole par-dessus le décor), cone (angle de vue : derrière lui,
 //      il ne te voit pas), pack (chasse en meute), stomp (pas qui font
@@ -69,7 +76,7 @@
 //      rassembler une meute, trust =
 //      la confiance des humains en %, bark = faire fuir en aboyant, herd =
 //      ramener dans l'enclos, play = jouer avec ; "text" change la phrase).
-//      pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
+//      start = où l'on arrive dans ce chapitre ; pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
 //      confiance des humains, treat = ce qu'ils
 //      te lancent à manger. Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).

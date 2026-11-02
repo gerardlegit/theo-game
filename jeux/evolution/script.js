@@ -70,6 +70,7 @@ const FULL_REST = 6;               // après avoir mangé le joueur, il digère
 
 /* ---------- Le loup et l'humain : la meute, les humains, l'aboiement ---------- */
 const PACK_RANGE = 700;            // un loup compte dans la meute s'il est à moins de ça de toi
+const FENCE = 0.85;                // la barrière de l'enclos, en part de son rayon
 const PACK_MAX = 8;                // au plus, dans ta meute
 const HUNT_BITE = 4;               // la vie (sur 100) qu'enlève chaque loup, par seconde
 const SHOO_TRUST = 0.3;            // en dessous, les humains te chassent si tu t'approches trop
@@ -77,6 +78,10 @@ const SAFE_TRUST = 0.5;            // au-dessus, leur camp est un refuge : le fe
 const PLAY_TRUST = 0.4;            // à partir de là, les enfants viennent jouer avec toi
 const BARK_RECHARGE = 3;           // s entre deux aboiements
 const BARK_SCARE = 2.8;            // s pendant lesquelles un aboiement fait fuir
+
+/* ---------- Le coup de queue ou de griffe (world.strike) ---------- */
+const STRIKE_RECHARGE = 4;         // s entre deux coups
+const STUN_TIME = 2;               // s pendant lesquelles l'adversaire reste assommé
 
 /* ---------- Le niveau en cours (tout ce qui le décrit est dans levels/) ---------- */
 let LV = null;
@@ -129,6 +134,7 @@ const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const dashBtn = $('dashBtn');
 const barkBtn = $('barkBtn');
+const strikeBtn = $('strikeBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
 const portraitMQ = window.matchMedia('(orientation: portrait)');
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -181,6 +187,7 @@ const endCues = new Set();
 let wasChased = false;
 let packNear = 0;                  // les loups de ta meute tout près de toi
 let huntTarget = null;             // le renne que la meute attaque
+let pens = [];                     // les enclos de ce chapitre (leur barrière bloque les animaux)
 let boneT = 0;                     // avant le prochain os lancé par les humains
 let heartFxT = 0;
 let missionsShown = '';
@@ -373,16 +380,17 @@ const meter = () => LV.world.meter || METER_WATER;
 /* Qui peut manger qui ? (jamais un humain, un mouton ou un ami) */
 function canEat(c) {
   const k = c.sp.kind;
-  if (k === 'ally' || k === 'stray' || k === 'human' || k === 'flock' || c.sp.noEat) return false;
+  if (k === 'ally' || k === 'stray' || k === 'human' || k === 'flock' || k === 'shepherd' || c.sp.noEat) return false;
   return c.size <= player.size * stats.ratio && (!c.sp.armored || stats.armored);
 }
 /* Une meute assez grande fait fuir ce chasseur (packFear = le nombre de loups qu'il faut) */
 const fearsPack = (c) => !!CH.pack && !!c.sp.packFear && packNear >= c.sp.packFear;
 function isDanger(c) {
-  return (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c) && !fearsPack(c);
+  return !(c.stunT > 0) && (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c) && !fearsPack(c);
 }
 /* Tout ce qui peut faire mal : chasseurs, méduses, herbivores qui chargent, géants qui écrasent */
 function isThreat(c) {
+  if (c.stunT > 0) return false;
   return isDanger(c) || ((c.sp.kind === 'defender' || c.sp.kind === 'giant') && !canEat(c));
 }
 
@@ -494,6 +502,8 @@ function buildWorld() {
       if (d.atStart && i === 0) {
         // le premier est juste au point de départ (on commence caché, ou dans l'eau)
         x = W.start.x; y = W.start.y;
+      } else if (d.at) {
+        x = d.at.x; y = d.at.y;
       } else {
         x = 150 + rnd() * (W.w - 300);
         y = 150 + rnd() * (W.h - 300);
@@ -501,6 +511,7 @@ function buildWorld() {
       const item = {
         type: d.type, x, y, r: d.r[0] + rnd() * (d.r[1] - d.r[0]), seed: Math.floor(rnd() * 1e6),
         from: d.from || 1, to: d.to || 99, zone: d.zone || null, hide: !!d.hide, canopy: !!d.canopy,
+        clear: !!d.clear, gate: d.gate || 0, gateW: d.gateW || 0,
       };
       if (d.atStart && i === 0) item.r = Math.max(item.r, 220);
       if (item.zone) zones.push(item);
@@ -508,6 +519,14 @@ function buildWorld() {
       if (item.hide) hides.push(item);
       if (item.hide || item.canopy) covers.push(item);
     }
+  }
+  // (clear) rien ne pousse dans le grand enclos
+  for (const p of zones.filter((z) => z.clear)) {
+    const free = (o) => o === p || o.from > p.to || o.to < p.from || Math.hypot(o.x - p.x, o.y - p.y) > p.r + o.r * 0.7;
+    zones = zones.filter(free);
+    decor = decor.filter(free);
+    hides = hides.filter(free);
+    covers = covers.filter(free);
   }
   levelDecor = { zones, hides, covers };
   clouds = W.ground === 'land' ? Array.from({ length: 16 }, () => ({ x: rnd() * W.w - 2000, y: rnd() * W.h - 800, r: 300 + rnd() * 500 })) : [];
@@ -595,6 +614,7 @@ function spawnCreature(id, initial = false) {
       if (!sp.flying && zoneAt(x, y)) continue;
     }
     if (x < sp.size + 60 || y < sp.size + 60 || x > W.w - sp.size - 60 || y > W.h - sp.size - 60) continue;
+    if (!sp.flying && pens.some((z) => Math.hypot(z.x - x, z.y - y) < z.r + sp.size + 30)) continue;
     const n = sp.pack || 1;
     let leader = null;
     for (let k = 0; k < n; k++) {
@@ -618,7 +638,7 @@ function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
     state: 'wander', timer: 0, rest: 0, lunge: 0, wx: x, wy: y,
     seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
     mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
-    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, playT: 0, hp: sp.hp || 0,
+    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, stunT: 0, playT: 0, hp: sp.hp || 0,
     side: SIDE[sp.look] || null, face: 1,
   };
   resetSpine(c, SPINES[sp.look] ? sp.look : null);
@@ -629,6 +649,20 @@ function populate() {
   creatures = [];
   for (const [id, n] of Object.entries(CH.species)) {
     for (let i = 0; i < n; i += SPECIES[id].pack || 1) spawnCreature(id, true);
+  }
+  // le berger, à l'entrée de l'enclos, et les moutons déjà rentrés
+  for (const z of pens) {
+    if (!CH.shepherd) break;
+    const R = z.r * FENCE, a = z.gate + z.gateW * 0.75;
+    creatures.push(makeCreature(CH.shepherd, z.x + Math.cos(a) * (R + 90), z.y + Math.sin(a) * (R + 90)));
+    for (const [id, n] of Object.entries(game.penned || {})) {
+      for (let i = 0; i < n; i++) {
+        const b = Math.random() * TAU, d = Math.sqrt(Math.random()) * R * 0.6;
+        const c = makeCreature(id, z.x + Math.cos(b) * d, z.y + Math.sin(b) * d);
+        c.penned = true;
+        creatures.push(c);
+      }
+    }
   }
   // la meute déjà rassemblée est autour de toi
   if (CH.pack) {
@@ -644,7 +678,7 @@ function maintainPopulation(dt) {
   spawnT = 0.3;
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
-  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c === huntTarget || dist(c, player) < far * 1.35);
+  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.penned || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
   for (const c of creatures) if (!c.penned) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
@@ -700,6 +734,8 @@ window.addEventListener('keydown', (e) => {
     openEvolutions();
   } else if (e.code === 'KeyB') {
     if (!e.repeat) activateBark();
+  } else if (e.code === 'KeyF') {
+    if (!e.repeat) activateStrike();
   }
 });
 
@@ -726,6 +762,7 @@ document.querySelectorAll('.dpad button').forEach((btn) => {
 });
 dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateDash(); });
 barkBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateBark(); });
+strikeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateStrike(); });
 
 // Garder le doigt (ou la souris) appuyé : on nage vers lui. Double-tape : sprint !
 function updatePointer(e) {
@@ -818,7 +855,7 @@ function activateBark() {
   let hunters = 0;
   for (const c of creatures) {
     const k = c.sp.kind;
-    if (k === 'ally' || k === 'food' || k === 'human' || dist(c, p) > R + c.size) continue;
+    if (k === 'ally' || k === 'food' || k === 'human' || k === 'flock' || k === 'shepherd' || dist(c, p) > R + c.size) continue;
     c.scaredT = BARK_SCARE;
     c.barkX = p.x;
     c.barkY = p.y;
@@ -840,6 +877,42 @@ function activateBark() {
     if (camp && dist(camp, p) < 1400) sayOnce('barkHunter', LINES.barkHunter, 40, 2);
   }
   checkMissions();
+}
+
+/* Le coup de queue ou de griffe (world.strike) : les adversaires à portée restent assommés */
+const canStrike = () => !!LV.world.strike && game.chapter + 1 >= LV.world.strike.from;
+const inStrikeReach = (c) => ['hunter', 'rival', 'defender'].includes(c.sp.kind) && dist(c, player) < player.size * 2.6 + c.size * 0.9;
+
+function activateStrike() {
+  const p = player;
+  if (state !== 'playing' || isBlocked() || !p || p.dead || !canStrike() || p.strikeT > 0) return;
+  p.strikeT = STRIKE_RECHARGE;
+  p.mouth = 1;
+  sfx.thud();
+  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.3, size: p.size, face: p.face || 1, color: '#FFFFFF', slash: LV.world.strike.type });
+  let hits = 0;
+  for (const c of creatures) {
+    if (!inStrikeReach(c)) continue;
+    c.stunT = STUN_TIME;
+    c.rest = Math.max(c.rest, STUN_TIME + 1);
+    hits++;
+    burst(c.x, c.y - c.size * 0.5, 8, ['#FFD24A', '#FFFFFF'], c.size * 4 + 40, Math.max(2, c.size * 0.08));
+    addFloater('BAM !', c.x, c.y - c.size * 1.6, '#FFD24A', 1.3);
+  }
+  if (hits) {
+    shake = Math.max(shake, 0.3);
+    sayOnce('stunned', LINES.stunned, 40, 2);
+  }
+}
+
+let shownStrike = -1;
+function renderStrikeBtn() {
+  const k = !canStrike() ? -2 : Math.round((1 - (player.strikeT || 0) / STRIKE_RECHARGE) * 20) / 20;
+  if (k === shownStrike) return;
+  shownStrike = k;
+  strikeBtn.hidden = k === -2;
+  strikeBtn.style.setProperty('--charge', `${Math.max(0, k) * 100}%`);
+  strikeBtn.classList.toggle('charging', k < 1);
 }
 
 let shownBark = -1;
@@ -1005,8 +1078,10 @@ function updatePlayer(dt) {
   const k = Math.exp(-DRAG * dt);
   p.vx *= k;
   p.vy *= k;
+  const ox = p.x, oy = p.y;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
+  fence(p, ox, oy, true, p.size * 0.5);
   const W = LV.world;
   const m = p.size + 20;
   if (p.x < m) { p.x = m; p.vx = Math.abs(p.vx) * 0.3; }
@@ -1043,6 +1118,7 @@ function updatePlayer(dt) {
   // près du feu des humains qui te font confiance, aucun chasseur n'ose venir
   p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
   p.barkT = Math.max(0, (p.barkT || 0) - dt);
+  p.strikeT = Math.max(0, (p.strikeT || 0) - dt);
   if (p.hidden && !wasHidden && creatures.some((c) => c.state === 'chase')) sayOnce('hidden', LINES.hidden, 20, 2);
   // la bouche s'ouvre quand il y a quelque chose à croquer devant
   let wantMouth = 0;
@@ -1152,7 +1228,15 @@ function updateCreatures(dt) {
     const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
     let mouthTarget = 0;
 
-    if (c.scaredT > 0) {
+    if (c.stunT > 0) {
+      // assommé : il ne bouge plus, il ne mord plus
+      c.stunT -= dt;
+      if (c.state === 'chase' || c.state === 'alert') chasers--;
+      c.state = 'wander';
+      steer(c, 0, 0, 0, dt);
+      c.mood = 'scared';
+      c.fleeing = false;
+    } else if (c.scaredT > 0) {
       // un aboiement : il file sans demander son reste
       c.scaredT -= dt;
       if (c.state === 'chase' || c.state === 'alert') chasers--;
@@ -1171,6 +1255,11 @@ function updateCreatures(dt) {
       updateHuman(c, d, dx, dy, dt);
     } else if (sp.kind === 'flock') {
       updateFlock(c, d, dt);
+    } else if (sp.kind === 'shepherd') {
+      // le berger attend à l'entrée, et te regarde
+      steer(c, 0, 0, 0, dt);
+      c.angle = Math.atan2(dy, dx);
+      c.mood = 'happy';
     } else if (sp.kind === 'food' || sp.kind === 'stinger') {
       // dérive tranquille
       c.angle += Math.sin(worldT * 0.5 + c.seed * 3) * dt * 0.6;
@@ -1272,13 +1361,13 @@ function updateCreatures(dt) {
     }
 
     // les chasseurs (et les rivaux) grignotent les petites bêtes qui passent devant leur gueule
-    if (sp.kind === 'hunter' || sp.kind === 'rival') {
+    if ((sp.kind === 'hunter' || sp.kind === 'rival') && !(c.stunT > 0)) {
       c.eatT -= dt;
       if (c.eatT <= 0) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally', 'stray'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
@@ -1306,8 +1395,10 @@ function updateCreatures(dt) {
     // la boue colle, l'eau ralentit ceux qui marchent
     const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
     const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
+    const ox = c.x, oy = c.y;
     c.x += c.vx * dt * zk;
     c.y += c.vy * dt * zk;
+    if (!sp.flying) fence(c, ox, oy, sp.kind === 'flock' && !c.penned, c.size * 0.6);
     if (c.home) keepInPond(c);
     const m = c.size + 40;
     if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
@@ -1535,7 +1626,17 @@ function updateFlock(c, d, dt) {
   const p = player;
   c.fleeing = false;
   c.mood = 'calm';
-  if (c.penned) { wander(c, c.sp.speed * 0.15, dt); return; }
+  if (c.penned) {
+    // il reste vers le milieu de l'enclos
+    const z = pens[0];
+    if (z && dist(c, z) > z.r * 0.6) {
+      const gd = dist(c, z) || 1;
+      steer(c, (z.x - c.x) / gd, (z.y - c.y) / gd, c.sp.speed * 0.5, dt);
+    } else {
+      wander(c, c.sp.speed * 0.15, dt);
+    }
+    return;
+  }
   let fx = 0, fy = 0;
   const herdR = (c.sp.sense + p.size * 2) * stats.herd;
   if (!p.dead && d < herdR) {
@@ -1548,6 +1649,14 @@ function updateFlock(c, d, dt) {
     if (o.sp.kind !== 'hunter') continue;
     const od = dist(o, c) || 1;
     if (od < 380) { fx += (c.x - o.x) / od * 1.2; fy += (c.y - o.y) / od * 1.2; }
+  }
+  // tout près de la porte, le berger l'appelle : il entre
+  const pen = pens[0];
+  if (pen) {
+    const R = pen.r * FENCE;
+    const gx = pen.x + Math.cos(pen.gate) * (R - 120), gy = pen.y + Math.sin(pen.gate) * (R - 120);
+    const gd = Math.hypot(gx - c.x, gy - c.y) || 1;
+    if (gd < 420) { fx += (gx - c.x) / gd * 1.5; fy += (gy - c.y) / gd * 1.5; }
   }
   if (fx || fy) {
     // ils restent groupés : un peu vers le milieu du troupeau
@@ -1570,10 +1679,9 @@ function updateFlock(c, d, dt) {
     wander(c, c.sp.speed * 0.15, dt);
   }
   // le voilà dans l'enclos !
-  for (const z of zones) {
-    if (z.zone !== 'pen' || dist(c, z) > z.r * 0.7) continue;
+  for (const z of pens) {
+    if (dist(c, z) > z.r * FENCE) continue;
     c.penned = true;
-    c.home = z;
     game.penned = game.penned || {};
     game.penned[c.id] = (game.penned[c.id] || 0) + 1;
     sfx.pickup();
@@ -1582,6 +1690,26 @@ function updateFlock(c, d, dt) {
     deed(12, c.x, c.y - c.size * 2.4);
     checkMissions();
     break;
+  }
+}
+
+/** La barrière de l'enclos : on la longe sans la traverser. La porte ne laisse passer que
+    ceux qui ont le droit (open) : le joueur et les moutons, pas les loups. */
+function fence(e, ox, oy, open, rad) {
+  for (const z of pens) {
+    const R = z.r * FENCE;
+    const inside = Math.hypot(ox - z.x, oy - z.y) < R;
+    const dx = e.x - z.x, dy = e.y - z.y, d = Math.hypot(dx, dy) || 1;
+    if (inside ? d < R - rad : d > R + rad) continue;
+    if (open && Math.abs(angleDiff(z.gate, Math.atan2(dy, dx))) < z.gateW / 2) continue;
+    const to = inside ? R - rad : R + rad;
+    e.x = z.x + dx / d * to;
+    e.y = z.y + dy / d * to;
+    // (un animal qui se promène change de direction)
+    if (e.wx !== undefined) {
+      e.wx = e.x + dx / d * (inside ? -300 : 300);
+      e.wy = e.y + dy / d * (inside ? -300 : 300);
+    }
   }
 }
 
@@ -1810,7 +1938,7 @@ function updateContacts() {
     if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
     // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && c.sp.kind !== 'giant' && c.sp.kind !== 'ally') {
+    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
@@ -1940,6 +2068,7 @@ function loseLife(by, cause) {
 
 /** Ce qui fait mal quand on le touche, sans nous manger */
 function hurtsByContact(c, d) {
+  if (c.stunT > 0) return false;
   const p = player;
   const k = c.sp.kind;
   if (k === 'human') return c.state === 'charge' && d < c.size * 0.9 + p.size * 0.6;
@@ -2115,6 +2244,7 @@ function chapterDecor() {
   zones = levelDecor.zones.filter(now);
   hides = levelDecor.hides.filter(now);
   covers = levelDecor.covers.filter(now);
+  pens = zones.filter((z) => z.zone === 'pen');
 }
 
 function setupChapter(keepPos) {
@@ -2123,13 +2253,16 @@ function setupChapter(keepPos) {
   $('waterIcon').textContent = CH.trust ? '🤝' : meter().icon;
   waterItem.title = CH.trust ? LINES.trustTitle : meter().title;
   shownBark = -1;
+  shownStrike = -1;
+  if (LV.world.strike) strikeBtn.innerHTML = `${LV.world.strike.icon} ${escapeHtml(LV.world.strike.name)} <kbd class="desktop-only">F</kbd>`;
   huntTarget = null;
   $('sizeIcon').textContent = CH.pack ? '🐺' : '📏';
   $('sizeLabel').textContent = CH.pack ? 'Meute' : 'Taille';
   $('sizeItem').title = CH.pack ? LINES.packTitle : 'Ta taille : mange pour grandir';
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
-  const x = keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
-  const y = keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
+  // (CH.start) ce chapitre commence à un endroit précis (quand on y arrive)
+  const x = keepPos && CH.start ? CH.start.x : keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
+  const y = keepPos && CH.start ? CH.start.y : keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
   placePlayer(x, y);
   drops = [];
   particles = [];
@@ -2154,6 +2287,7 @@ function openChapterIntro() {
     <p class="dlg-sub">🎯 Tes missions :</p>
     <ul class="mission-rows">${rows}</ul>
     <p class="dlg-unlocks">Nouvelles évolutions possibles : ${unlocks}</p>
+    ${LV.world.strike && LV.world.strike.from === game.chapter + 1 ? `<p class="dlg-say">🆕 ${escapeHtml(LV.world.strike.intro)}</p>` : ''}
     <div class="dlg-actions"><button class="primary" data-act="close">C'est parti !</button></div>`, {
     close: closeDialog,
   });
@@ -2401,6 +2535,7 @@ function draw() {
   // marques au-dessus des créatures
   for (const c of list) {
     if (CH.pack) drawPackMark(c);
+    if (c.stunT > 0) drawStars(c);
     if (c.mark) {
       const pop = Math.min(1, (1.1 - c.markT) * 6 + 0.3);
       drawAlert(ctx, c.x, c.y - c.size * 1.5 - 14 / zoom, 15 / zoom, c.mark, pop);
@@ -2422,6 +2557,18 @@ function draw() {
     ctx.fillRect(0, 0, cssW, cssH);
   }
   drawMinimap();
+}
+
+/** Assommé : des étoiles tournent au-dessus de sa tête */
+function drawStars(c) {
+  const fs = Math.max(14 / zoom, c.size * 0.35);
+  ctx.font = `${fs}px 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 3; i++) {
+    const a = worldT * 6 + i * TAU / 3;
+    ctx.fillText('⭐', c.x + Math.cos(a) * c.size * 0.7, c.y - c.size * 1.3 + Math.sin(a) * c.size * 0.2);
+  }
 }
 
 /** La meute : un loup seul à rejoindre (un anneau doré), la barre de vie du renne */
@@ -2517,7 +2664,24 @@ function drawFx() {
   for (const p of particles) {
     const k = p.life / p.max;
     ctx.globalAlpha = 1 - k;
-    if (p.ring) {
+    if (p.slash) {
+      // le coup de queue (un grand arc derrière toi) ou de griffe (trois griffures devant toi)
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = p.size * 0.14;
+      ctx.beginPath();
+      if (p.slash === 'queue') {
+        const mid = p.face > 0 ? Math.PI : 0, R = p.size * (1.6 + k * 1.2);
+        ctx.arc(p.x, p.y, R, mid - 1.3, mid + 1.3);
+      } else {
+        for (const o of [-0.6, 0, 0.6]) {
+          const x = p.x + p.face * p.size * (1.2 + o * 0.3), y = p.y + o * p.size;
+          ctx.moveTo(x - p.face * p.size * 0.5, y - p.size * 0.8);
+          ctx.quadraticCurveTo(x + p.face * p.size * 0.5, y, x - p.face * p.size * 0.1, y + p.size * 0.8);
+        }
+      }
+      ctx.stroke();
+    } else if (p.ring) {
       // l'onde d'un aboiement
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.lineWidth = 6 / zoom;
@@ -2664,10 +2828,12 @@ function missionTarget() {
       if (t) return at(t);
     }
     if (m.type === 'herd') {
-      // un mouton en vue : la flèche montre l'enclos
       const t = nearestCreature((c) => c.id === m.species && !c.penned);
-      const pen = t && nearestZone(t.x, t.y, 'pen');
-      if (t && pen && onScreen(t, -20)) return { x: pen.x, y: pen.y, size: pen.r * 0.5, icon: '🏡' };
+      const pen = pens[0];
+      // un mouton en vue (ou aucun) : la flèche montre la porte de l'enclos
+      if (pen && (!t || onScreen(t, -20))) {
+        return { x: pen.x + Math.cos(pen.gate) * pen.r * FENCE, y: pen.y + Math.sin(pen.gate) * pen.r * FENCE, size: 60, icon: '🚪' };
+      }
       if (t) return at(t);
     }
     if (m.type === 'trust' || m.type === 'play' || (m.type === 'eat' && m.species === CH.treat)) {
@@ -2914,6 +3080,7 @@ function loop(now) {
   if (player) {
     renderDashBtn();
     renderBarkBtn();
+    renderStrikeBtn();
   }
   updateAmmo(now);
 }
@@ -4334,6 +4501,7 @@ function botDir() {
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
   if (threat > 0.15) {
+    if (canStrike() && p.strikeT <= 0 && creatures.some((c) => inStrikeReach(c) && isThreat(c))) activateStrike();
     // (le loup et l'humain) un aboiement fait fuir les chasseurs
     if (stats.bark && p.barkT <= 0 && creatures.some((c) => c.sp.kind === 'hunter' && dist(c, p) < 420 + p.size * 2)) activateBark();
     if (threat > 0.55 && p.charge >= 1) activateDash();
@@ -4389,13 +4557,19 @@ function botJob() {
       }
     }
     if (m.type === 'herd') {
-      // se placer derrière le mouton, du côté opposé à l'enclos
+      // se placer derrière le mouton, à l'opposé de là où il doit aller : la porte
+      // (s'il est de l'autre côté de l'enclos, on le fait d'abord tourner autour)
       const t = nearestCreature((c) => c.id === m.species && !c.penned);
-      const pen = t && nearestZone(t.x, t.y, 'pen');
+      const pen = pens[0];
       if (t && pen) {
-        const dx = t.x - pen.x, dy = t.y - pen.y, d = Math.hypot(dx, dy) || 1;
+        const R = pen.r * FENCE;
+        const a = Math.atan2(t.y - pen.y, t.x - pen.x), off = angleDiff(a, pen.gate);
+        const wa = Math.abs(off) < 0.5 ? pen.gate : a + Math.sign(off) * 0.6;
+        const wr = Math.abs(off) < 0.5 ? R : R + 250;
+        const dx = t.x - (pen.x + Math.cos(wa) * wr), dy = t.y - (pen.y + Math.sin(wa) * wr), d = Math.hypot(dx, dy) || 1;
         return go(t.x + dx / d * (t.size + p.size + 40), t.y + dy / d * (t.size + p.size + 40));
       }
+      if (pen) return go(pen.x + Math.cos(pen.gate) * (pen.r + 300), pen.y + Math.sin(pen.gate) * (pen.r + 300));
     }
     if (m.type === 'trust' || m.type === 'play' || (m.type === 'eat' && m.species === CH.treat)) {
       const h = nearestCreature((c) => c.sp.kind === 'human' && (m.type !== 'play' || (c.id === m.species && !c.played)));

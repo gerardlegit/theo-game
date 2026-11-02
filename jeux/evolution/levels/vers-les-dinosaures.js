@@ -16,8 +16,12 @@ const world = {
   w: 12000,
   h: 8000,
   start: { x: 2200, y: 4000 },
+  strike: {                        // le coup de queue, à partir du chapitre 3
+    name: 'Coup de queue', icon: '💥', type: 'queue', from: 3,
+    intro: "Nouveau : le coup de queue ! Appuie sur F ou sur le bouton orange, quand un adversaire est tout près de toi : il reste assommé 2 secondes.",
+  },
   maxChasers: 4,
-  speed: 1.3,                      // sur la terre, le joueur est plus vif que dans l'océan
+  speed: 1.43,                     // sur la terre, le joueur est plus vif que dans l'océan
   noise: 560,                      // un sprint s'entend jusque-là : les chasseurs se retournent
   penalty: { adn: 0.3, growth: 0.06 },   // se faire manger coûte un peu moins cher que dans l'océan
   decor: [
@@ -44,28 +48,28 @@ const world = {
 const species = {
   /* ---- Les rivaux : des animaux de ton espèce, qui te piquent ta nourriture (un par chapitre) ---- */
   'cousin-tetrapode': {
-    name: 'Tétrapode rival', plural: 'tétrapodes rivaux', kind: 'rival', look: 'lezard', color: '#7FA88E',
+    name: 'Tétrapode rival', plural: 'tétrapodes rivaux', kind: 'rival', noEat: true, look: 'lezard', color: '#7FA88E',
     body: { wide: true },
     size: 28, speed: 165, sense: 300, adn: 6,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-reptile': {
-    name: 'Reptile rival', plural: 'reptiles rivaux', kind: 'rival', look: 'lezard', color: '#B8865A',
+    name: 'Reptile rival', plural: 'reptiles rivaux', kind: 'rival', noEat: true, look: 'lezard', color: '#B8865A',
     size: 52, speed: 210, sense: 340, adn: 10,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-dino': {
-    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'coelophysis', color: '#A8604A',
+    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', noEat: true, look: 'coelophysis', color: '#A8604A',
     size: 85, speed: 280, sense: 400, adn: 14,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-grand': {
-    name: 'Chasseur rival', plural: 'chasseurs rivaux', kind: 'rival', look: 'allosaure', color: '#5F7A9E',
+    name: 'Chasseur rival', plural: 'chasseurs rivaux', kind: 'rival', noEat: true, look: 'allosaure', color: '#5F7A9E',
     size: 135, speed: 340, sense: 460, adn: 20,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'jeune-trex': {
-    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'trex', color: '#8A6E50',
+    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', noEat: true, look: 'trex', color: '#8A6E50',
     size: 205, speed: 400, sense: 520, adn: 30,
     fact: "Les jeunes T. rex étaient fins et très rapides. Ils ne chassaient pas les mêmes proies que les adultes… mais parfois, ils volaient leur repas !",
   },

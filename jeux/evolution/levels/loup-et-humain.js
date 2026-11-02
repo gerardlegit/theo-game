@@ -32,7 +32,7 @@ const world = {
     { type: 'neige', count: 14, r: [150, 320], zone: 'mud', to: 3 },
     { type: 'camp', count: 16, r: [270, 320], zone: 'camp', from: 2, to: 4 },
     { type: 'village', count: 14, r: [300, 340], zone: 'camp', from: 5 },
-    { type: 'enclos', count: 14, r: [250, 290], zone: 'pen', from: 5 },
+    { type: 'enclos', count: 1, at: { x: 6000, y: 4000 }, r: [640, 640], zone: 'pen', from: 5, clear: true, gate: 0, gateW: 0.6 },
     { type: 'herbes-gel', count: 50, r: [110, 240], hide: true, to: 4, atStart: true },
     { type: 'herbes', count: 55, r: [110, 240], hide: true, from: 5 },
     { type: 'sapin-neige', count: 75, r: [90, 190], canopy: true, to: 4 },
@@ -135,6 +135,13 @@ const species = {
     fact: "La chèvre a été l'un des tout premiers animaux de la ferme. Elle donne du lait, de la viande et des poils pour se tenir chaud.",
   },
 
+  /* ---- Le berger attend à la porte de l'enclos ---- */
+  'berger-enclos': {
+    name: 'Berger', plural: 'bergers', kind: 'shepherd', look: 'berger', color: '#7E6A48',
+    size: 62, speed: 0, sense: 0, adn: 0,
+    fact: "Les premiers bergers vivaient il y a environ 10 000 ans. Avec un chien pour rassembler le troupeau et chasser les loups, leur travail est bien plus facile !",
+  },
+
   /* ---- Les dangers ---- */
   'hyene-des-cavernes': {
     name: 'Hyène des cavernes', plural: 'hyènes des cavernes', kind: 'hunter', look: 'hyene', color: '#8A7A5A', pack: 2, packFear: 3,
@@ -148,7 +155,7 @@ const species = {
   },
   'loup-sauvage': {
     name: 'Loup sauvage', plural: 'loups sauvages', kind: 'hunter', look: 'loup', color: '#6E6A66', pack: 2, eatsFlock: true, noEat: true,
-    size: 90, speed: 340, sense: 400, cone: 2.4, adn: 0,
+    size: 90, speed: 340, sense: 320, cone: 2.4, adn: 0,
     fact: "Les loups sauvages n'ont pas disparu : ce sont tes cousins ! Le chien de berger protège le troupeau… contre ses propres cousins.",
   },
   mammouth: {
@@ -333,23 +340,26 @@ const chapters = [
     form: 'berger',
     skin: { body: '#B0703A', belly: '#F8EADA', dark: '#4A2A12', stripe: '#8A5228', patch: '#FBF6EC' },
     size: [66, 66],
+    start: { x: 7300, y: 4000 },     // on arrive devant la porte de l'enclos
+    shepherd: 'berger-enclos',
     trust: true,
     treat: 'os',
     vision: 1.35,
     fog: 0.4,
     palette: { water: ['#7FB0A0', '#3A6A5A'], floor: '#8FB25E', motes: 'rgba(255, 250, 200, 0.5)' },
-    species: { humain: 3, chasseur: 2, enfant: 2, mouton: 12, chevre: 6, lievre: 6, chevreuil: 7, 'loup-sauvage': 4, aurochs: 2 },
+    species: { humain: 3, chasseur: 2, enfant: 2, mouton: 12, chevre: 6, lievre: 6, chevreuil: 7, 'loup-sauvage': 4, aurochs: 1 },
     unlock: ['pelage-tachete', 'instinct-berger'],
-    intro: "La glace a fondu : partout, l'herbe et les forêts repoussent. Les humains construisent des villages, ils sèment des graines… et ils élèvent des moutons et des chèvres ! Ton travail : ramener le troupeau dans l'enclos, et le protéger des loups sauvages.",
+    intro: "La glace a fondu : partout, l'herbe et les forêts repoussent. Les humains construisent des villages, ils sèment des graines… et ils élèvent des moutons et des chèvres ! Ton travail : pousser le troupeau jusqu'à la porte du grand enclos, où le berger l'attend, et éloigner les loups sauvages.",
     missions: [
       { type: 'evolve', part: 'pelage-tachete' },
-      { type: 'herd', species: 'mouton', n: 10 },
+      { type: 'herd', species: 'mouton', n: 8, text: 'Fais entrer 8 moutons par la porte' },
       { type: 'evolve', part: 'instinct-berger' },
-      { type: 'bark', species: 'loup-sauvage', n: 5, text: 'Chasse 5 loups sauvages loin du troupeau' },
-      { type: 'herd', species: 'chevre', n: 6 },
+      { type: 'bark', species: 'loup-sauvage', n: 4, text: 'Éloigne 4 loups sauvages en aboyant' },
+      { type: 'herd', species: 'chevre', n: 4, text: 'Fais entrer 4 chèvres par la porte' },
     ],
     tips: [
-      "Les moutons s'écartent devant toi : place-toi derrière eux pour les pousser vers l'enclos 🏡",
+      "Les moutons s'écartent devant toi : place-toi derrière eux pour les pousser vers la porte 🚪",
+      "La barrière arrête les moutons : fais-les passer par la porte, là où attend le berger.",
       "Un loup sauvage rôde près du troupeau ? Aboie !",
       "Les chèvres sont plus rapides que les moutons : vas-y doucement.",
     ],

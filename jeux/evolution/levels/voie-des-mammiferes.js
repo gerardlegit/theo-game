@@ -18,8 +18,12 @@ const world = {
   w: 12000,
   h: 8000,
   start: { x: 2200, y: 4000 },
+  strike: {                        // le coup de griffe, à partir du chapitre 3
+    name: 'Coup de griffe', icon: '🐾', type: 'griffe', from: 3,
+    intro: "Nouveau : le coup de griffe ! Appuie sur F ou sur le bouton orange, quand un adversaire est tout près de toi : il reste assommé 2 secondes.",
+  },
   maxChasers: 4,
-  speed: 1.3,
+  speed: 1.43,
   noise: 560,                      // un sprint s'entend jusque-là : les chasseurs se retournent
   penalty: { adn: 0.3, growth: 0.06 },
   decor: [
@@ -45,27 +49,27 @@ const world = {
 const species = {
   /* ---- Les rivaux : des animaux de ton espèce, qui te piquent ta nourriture (un par chapitre) ---- */
   'cousin-musaraigne': {
-    name: 'Petit mammifère rival', plural: 'petits mammifères rivaux', kind: 'rival', look: 'musaraigne', color: '#9C7A5A',
+    name: 'Petit mammifère rival', plural: 'petits mammifères rivaux', kind: 'rival', noEat: true, look: 'musaraigne', color: '#9C7A5A',
     size: 28, speed: 165, sense: 300, adn: 6,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-miacis': {
-    name: 'Miacis rival', plural: 'Miacis rivaux', proper: true, kind: 'rival', look: 'miacis', color: '#7A6A5A',
+    name: 'Miacis rival', plural: 'Miacis rivaux', proper: true, kind: 'rival', noEat: true, look: 'miacis', color: '#7A6A5A',
     size: 52, speed: 210, sense: 340, adn: 10,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-proailurus': {
-    name: 'Proailurus rival', plural: 'Proailurus rivaux', proper: true, kind: 'rival', look: 'proailurus', color: '#A07A50',
+    name: 'Proailurus rival', plural: 'Proailurus rivaux', proper: true, kind: 'rival', noEat: true, look: 'proailurus', color: '#A07A50',
     size: 85, speed: 280, sense: 400, adn: 14,
     fact: "Les animaux d'une même espèce se disputent souvent la nourriture : c'est la compétition ! Les plus rapides mangent les premiers.",
   },
   'cousin-machairodus': {
-    name: 'Machairodus rival', plural: 'Machairodus rivaux', proper: true, kind: 'rival', look: 'machairodus', color: '#B88A4A',
+    name: 'Machairodus rival', plural: 'Machairodus rivaux', proper: true, kind: 'rival', noEat: true, look: 'machairodus', color: '#B88A4A',
     size: 135, speed: 340, sense: 460, adn: 20,
     fact: "Les grands félins se volent souvent leurs proies… et les hyènes aussi ! Dans la savane, il faut manger vite.",
   },
   'cousin-homotherium': {
-    name: 'Homotherium rival', plural: 'Homotherium rivaux', proper: true, kind: 'rival', look: 'homotherium', color: '#A8845A',
+    name: 'Homotherium rival', plural: 'Homotherium rivaux', proper: true, kind: 'rival', noEat: true, look: 'homotherium', color: '#A8845A',
     size: 205, speed: 400, sense: 520, adn: 30,
     fact: "Les Homotherium vivaient peut-être en groupe, comme les lions d'aujourd'hui. Mais au moment de manger, c'est chacun pour soi !",
   },

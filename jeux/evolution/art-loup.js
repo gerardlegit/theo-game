@@ -176,7 +176,7 @@ for (const form of ['louveteau', 'loup', 'chien', 'berger']) {
 
 /* ============================================================================
    Les humains, de profil : une tunique en fourrure, des jambières en cuir.
-   o : { spear (le chasseur et sa lance), child (un enfant) }
+   o : { spear (le chasseur et sa lance), crook (le berger et son bâton), child (un enfant) }
    Quand ils te chassent (« Ouste ! »), ils lèvent le bras en criant.
    ============================================================================ */
 const SKINS = ['#C68A5A', '#8D5A3A', '#E2B48A', '#A8704A'];
@@ -283,7 +283,7 @@ function drawPerson(ctx, c, t, o) {
   }
   // le bras de devant : il tient la lance, ou il fait de grands gestes
   const hand = angry ? { x: 0.28 * r, y: headY - 0.35 * r + Math.sin(t * 14) * 0.06 * r }
-    : o.spear ? { x: 0.22 * r, y: shY + 0.5 * r } : { x: sw * 0.2 * r, y: shY + 0.75 * r };
+    : o.spear || o.crook ? { x: 0.22 * r, y: shY + 0.5 * r } : { x: sw * 0.2 * r, y: shY + 0.75 * r };
   if (o.spear && !angry) {
     ctx.strokeStyle = '#6A4A2A';
     ctx.lineWidth = Math.max(1, r * 0.035);
@@ -302,6 +302,17 @@ function drawPerson(ctx, c, t, o) {
     ctx.fill();
     ctx.stroke();
   }
+  if (o.crook && !angry) {
+    // le bâton du berger, recourbé en haut
+    ctx.strokeStyle = '#6A4A2A';
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0.14 * r, footY - 0.05 * r);
+    ctx.lineTo(0.3 * r, headY - 0.45 * r);
+    ctx.arc(0.4 * r, headY - 0.45 * r, 0.1 * r, Math.PI, 0);
+    ctx.stroke();
+  }
   limb(ctx, [[0.05 * r, shY + 0.08 * r, 0.08 * r], [(0.05 * r + hand.x) / 2 + 0.06 * r, (shY + hand.y) / 2 + 0.06 * r, 0.068 * r], [hand.x, hand.y, 0.062 * r]], skin, shade(skin, -0.55), lw);
   ctx.restore();
 }
@@ -309,7 +320,8 @@ function drawPerson(ctx, c, t, o) {
 LOOKS.humain = (ctx, c, t) => drawPerson(ctx, c, t, {});
 LOOKS.chasseur = (ctx, c, t) => drawPerson(ctx, c, t, { spear: true });
 LOOKS.enfant = (ctx, c, t) => drawPerson(ctx, c, t, { child: true });
-for (const id of ['humain', 'chasseur', 'enfant']) {
+LOOKS.berger = (ctx, c, t) => drawPerson(ctx, c, t, { crook: true });
+for (const id of ['humain', 'chasseur', 'enfant', 'berger']) {
   SIDE[id] = [0.25, -0.9];
   FRAMES[id] = { r: 0.17, x: 0.5, y: 0.6 };
 }
@@ -506,33 +518,61 @@ DECORS.village = (ctx, d, t) => {
   campFire(ctx, d.x, d.y, d.r * 0.06, t + d.seed);
 };
 
-/** L'enclos des moutons : une barrière de pieux, avec une entrée */
-function paintPen(ctx, d) {
-  ctx.fillStyle = 'rgba(210, 200, 120, 0.35)';
+/** Le grand enclos : une barrière de pieux, et une seule porte (d.gate, d.gateW en radians) */
+const FENCE = 0.85;
+DECORS.enclos = (ctx, d) => {
+  const R = d.r * FENCE, a0 = d.gate + d.gateW / 2, a1 = d.gate + Math.PI * 2 - d.gateW / 2;
+  ctx.fillStyle = 'rgba(214, 200, 110, 0.4)';
   ctx.beginPath();
-  ctx.arc(d.x, d.y, d.r * 0.85, 0, TAU);
+  ctx.arc(d.x, d.y, R, 0, TAU);
   ctx.fill();
-  const gate = 0.5;                  // l'entrée (en radians)
-  ctx.strokeStyle = '#6A4A2A';
-  ctx.lineCap = 'round';
-  for (const k of [0.83, 0.87]) {
-    ctx.lineWidth = d.r * 0.022;
+  // des tas de foin
+  ctx.fillStyle = '#D9BE5A';
+  ctx.strokeStyle = '#A88E36';
+  ctx.lineWidth = d.r * 0.006;
+  for (const [x, y] of [[-0.35, -0.3], [-0.45, 0.25], [0.1, 0.45], [0.15, -0.5]]) {
     ctx.beginPath();
-    ctx.arc(d.x, d.y, d.r * k, gate / 2, TAU - gate / 2);
+    ctx.ellipse(d.x + x * d.r, d.y + y * d.r, d.r * 0.08, d.r * 0.055, x * 3, 0, TAU);
+    ctx.fill();
     ctx.stroke();
   }
-  const n = 26;
-  for (let i = 0; i <= n; i++) {
-    const a = gate / 2 + (TAU - gate) * i / n;
-    ctx.fillStyle = '#5A3E22';
+  // la barrière
+  ctx.strokeStyle = '#6A4A2A';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = d.r * 0.016;
+  for (const k of [-0.012, 0.012]) {
     ctx.beginPath();
-    ctx.arc(d.x + Math.cos(a) * d.r * 0.85, d.y + Math.sin(a) * d.r * 0.85, d.r * 0.03, 0, TAU);
+    ctx.arc(d.x, d.y, R + k * d.r, a0, a1);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#5A3E22';
+  const n = 44;
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (a1 - a0) * i / n;
+    ctx.beginPath();
+    ctx.arc(d.x + Math.cos(a) * R, d.y + Math.sin(a) * R, d.r * 0.016, 0, TAU);
     ctx.fill();
   }
-  // un tas de foin
-  ctx.fillStyle = '#D9BE5A';
+  // la porte : un chemin de terre, deux gros poteaux et les battants ouverts
+  const gx = d.x + Math.cos(d.gate) * R, gy = d.y + Math.sin(d.gate) * R;
+  const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, d.r * 0.38);
+  g.addColorStop(0, 'rgba(170, 135, 85, 0.7)');
+  g.addColorStop(1, 'rgba(170, 135, 85, 0)');
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.ellipse(d.x - d.r * 0.3, d.y - d.r * 0.25, d.r * 0.14, d.r * 0.1, 0.4, 0, TAU);
+  ctx.arc(gx, gy, d.r * 0.38, 0, TAU);
   ctx.fill();
-}
-DECORS.enclos = (ctx, d) => drawSprite(ctx, d, 'enclos', 0, paintPen, 0, 1.05);
+  for (const a of [a0, a1]) {
+    const px = d.x + Math.cos(a) * R, py = d.y + Math.sin(a) * R;
+    ctx.strokeStyle = '#7A5630';
+    ctx.lineWidth = d.r * 0.02;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + Math.cos(d.gate) * d.r * 0.2, py + Math.sin(d.gate) * d.r * 0.2);
+    ctx.stroke();
+    ctx.fillStyle = '#3E2A16';
+    ctx.beginPath();
+    ctx.arc(px, py, d.r * 0.034, 0, TAU);
+    ctx.fill();
+  }
+};
