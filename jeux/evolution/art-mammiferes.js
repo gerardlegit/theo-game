@@ -12,7 +12,7 @@
 // tout est en × c.size. Les outils de base (corps, pattes) viennent d'art-dinos.js.
 // ============================================================================
 
-import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, SNOUT, SPINES, DECORS, COVERS, shade, smoothClosed, spineShape, segDir, eyes, drawSprite, turnOf, seeded } from './art.js';
+import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, SNOUT, SPINES, DECORS, COVERS, BODIES, shade, smoothClosed, spineShape, segDir, eyes, drawSprite, turnOf, seeded } from './art.js';
 import { SIDE, blob } from './art-terre.js';
 import { setDetail, isFine, startSide, groundShadow, joint, limb, claw, bodyPath, spineAt, paintBody, theroLeg, pillarLeg, muscles } from './art-dinos.js';
 
@@ -1314,6 +1314,7 @@ export function addMammals(table) {
   for (const [id, P] of Object.entries(table)) {
     LOOKS[id] = (ctx, c, t) => drawMammal(ctx, c, t, P, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
     SIDE[id] = mamMouth(P.head);
+    BODIES[id] = { family: 'mam', P };
     const tall = -(P.head.y - P.head.D * 0.6);
     FRAMES[id] = tall > 1.1 ? { r: 0.13, x: 0.46, y: 0.66 } : tall > 0.75 ? { r: 0.155, x: 0.47, y: 0.62 } : { r: 0.18, x: 0.47, y: 0.56 };
   }
@@ -1325,6 +1326,7 @@ for (const [id, P] of Object.entries(BIRDS)) {
   LOOKS[id] = (ctx, c, t) => drawRunnerBird(ctx, c, t, P, c.sp.color);
   const H = P.head;
   SIDE[id] = [+(H.x + H.R * 0.5 + H.beakL * 0.9).toFixed(2), +(H.y + H.beakD * 0.2).toFixed(2)];
+  BODIES[id] = { family: 'bird', P };
   FRAMES[id] = { r: 0.15, x: 0.45, y: 0.62 };
 }
 LOOKS.titanoboa = drawSnake;

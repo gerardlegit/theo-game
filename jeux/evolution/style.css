@@ -121,9 +121,6 @@ body {
   box-shadow: 0 5px 0 #5A4018;
 }
 .pad-actions .bark-btn[hidden] { display: none; }
-/* Le bouton Saute (les niveaux sur la terre ferme) */
-.jump-btn { background: #58C97B; box-shadow: 0 5px 0 #2F8F50; }
-.pad-actions .jump-btn[hidden] { display: none; }
 .desk-help {
   text-align: center;
   color: var(--muted);

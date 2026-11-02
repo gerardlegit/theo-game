@@ -11,7 +11,7 @@
 // ses propres couleurs (PLAYER, qui changent à chaque chapitre).
 // ============================================================================
 
-import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, LANDFX, shade, smoothClosed } from './art.js';
+import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, BODIES, shade, smoothClosed } from './art.js';
 import { SIDE } from './art-terre.js';
 
 const TAU = Math.PI * 2;
@@ -39,7 +39,6 @@ export function startSide(ctx, c) {
 }
 
 export function groundShadow(ctx, x0, x1, y, h) {
-  if (LANDFX.noShadow) return;
   ctx.fillStyle = 'rgba(0, 25, 15, 0.22)';
   ctx.beginPath();
   ctx.ellipse((x0 + x1) / 2, y, Math.abs(x1 - x0) / 2, h, 0, 0, TAU);
@@ -1258,17 +1257,20 @@ const PTERO = {
 for (const [id, P] of Object.entries(THERO)) {
   LOOKS[id] = (ctx, c, t) => drawTheropod(ctx, c, t, P, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
   SIDE[id] = mouthOf(P.head);
+  BODIES[id] = { family: 'thero', P };
   FRAMES[id] = { r: 0.16, x: 0.58, y: P.head.y < -0.8 ? 0.6 : 0.55 };
 }
 for (const [id, P] of Object.entries(QUAD)) {
   LOOKS[id] = (ctx, c, t) => drawQuadruped(ctx, c, t, P, c.sp.color);
   SIDE[id] = mouthOf(P.head);
+  BODIES[id] = { family: 'quad', P };
   FRAMES[id] = { r: 0.17, x: 0.55, y: 0.56 };
 }
 for (const [id, P] of Object.entries(SAURO)) {
   LOOKS[id] = (ctx, c, t) => drawSauropod(ctx, c, t, P, c.sp.color);
   const end = P.neck[P.neck.length - 1];
   SIDE[id] = mouthOf({ ...P.head, x: end[0] + P.head.dx, y: end[1] + P.head.dy });
+  BODIES[id] = { family: 'sauro', P };
 }
 FRAMES.brachiosaure = { r: 0.14, x: 0.5, y: 0.7 };
 FRAMES.diplodocus = { r: 0.12, x: 0.52, y: 0.62 };
@@ -1317,6 +1319,7 @@ for (const [form, B] of Object.entries(PLAYER_BUILD)) {
     }
   };
   SIDE[form] = mouthOf(B.head);
+  BODIES[form] = { family: 'thero', P: B };
   FORM_SPINE[form] = null;
   FRAMES[form] = { r: 0.16, x: 0.58, y: 0.55 };
 }

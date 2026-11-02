@@ -8,7 +8,7 @@
 // ============================================================================
 
 import {
-  INK, PLAYER, LOOKS, FORMS, DECORS, COVERS, FRAMES, FORM_SPINE, SPINES, LANDFX,
+  INK, PLAYER, LOOKS, FORMS, DECORS, COVERS, FRAMES, FORM_SPINE, SPINES,
   shade, seeded, spineShape, smoothClosed, segDir, shadow, eyes, mouth, drawSprite, turnOf,
 } from './art.js';
 
@@ -402,7 +402,6 @@ function sideStart(ctx, c) {
 }
 
 function groundShadow(ctx, x0, x1, y, r) {
-  if (LANDFX.noShadow) return;
   ctx.fillStyle = 'rgba(0, 25, 15, 0.22)';
   ctx.beginPath();
   ctx.ellipse((x0 + x1) / 2, y, (x1 - x0) / 2, r * 0.22, 0, 0, TAU);

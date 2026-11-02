@@ -1,6 +1,6 @@
 // ============================================================================
 // Évolution — le moteur du jeu. Le joueur est un être vivant qui nage dans
-// l'océan, puis court et saute sur la terre ferme (voir terre.js) ou
+// l'océan, puis court sur la terre ferme (voir terre.js) ou
 // retourne dans la mer : il mange ce qui est plus petit que
 // lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
 // gros, et fait évoluer son corps. Au niveau du loup, il chasse avec sa meute,
@@ -12,7 +12,7 @@
 import { LEVELS } from './levels/index.js';
 import {
   drawCreature, drawPlayer, drawDecor, drawCover, drawDrop, drawSweat, drawAlert,
-  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, SNOUT, AMMO_SVG, PLAYER,
+  buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, SNOUT, AMMO_SVG, PLAYER, shade,
 } from './art.js';
 import { drawCloudShadows, SIDE } from './art-terre.js';
 import './art-dinos.js';
@@ -46,7 +46,7 @@ fixTypo(LINES);
 const DRAG = 3;                    // l'eau freine : sans nager, on s'arrête en ~1 s
 const TURN = 7;                    // rad/s pour se tourner
 const TURN_LAND = 13;              // (sur la terre) on se tourne bien plus vite
-const LAND_CHASE = 1.15;           // (sur la terre) les chasseurs foncent, car tu vas bien plus vite
+const LAND_CHASE = 1.1;            // (sur la terre) les chasseurs foncent, car tu vas bien plus vite
 const LAND_MUD = 0.85;             // (sur la terre) la boue et la neige ralentissent à peine…
 const LAND_WATER = 0.78;           // …et l'eau aussi (en sautant, on passe au-dessus)
 const BASE_SPEED = 110;            // vitesse = BASE_SPEED + SPEED_PER_SIZE × taille
@@ -140,7 +140,6 @@ const ictx = introCanvas.getContext('2d');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const dashBtn = $('dashBtn');
-const jumpBtn = $('jumpBtn');
 const barkBtn = $('barkBtn');
 const strikeBtn = $('strikeBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
@@ -547,14 +546,12 @@ function buildWorld() {
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
 
-/* ---------- La terre ferme : la course, le pivot, le saut… (voir terre.js) ---------- */
+/* ---------- La terre ferme : la course et les vues en volume (voir terre.js) ---------- */
 const terre = createTerre({
-  level: () => LV, chapter: () => CH, game: () => game, player: () => player, creatures: () => creatures,
-  zones: () => zones, particles: () => particles, ctx: () => ctx, zoom: () => zoom, viewW: () => viewW, viewH: () => viewH,
-  lines: () => LINES, maxSpeed: () => maxSpeed(), blocked: () => isBlocked(), canEat: (c) => canEat(c), eat: (c) => playerEats(c),
-  noteStun: (c) => noteStun(c), deed: (n, x, y) => deed(n, x, y), floater: (...a) => addFloater(...a), burst: (...a) => burst(...a),
-  ring: (R, col) => ringFx(R, col), addShake: (v) => { shake = Math.max(shake, v); }, buzz: (v) => buzz(v), sayOnce: (...a) => sayOnce(...a),
-});
+  level: () => LV, chapter: () => CH, player: () => player,
+  particles: () => particles, ctx: () => ctx,
+  worldT: () => worldT, shade,
+  });
 
 /* ---------- Le joueur ---------- */
 function formLook() {
@@ -751,10 +748,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
-  if (e.code === 'Space' && terre.on()) {
-    e.preventDefault();
-    if (!e.repeat) terre.press();
-  } else if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+  if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
     e.preventDefault();
     if (!e.repeat) activateDash();
   } else if (e.code === 'KeyE' || e.code === 'KeyV') {
@@ -769,7 +763,6 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const dir = KEYMAP[e.code];
   if (dir) keys[dir] = false;
-  if (e.code === 'Space' && LV && player && state === 'playing') terre.release();
 });
 
 function releaseAll() {
@@ -789,8 +782,6 @@ document.querySelectorAll('.dpad button').forEach((btn) => {
   btn.addEventListener('pointercancel', release);
 });
 dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateDash(); });
-jumpBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); terre.press(); });
-['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => jumpBtn.addEventListener(ev, () => { if (LV && player) terre.release(); }));
 barkBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateBark(); });
 strikeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateStrike(); });
 
@@ -808,7 +799,7 @@ canvas.addEventListener('pointerdown', (e) => {
   updatePointer(e);
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignoré */ }
   const now = performance.now();
-  if (now - pointer.lastDown < 320) { if (terre.on()) terre.press(); else activateDash(); }
+  if (now - pointer.lastDown < 320) activateDash();
   pointer.lastDown = now;
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -1096,10 +1087,9 @@ function updatePlayer(dt) {
   if (dir) lastMoveAt = performance.now();
   // dans l'eau ou dans la boue, on avance moins vite (sauf le tétrapode, qui nage bien)
   const onLand = terre.on();
-  const inAir = onLand && p.z > 0;     // en plein saut, on passe au-dessus de la boue et des mares
-  const zone = inAir ? p.zone : zoneAt(p.x, p.y);
+  const zone = zoneAt(p.x, p.y);
   if (zone !== p.zone) enterZone(zone);
-  const zk = inAir ? 1 : onLand ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1)
+  const zk = onLand ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1)
     : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
   const ms = maxSpeed() * zk;
   const dashing = p.dash > 0;
@@ -1134,8 +1124,6 @@ function updatePlayer(dt) {
   if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (onLand ? TURN_LAND : stats.dash ? 10 : TURN) * dt);
   updateFace(p);
   terre.turn(p, dt);
-  terre.update(p, dt);
-  if (p.dead) return;
   if (dashing) {
     p.dash -= dt;
     if (!onLand && Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
@@ -1157,7 +1145,7 @@ function updatePlayer(dt) {
   updateDrying(dt, zone);
   // caché dans les algues (ou les fougères) ?
   const wasHidden = p.hidden;
-  p.hidden = !inAir && hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
+  p.hidden = hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
   // près du feu des humains qui te font confiance, aucun chasseur n'ose venir
   p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
   p.barkT = Math.max(0, (p.barkT || 0) - dt);
@@ -1491,7 +1479,6 @@ function updateCreatures(dt) {
     if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
     updateFace(c);
     terre.turn(c, dt);
-    terre.stepCreature(c, dt);
     c.speed = sp.speed ? Math.min(1, v / sp.speed) : 0;
     c.swim = (c.swim || 0) + dt * (0.35 + c.speed * 0.8);
     c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
@@ -2110,7 +2097,7 @@ function spot(c) {
     sfx.alert();
   }
   buzz(40);
-  if (sayOnce('spotted', LINES.spotted, 12, 2) && (terre.on() ? !game.boinged : !game.dashUsed)) later(() => sayOnce('dashHint', terre.on() ? LINES.dashHintLand : LINES.dashHint, 60, 2), 2200);
+  if (sayOnce('spotted', LINES.spotted, 12, 2) && !game.dashUsed) later(() => sayOnce('dashHint', LINES.dashHint, 60, 2), 2200);
 }
 
 /** Si c'est une meute, les autres membres arrivent aussi */
@@ -2205,19 +2192,18 @@ function updateContacts() {
     // 2. un chasseur nous croque avec sa gueule
     if (c.sp.kind === 'hunter' && isDanger(c) && p.invul <= 0) {
       if (mouthDist(c, p.x, p.y) < p.size * 0.85 + c.size * 0.3) {
-        if (terre.airborne()) { if (c.state === 'chase') terre.dodge(c); continue; }
         bitten(c);
         if (p.dead) return;
         continue;
       }
     }
     // 3. une méduse pique
-    if (c.sp.kind === 'stinger' && isDanger(c) && p.invul <= 0 && !terre.airborne() && d < c.size * 0.85 + p.size * 0.7) {
+    if (c.sp.kind === 'stinger' && isDanger(c) && p.invul <= 0 && d < c.size * 0.85 + p.size * 0.7) {
       stung(c);
       continue;
     }
     // 4. un herbivore qui charge (ou la queue à pointes), un géant qui écrase
-    if (p.invul <= 0 && !terre.airborne() && !canEat(c) && hurtsByContact(c, d)) {
+    if (p.invul <= 0 && !canEat(c) && hurtsByContact(c, d)) {
       stung(c);
       continue;
     }
@@ -2225,7 +2211,7 @@ function updateContacts() {
     if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
     // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !terre.airborne() && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
+    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
@@ -2523,21 +2509,13 @@ function timeTravel() {
 
 const howToFirst = $('howToFirst');
 const HOWTO_SEA = howToFirst.innerHTML;
-const HOWTO_LAND = HOWTO_SEA.replace('pour nager', 'pour courir').replace('<kbd>Espace</kbd> : foncer', '<kbd>Espace</kbd> : sauter, <kbd>Maj</kbd> : foncer');
+const HOWTO_LAND = HOWTO_SEA.replace('pour nager', 'pour courir');
 
-/** Sur la terre, Espace fait sauter (le sprint passe sur Maj) ; dans la mer, Espace fait foncer */
+/** Sur la terre, on court ; dans la mer, on nage */
 function setupLandUi() {
   const land = terre.on();
-  jumpBtn.hidden = !land;
-  dashBtn.innerHTML = `💨 Fonce <kbd class="desktop-only">${land ? 'Maj' : 'Espace'}</kbd>`;
   const arrows = '<kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd>';
-  $('deskHelp').innerHTML = land
-    ? `${arrows} courir · <kbd>Espace</kbd> sauter (deux fois : plonger) · <kbd>Maj</kbd> foncer · <kbd>E</kbd> évoluer`
-    : `${arrows} nager · <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer`;
-  if (land && !game.jumped) {
-    later(() => sayOnce('landHelp', LINES.landHelp, 25, 3), 2500);
-    later(() => { if (game.jumped) sayOnce('landHelp2', LINES.landHelp2, 60, 2); }, 16000);
-  }
+  $('deskHelp').innerHTML = `${arrows} ${land ? 'courir' : 'nager'} · <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer`;
 }
 
 /** Les couleurs du joueur changent à chaque chapitre (chapters[].skin) */
@@ -2581,7 +2559,6 @@ function setupChapter(keepPos) {
   drops = [];
   particles = [];
   floaters = [];
-  terre.setup();
   setupLandUi();
   populate();
   missionsShown = '';
@@ -2829,7 +2806,6 @@ function draw() {
   ctx.globalAlpha = 1;
   if (stats.cones) drawCones(inView);
   for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
-  if (land) terre.drawBumps(inView);
 
   // les créatures, des plus petites aux plus grosses ; le joueur à sa place ; ce qui vole, tout en haut
   const list = creatures.filter((c) => inView(c, c.size * 3.5)).sort(land ? (a, b) => a.y - b.y : (a, b) => a.size - b.size);
@@ -2840,7 +2816,6 @@ function draw() {
     terre.paint(c, () => drawCreature(ctx, c, worldT + c.seed));
   }
   if (!playerDrawn) drawThePlayer();
-  if (land) terre.drawChains(inView, worldT);
 
   // par-dessus : les cachettes (algues, fougères) et les feuillages, transparents quand on est dessous
   for (const a of covers) {
@@ -3504,7 +3479,6 @@ function renderStartInfo() {
     $('startGoal').hidden = done;
     $('howTo').hidden = done || !!LV.world.noGrow;
     howToFirst.innerHTML = terre.on() ? HOWTO_LAND : HOWTO_SEA;
-    $('howToLand').hidden = !terre.on();
     return;
   }
   // un autre niveau de la carte
@@ -4982,7 +4956,6 @@ function botDir() {
       : botCareful ? c.size * 2.5 + p.size * 3 + (c.state === 'chase' ? 260 : 120) : c.size * 1.6 + p.size * 2;
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
-  if (terre.on()) terre.botThink(threat, 1 / 30);
   if (threat > 0.15) {
     if (canStrike() && p.strikeT <= 0 && creatures.some((c) => inStrikeReach(c) && isThreat(c))) activateStrike();
     // (le loup et l'humain) un aboiement fait fuir les chasseurs
