@@ -384,7 +384,7 @@ const lines = {
   start: "Bloub ! On reste dans la mer ! Mais attention : tes descendants respirent de l'air maintenant. Remonte souvent à la surface 🐳… et ouvre l'œil, la mer est pleine de monstres !",
 };
 
-/* La fin : on règne sur les océans… puis la météorite. Deux chemins pour la suite. */
+/* La fin : on règne sur les océans… puis la météorite. La suite : les requins. */
 const ending = {
   scene: 'meteorite',
   crowd: ['elasmosaure', 'archelon', 'xiphactinus', 'ammonite'],
@@ -398,13 +398,6 @@ const ending = {
     [11.8, 15, "Mais certains animaux survivent…"],
   ],
   choices: [
-    {
-      id: 'terre', icon: '🐢', title: 'Retourner sur la terre',
-      text: 'Tes descendants remontent sur la plage et deviennent des reptiles : tortues, crocodiles, lézards…',
-      level: 'voie-des-reptiles',
-      soon: 'Niveau 3 : La voie des reptiles',
-      fact: "Les tortues de mer ont survécu à la météorite ! Elles reviennent toujours pondre leurs œufs sur la plage.",
-    },
     {
       id: 'mer', icon: '🦈', title: 'Devenir un requin',
       text: "Les requins ont survécu à la météorite… et ils règnent encore aujourd'hui sur les océans !",

@@ -10,7 +10,8 @@
 // avec les enfants et ramener les moutons dans l'enclos.
 // Manger ne fait pas grandir (world.noGrow) : on gagne par ses actions, et
 // chaque bonne action rapporte de l'ADN pour évoluer. Au chapitre 1, ta force,
-// c'est la taille de ta meute : tous ensemble, vous attaquez les rennes.
+// c'est la taille de ta meute (5 loups au plus) : tous ensemble, vous attaquez
+// les rennes, les bisons, les rhinocéros et même le mammouth.
 // Le moteur (script.js) ne connaît aucune espèce par son nom : tout est ici.
 // Pour créer un niveau : voir levels/index.js.
 // ============================================================================
@@ -75,15 +76,22 @@ const species = {
     fact: "La marmotte siffle très fort pour prévenir les autres d'un danger. L'hiver, elle dort six mois dans son terrier !",
   },
   renne: {
-    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'renne', color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !', noEat: true, hp: 100, need: 5,
+    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'renne', color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !', noEat: true, hp: 100, need: 3,
     size: 85, speed: 240, sense: 360, adn: 40,
     eatLine: "Bravo ! Tout seul, tu n'aurais jamais attrapé un renne… mais en meute, tout est possible !",
     fact: "Chez les rennes, même les femelles ont des bois ! Les loups et les humains de l'âge de glace chassaient les mêmes troupeaux.",
   },
   bison: {
-    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'bison', color: '#6E4E36', noEat: true,
-    size: 105, speed: 260, sense: 360, adn: 36,
+    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'bison', color: '#6E4E36', noEat: true, hp: 170, need: 4,
+    size: 105, speed: 260, sense: 360, adn: 60,
+    eatLine: "Quel festin ! Un bison, ça nourrit toute la meute pendant des jours.",
     fact: "Le bison des steppes avait des cornes deux fois plus grandes que celles des bisons d'aujourd'hui. Les humains l'ont peint dans les grottes !",
+  },
+  'cerf-geant': {
+    name: 'Cerf géant', plural: 'cerfs géants', kind: 'prey', look: 'megaloceros', color: '#8A6A44', noEat: true, hp: 130, need: 4,
+    size: 125, speed: 300, sense: 360, adn: 50,
+    eatLine: "Rattrapé ! Ses bois immenses ne l'ont pas aidé à s'enfuir…",
+    fact: "Le cerf géant, ou mégacéros, avait les plus grands bois de tous les temps : plus de 3 mètres et demi d'un bout à l'autre, plus large qu'une voiture !",
   },
   saiga: {
     name: 'Saïga', plural: 'saïgas', kind: 'prey', look: 'gazelle', color: '#C9A877',
@@ -160,13 +168,16 @@ const species = {
   },
   mammouth: {
     name: 'Mammouth laineux', plural: 'mammouths laineux', kind: 'giant', look: 'mammouth', color: '#7A5A40', stomp: true,
-    size: 330, speed: 120, sense: 0, adn: 0,
-    fact: "Le mammouth laineux était bien trop gros pour un loup. Mais les humains le chassaient, en groupe, avec leurs lances.",
+    size: 250, speed: 130, sense: 0, adn: 120,
+    fights: true, hp: 320, need: 5,
+    eatLine: "Incroyable ! Toute la meute a vaincu le géant de la steppe. Personne ne l'oubliera !",
+    fact: "Le mammouth laineux pesait autant que quatre voitures ! Dans la vraie vie, les loups s'attaquaient plutôt aux jeunes ou aux bêtes affaiblies, et les humains le chassaient en groupe, avec leurs lances.",
   },
   'rhino-laineux': {
-    name: 'Rhinocéros laineux', plural: 'rhinocéros laineux', kind: 'defender', look: 'rhino-laineux', color: '#7A6450', stomp: true, hurt: 'Aïe, la corne !',
-    size: 240, speed: 190, sense: 260, adn: 0,
-    fact: "Le rhinocéros laineux avait une corne de plus d'un mètre. Même une meute de loups préférait le laisser tranquille !",
+    name: 'Rhinocéros laineux', plural: 'rhinocéros laineux', kind: 'defender', look: 'rhino-laineux', color: '#7A6450', stomp: true, hurt: 'Aïe, la corne !', fights: true, hp: 220, need: 5,
+    eatLine: "Ouf ! Il a chargé, mais à cinq, vous avez été les plus forts !",
+    size: 190, speed: 190, sense: 260, adn: 80,
+    fact: "Le rhinocéros laineux avait une corne de plus d'un mètre. Il fallait être nombreux pour l'approcher… et surtout ne pas rester devant lui !",
   },
   aurochs: {
     name: 'Aurochs', plural: 'aurochs', kind: 'defender', look: 'aurochs', color: '#3E2E24', stomp: true, hurt: 'Aïe, les cornes !',
@@ -237,23 +248,26 @@ const chapters = [
     form: 'louveteau',
     skin: { body: '#8E8A86', belly: '#EFEAE0', dark: '#3E3A36', stripe: '#6A6662' },
     size: [36, 36],
-    pack: 5,                         // la meute à rassembler (jauge en haut de l'écran)
+    pack: 5,                         // la meute à rassembler, 5 loups au plus (jauge en haut de l'écran)
     vision: 1.2,
     fog: 0.55,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#DCE6EC', motes: 'rgba(255, 255, 255, 0.9)' },
-    species: { 'loup-solitaire': 4, campagnol: 6, lievre: 6, marmotte: 4, renne: 4, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, mammouth: 1 },
+    species: { 'loup-solitaire': 4, campagnol: 6, lievre: 6, marmotte: 4, renne: 3, bison: 1, 'cerf-geant': 1, 'rhino-laineux': 1, mammouth: 1, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1 },
     unlock: ['flair', 'hurlement'],
-    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, tout seul dans la steppe. Va toucher les loups solitaires (ils ont un anneau doré) : ils te suivront. Avec 5 loups, ta meute pourra attaquer un renne : tous ensemble, vous viderez sa barre de vie !",
+    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, tout seul dans la steppe. Va toucher les loups solitaires (ils ont un anneau doré) : ils te suivront. Avec 3 loups, ta meute peut attaquer un renne. Avec 5, le maximum, même un mammouth ! Tous ensemble, vous viderez sa barre de vie.",
     missions: [
       { type: 'pack', species: 'loup-solitaire', n: 3 },
+      { type: 'eat', species: 'renne', n: 2, text: 'Attaque 2 rennes avec ta meute' },
       { type: 'evolve', part: 'hurlement' },
       { type: 'pack', species: 'loup-solitaire', n: 5 },
-      { type: 'eat', species: 'renne', n: 3, text: 'Attaque 3 rennes avec ta meute' },
+      { type: 'eat', species: 'rhino-laineux', n: 1, text: 'Attaque un rhinocéros laineux' },
+      { type: 'eat', species: 'mammouth', n: 1, text: 'Attaque un mammouth laineux' },
     ],
     tips: [
       "Chaque loup solitaire rejoint ta meute dès que tu le touches. Suis la flèche !",
       "Avec 3 loups, les hyènes te laissent tranquille. Avec 5, même le lion s'enfuit !",
-      "Ne passe pas sous les pattes des mammouths !",
+      "Au-dessus de chaque grosse bête, tu vois combien de loups il faut : 3 pour le renne, 4 pour le bison et le cerf géant, 5 pour le rhinocéros et le mammouth.",
+      "Le rhinocéros et le mammouth se défendent ! Quand tu vois le « ! », écarte-toi : ta meute continue de mordre pendant ce temps.",
     ],
   },
   {

@@ -23,7 +23,7 @@
 //      noGrow = manger ne fait pas grandir ("size" fixe) ; mudSpeed = ce que
 //      strike = un coup qui assomme les adversaires proches 2 s (name, icon,
 //      type 'queue' / 'griffe', from = à partir de ce chapitre, intro = le texte
-//      qui l'annonce).
+//      qui l'annonce) ; combo = manger vite de suite rapporte plus d'ADN.
 //      laisse la boue ou la neige ; maxChasers = chasseurs en même temps ; speed = vitesse du joueur (×) ;
 //      noise = distance à laquelle on entend le joueur foncer ; penalty = ce qu'on perd en se faisant
 //      manger (part de l'ADN, part de la croissance) ; meter = la jauge qui
@@ -52,8 +52,10 @@
 //      joue avec toi), near 'pen' (le troupeau broute près des enclos),
 //      eatsFlock (un loup sauvage qui croque les moutons), noEat (on ne peut
 //      pas le manger), trust (ce que la confiance gagne quand on le mange),
-//      barkLine (texte quand on aboie dessus), hp + need (une barre de vie : il
-//      faut "need" loups pour l'attaquer), packFear (assez de loups : il fuit).
+//      maxTurn (il tourne lentement, en rad/s), buried (caché dans le sable),
+//      hits (la barre de vie d'un boss) avec tailBite (on lui mord la queue) ou
+//      breachHit (on lui retombe dessus), hitLine ; barkLine (texte quand on aboie dessus), hp + need (une barre de vie : il
+//      faut "need" loups pour l'attaquer ; fights : au lieu de fuir, il se retourne et charge), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
 //      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…),
@@ -76,7 +78,9 @@
 //      rassembler une meute, trust =
 //      la confiance des humains en %, bark = faire fuir en aboyant, herd =
 //      ramener dans l'enclos, play = jouer avec ; "text" change la phrase).
-//      start = où l'on arrive dans ce chapitre ; pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
+//      power = le pouvoir de ce chapitre, touche F (type 'flash' / 'whip' / 'gulp' /
+//      'hammer' / 'breach', name, icon, recharge, range, intro) ; missions stun
+//      (assommer) et hit (toucher un boss) ; start = où l'on arrive dans ce chapitre ; pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
 //      confiance des humains, treat = ce qu'ils
 //      te lancent à manger. Sur la terre : dry
 //      (vitesse de séchage), waterSpeed, speed, vision, fog (obscurité).
@@ -84,12 +88,13 @@
 //      avec "from" / "to" n'existe que dans ces chapitres (neige, terriers…).
 //   6. "ending" : la scène ("scene" : 'roi' = le joueur acclamé, 'meteorite',
 //      'feu' = l'arrivée des humains et les peintures des grottes, 'chien' =
-//      la veillée au village et le défilé des races de chiens),
+//      la veillée au village et le défilé des races de chiens, 'requins' = le
+//      défilé des requins d'aujourd'hui),
 //      la foule ("crowd"), les légendes ("captions"), le titre et les choix ;
 //      chaque choix nomme le niveau suivant ("level"). Tant qu'il n'existe
 //      pas, la fin annonce « bientôt » (texte "soon").
 //      Le niveau a aussi une icône ("icon"), une intro ('ocean' / 'terre' /
-//      'mer' / 'mammiferes' / 'loup') et, si besoin, le numéro affiché ("num" : deux
+//      'mer' / 'mammiferes' / 'loup' / 'requins') et, si besoin, le numéro affiché ("num" : deux
 //      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur
 //      la carte des niveaux de l'écran de départ (elle se construit toute
 //      seule à partir des choix de fin).
@@ -102,5 +107,6 @@ import versLesDinosaures from './vers-les-dinosaures.js';
 import monstresMarins from './monstres-marins.js';
 import voieDesMammiferes from './voie-des-mammiferes.js';
 import loupEtHumain from './loup-et-humain.js';
+import voieDesRequins from './voie-des-requins.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins];

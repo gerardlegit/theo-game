@@ -76,10 +76,15 @@ export const LINES = {
   horned: "Aïe ! Les herbivores savent se défendre, eux aussi !",
   crushed: "Écrasé ! Ne passe jamais sous les pattes d'un géant…",
   stunned: "Bam ! Il est assommé pendant 2 secondes : file, ou profites-en !",
+  // les requins
+  burp: "Oh ! Ça ne se fait pas, de roter comme ça… Bon, c'était quand même très réussi.",
+  found: "Bien joué ! Ton sens électrique a trouvé les raies. Vite, croque-les avant qu'elles filent !",
+  bossHit: "Touché ! Oh là là, il n'est vraiment pas content… FILE !",
+  combo: ["Quelle frénésie ! Tu ne t'arrêtes plus !", "Miam miam miam miam ! Quel combo !"],
   // le loup et l'humain
   packTitle: "Ta meute : va toucher les loups entourés d'un anneau doré pour qu'ils te rejoignent",
   packJoin: "Un loup de plus dans ta meute ! Cherche les autres : ils ont un anneau doré.",
-  packSmall: "Ce renne est trop fort pour vous ! Regarde au-dessus de lui : il te faut plus de loups.",
+  packSmall: "Cette bête est trop forte pour vous ! Regarde au-dessus d'elle : il te faut plus de loups.",
   huntGo: "Hou-hou-hou ! Toute la meute attaque : regarde sa barre de vie descendre !",
   packLost: "Oh non, un loup de ta meute s'est enfui ! Va vite le rechercher.",
   trustTitle: "La confiance des humains : reste près d'eux, sans foncer !",

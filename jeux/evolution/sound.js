@@ -143,6 +143,14 @@ export const sfx = {
       tone(320, st, 0.14, { type: 'sawtooth', vol: 0.08, to: 170 });
     }
   }),
+  /* le coup de queue du requin-renard : « flac ! » */
+  whip: () => play(() => { noise(0, 0.2, { vol: 0.3, freq: 3000, to: 500, q: 0.8 }); tone(180, 0.02, 0.12, { type: 'square', vol: 0.05, to: 80 }); }),
+  /* le flash du requin-lanterne */
+  flashy: () => play(() => { [79, 84, 91, 96].forEach((n, i) => tone(NOTE(n), i * 0.04, 0.3, { type: 'sine', vol: 0.08 })); }),
+  /* le rot du requin-tigre */
+  burp: () => play(() => { tone(95, 0, 0.55, { type: 'sawtooth', vol: 0.2, to: 60 }); tone(142, 0.02, 0.45, { type: 'square', vol: 0.06, to: 78 }); noise(0, 0.5, { vol: 0.12, freq: 350, q: 2 }); }),
+  /* le coup de marteau */
+  bong: () => play(() => { tone(NOTE(50), 0, 0.5, { type: 'triangle', vol: 0.25 }); tone(NOTE(62), 0, 0.35, { type: 'sine', vol: 0.15 }); tone(NOTE(74), 0, 0.2, { type: 'sine', vol: 0.08 }); }),
   /* le hurlement des loups, au loin */
   howl: () => play(() => {
     tone(NOTE(60), 0, 2.4, { type: 'sine', vol: 0.12, to: NOTE(69) });

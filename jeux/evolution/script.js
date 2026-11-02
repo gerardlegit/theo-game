@@ -19,8 +19,9 @@ import './art-dinos.js';
 import './art-mer.js';
 import './art-mammiferes.js';
 import { BREED_PARADE, campFire } from './art-loup.js';
+import './art-requins.js';
 import { LINES } from './data.js';
-import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, drawCaptionBox } from './intro.js';
+import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
 const SAVE_KEY = 'evolution-save';
@@ -71,7 +72,7 @@ const FULL_REST = 6;               // après avoir mangé le joueur, il digère
 /* ---------- Le loup et l'humain : la meute, les humains, l'aboiement ---------- */
 const PACK_RANGE = 700;            // un loup compte dans la meute s'il est à moins de ça de toi
 const FENCE = 0.85;                // la barrière de l'enclos, en part de son rayon
-const PACK_MAX = 8;                // au plus, dans ta meute
+const PACK_MAX = 5;                // au plus, dans ta meute
 const HUNT_BITE = 4;               // la vie (sur 100) qu'enlève chaque loup, par seconde
 const SHOO_TRUST = 0.3;            // en dessous, les humains te chassent si tu t'approches trop
 const SAFE_TRUST = 0.5;            // au-dessus, leur camp est un refuge : le feu fait peur aux chasseurs
@@ -82,6 +83,7 @@ const BARK_SCARE = 2.8;            // s pendant lesquelles un aboiement fait fui
 /* ---------- Le coup de queue ou de griffe (world.strike) ---------- */
 const STRIKE_RECHARGE = 4;         // s entre deux coups
 const STUN_TIME = 2;               // s pendant lesquelles l'adversaire reste assommé
+const BREACH_TIME = 1;             // s dans les airs, quand le mégalodon saute
 
 /* ---------- Le niveau en cours (tout ce qui le décrit est dans levels/) ---------- */
 let LV = null;
@@ -186,7 +188,8 @@ let endDecor = [];
 const endCues = new Set();
 let wasChased = false;
 let packNear = 0;                  // les loups de ta meute tout près de toi
-let huntTarget = null;             // le renne que la meute attaque
+let huntTarget = null;             // la grosse bête que la meute attaque
+let comboN = 0, comboT = 0;        // la frénésie : les repas à la suite (world.combo)
 let pens = [];                     // les enclos de ce chapitre (leur barrière bloque les animaux)
 let boneT = 0;                     // avant le prochain os lancé par les humains
 let heartFxT = 0;
@@ -264,7 +267,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0 };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {} };
 }
 
 function newGame() {
@@ -337,7 +340,7 @@ function markDone(id, choice) {
 function recalc() {
   const s = {
     speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false,
-    howl: false, trust: 1, bark: false, treats: 1, herd: 1,
+    howl: false, trust: 1, bark: false, treats: 1, herd: 1, power: 1,
   };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
@@ -353,6 +356,7 @@ function recalc() {
     if (e.cones) s.cones = true;
     if (e.radar) s.radar = true;
     if (e.howl) s.howl = true;
+    if (e.power) s.power = Math.max(s.power, e.power);
     if (e.trust) s.trust = Math.max(s.trust, e.trust);
     if (e.bark) s.bark = true;
     if (e.treats) s.treats = Math.max(s.treats, e.treats);
@@ -365,7 +369,7 @@ function recalc() {
 const growthK = () => (LV.world.noGrow ? 0 : clamp(game.earned / CH.growth, 0, 1));
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
 const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1) * (LV.world.speed || 1);
-const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1);
+const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1) * (player.litT > 0 ? 2.6 : 1);
 const drying = () => !!CH.dry && stats.dry > 0;
 
 /* La jauge qui baisse : sur la terre, la peau sèche (on la remplit dans une
@@ -380,6 +384,7 @@ const meter = () => LV.world.meter || METER_WATER;
 /* Qui peut manger qui ? (jamais un humain, un mouton ou un ami) */
 function canEat(c) {
   const k = c.sp.kind;
+  if (c.buried) return false;
   if (k === 'ally' || k === 'stray' || k === 'human' || k === 'flock' || k === 'shepherd' || c.sp.noEat) return false;
   return c.size <= player.size * stats.ratio && (!c.sp.armored || stats.armored);
 }
@@ -638,7 +643,7 @@ function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
     state: 'wander', timer: 0, rest: 0, lunge: 0, wx: x, wy: y,
     seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
     mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
-    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, stunT: 0, playT: 0, hp: sp.hp || 0,
+    walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, stunT: 0, playT: 0, lureT: 0, hitT: 0, buried: !!sp.buried, hp: sp.hp || 0,
     side: SIDE[sp.look] || null, face: 1,
   };
   resetSpine(c, SPINES[sp.look] ? sp.look : null);
@@ -666,6 +671,7 @@ function populate() {
   }
   // la meute déjà rassemblée est autour de toi
   if (CH.pack) {
+    game.packN = Math.min(game.packN || 0, PACK_MAX);   // (une ancienne sauvegarde pouvait en avoir 8)
     const ally = Object.keys(SPECIES).find((id) => SPECIES[id].kind === 'ally');
     for (let i = 0; i < (game.packN || 0); i++) creatures.push(makeCreature(ally, player.x + rand(-150, 150), player.y + rand(-150, 150), null, player.size * 0.92));
   }
@@ -880,12 +886,14 @@ function activateBark() {
 }
 
 /* Le coup de queue ou de griffe (world.strike) : les adversaires à portée restent assommés */
-const canStrike = () => !!LV.world.strike && game.chapter + 1 >= LV.world.strike.from;
+const canStrike = () => !!CH.power || (!!LV.world.strike && game.chapter + 1 >= LV.world.strike.from);
+const strikeMax = () => (CH.power ? CH.power.recharge : STRIKE_RECHARGE);
 const inStrikeReach = (c) => ['hunter', 'rival', 'defender'].includes(c.sp.kind) && dist(c, player) < player.size * 2.6 + c.size * 0.9;
 
 function activateStrike() {
   const p = player;
-  if (state !== 'playing' || isBlocked() || !p || p.dead || !canStrike() || p.strikeT > 0) return;
+  if (state !== 'playing' || isBlocked() || !p || p.dead || !canStrike() || p.strikeT > 0 || p.airT > 0) return;
+  if (CH.power) { firePower(); return; }
   p.strikeT = STRIKE_RECHARGE;
   p.mouth = 1;
   sfx.thud();
@@ -907,7 +915,7 @@ function activateStrike() {
 
 let shownStrike = -1;
 function renderStrikeBtn() {
-  const k = !canStrike() ? -2 : Math.round((1 - (player.strikeT || 0) / STRIKE_RECHARGE) * 20) / 20;
+  const k = !canStrike() ? -2 : Math.round((1 - (player.strikeT || 0) / strikeMax()) * 20) / 20;
   if (k === shownStrike) return;
   shownStrike = k;
   strikeBtn.hidden = k === -2;
@@ -1070,12 +1078,12 @@ function updatePlayer(dt) {
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
   let want = dir;
   if (dashing && !want) want = { x: Math.cos(p.angle), y: Math.sin(p.angle) };
-  if (want) {
+  if (want && !(p.airT > 0)) {
     const acc = ms * boost * DRAG;
     p.vx += want.x * acc * dt;
     p.vy += want.y * acc * dt;
   }
-  const k = Math.exp(-DRAG * dt);
+  const k = p.airT > 0 ? 1 : Math.exp(-DRAG * dt);
   p.vx *= k;
   p.vy *= k;
   const ox = p.x, oy = p.y;
@@ -1119,6 +1127,26 @@ function updatePlayer(dt) {
   p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
   p.barkT = Math.max(0, (p.barkT || 0) - dt);
   p.strikeT = Math.max(0, (p.strikeT || 0) - dt);
+  p.swim = (p.swim || 0) + dt * (0.4 + Math.min(1.5, p.speed) * 0.8);
+  p.litT = Math.max(0, (p.litT || 0) - dt);
+  p.flashT = Math.max(0, (p.flashT || 0) - dt);
+  p.whipT = Math.max(0, (p.whipT || 0) - dt);
+  p.bongT = Math.max(0, (p.bongT || 0) - dt);
+  if (p.gulpT > 0) {
+    // l'aspirateur : tout ce qui se mange arrive dans sa bouche
+    p.gulpT -= dt;
+    const R = CH.power.range * stats.power;
+    for (const c of creatures) if (canEat(c) && dist(c, p) < R + c.size) c.lureT = 0.25;
+  }
+  if (p.airT > 0) {
+    p.airT -= dt;
+    p.invul = Math.max(p.invul, 0.1);
+    if (p.airT <= 0) {
+      p.vx *= 0.4;
+      p.vy *= 0.4;
+      landBreach();
+    }
+  }
   if (p.hidden && !wasHidden && creatures.some((c) => c.state === 'chase')) sayOnce('hidden', LINES.hidden, 20, 2);
   // la bouche s'ouvre quand il y a quelque chose à croquer devant
   let wantMouth = 0;
@@ -1126,6 +1154,7 @@ function updatePlayer(dt) {
     if (!canEat(c)) continue;
     if (mouthDist(p, c.x, c.y) < c.size + p.size * 1.6) { wantMouth = 1; break; }
   }
+  if (p.gulpT > 0) wantMouth = 1;
   p.mouth += (wantMouth - p.mouth) * (1 - Math.exp(-12 * dt));
   p.mood = creatures.some((c) => c.state === 'chase') ? 'scared' : 'happy';
 }
@@ -1228,7 +1257,17 @@ function updateCreatures(dt) {
     const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
     let mouthTarget = 0;
 
-    if (c.stunT > 0) {
+    c.hitT = Math.max(0, (c.hitT || 0) - dt);
+    if (c.buried) {
+      // cachée dans le sable, elle ne bouge pas
+      steer(c, 0, 0, 0, dt);
+    } else if (c.lureT > 0) {
+      // attiré par la lumière, aspiré par le requin-tigre…
+      c.lureT -= dt;
+      steer(c, dx / d, dy / d, Math.max(sp.speed, 320) * 1.5, dt);
+      c.mood = 'scared';
+      c.fleeing = true;
+    } else if (c.stunT > 0) {
       // assommé : il ne bouge plus, il ne mord plus
       c.stunT -= dt;
       if (c.state === 'chase' || c.state === 'alert') chasers--;
@@ -1367,7 +1406,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * most || o.penned || ['rival', 'human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.size > c.size * most || o.penned || o.buried || ['rival', 'human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
@@ -1392,6 +1431,15 @@ function updateCreatures(dt) {
     if (c.chomp > 0) { c.chomp -= dt; mouthTarget = c.chomp > 0.15 ? 1 : 0; }
     c.mouth += (mouthTarget - c.mouth) * (1 - Math.exp(-14 * dt));
 
+    // les géants ne pivotent pas sur place : ils tournent en larges courbes (on leur échappe en virant)
+    if (sp.maxTurn) {
+      const vv = Math.hypot(c.vx, c.vy);
+      if (vv > 1) {
+        c.heading = turnToward(c.heading ?? c.angle, Math.atan2(c.vy, c.vx), sp.maxTurn * dt);
+        c.vx = Math.cos(c.heading) * vv;
+        c.vy = Math.sin(c.heading) * vv;
+      }
+    }
     // la boue colle, l'eau ralentit ceux qui marchent
     const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
     const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
@@ -1406,6 +1454,8 @@ function updateCreatures(dt) {
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
     updateFace(c);
+    c.speed = sp.speed ? Math.min(1, v / sp.speed) : 0;
+    c.swim = (c.swim || 0) + dt * (0.35 + c.speed * 0.8);
     c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
     followSpine(c, sp.look);
 
@@ -1485,7 +1535,7 @@ function updateStray(c, d, dx, dy, dt) {
   game.packN++;
   game.packMax = Math.max(game.packMax || 0, game.packN);
   sfx.howl();
-  addFloater('Un loup de plus !', c.x, c.y - c.size * 2, '#7CF0A0', 1.2);
+  addFloater(game.packN >= PACK_MAX ? 'Ta meute est au complet !' : 'Un loup de plus !', c.x, c.y - c.size * 2, '#7CF0A0', 1.2);
   deed(12, c.x, c.y - c.size * 2.8);
   sayOnce('packJoin', LINES.packJoin, 60, 1);
   shown.size = null;
@@ -1507,12 +1557,13 @@ function loseWolf() {
   later(() => say(LINES.packLost, 2, 5000), 1500);
 }
 
-/** La meute se lance quand tu arrives près d'un renne, si elle est assez grande */
+/** La meute se lance quand tu arrives près d'une grosse bête, si elle est assez grande */
 function updateHunt() {
   const p = player;
   if (huntTarget && (huntTarget.dead || p.dead || dist(huntTarget, p) > 1500)) {
     // il s'échappe : il reprend des forces
     huntTarget.hp = huntTarget.sp.hp;
+    if (huntTarget.sp.fights) { huntTarget.state = 'wander'; huntTarget.rest = 3; }
     huntTarget = null;
   }
   if (huntTarget || p.dead) return;
@@ -1529,15 +1580,40 @@ function updateHunt() {
   }
 }
 
-/** Le renne attaqué : il s'enfuit, plus lentement ; chaque loup qui le touche lui enlève de la vie */
+/** La bête attaquée : elle s'enfuit, plus lentement… ou elle se défend (fights) : elle se
+    tourne vers toi, souffle, puis fonce. Chaque loup qui la touche lui enlève de la vie. */
 function updateHunted(c, dt) {
   const p = player;
-  c.mood = 'scared';
-  c.fleeing = true;
   const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1;
-  const zig = Math.sin(worldT * 3 + c.seed) * 0.5;
-  const a = Math.atan2(dy, dx) + zig;
-  steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.7, dt);
+  if (c.sp.fights) {
+    c.mood = 'angry';
+    c.fleeing = false;
+    c.timer -= dt;
+    if (c.state !== 'charge' && c.state !== 'snort') {
+      c.state = 'snort';
+      c.timer = 1.2;
+    } else if (c.timer <= 0) {
+      c.state = c.state === 'charge' ? 'snort' : 'charge';
+      c.timer = c.state === 'charge' ? 1.5 : 1.8;
+    }
+    if (c.state === 'charge') {
+      steer(c, -dx / d, -dy / d, c.sp.speed * 2.2, dt);
+    } else {
+      steer(c, 0, 0, 0, dt);
+      c.angle = turnToward(c.angle, Math.atan2(-dy, -dx), 4 * dt);
+      if (c.timer < 0.6 && !c.mark) {
+        c.mark = '!';
+        c.markT = 0.8;
+        if (onScreen(c, 40)) sfx.alert();
+      }
+    }
+  } else {
+    c.mood = 'scared';
+    c.fleeing = true;
+    const zig = Math.sin(worldT * 3 + c.seed) * 0.5;
+    const a = Math.atan2(dy, dx) + zig;
+    steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.7, dt);
+  }
   let bites = d < (c.size + p.size) * 0.9 ? 1 : 0;
   for (const o of creatures) {
     if (o.sp.kind === 'ally' && dist(o, c) < (c.size + o.size) * 0.9) bites++;
@@ -1711,6 +1787,167 @@ function fence(e, ox, oy, open, rad) {
       e.wy = e.y + dy / d * (inside ? -300 : 300);
     }
   }
+}
+
+/* ---------- Les pouvoirs des requins (chapters[].power) ----------
+   flash   le requin-lanterne s'allume : il éblouit les chasseurs, les proies accourent
+   whip    le requin-renard fouette de la queue : les poissons autour sont assommés
+   gulp    le requin-tigre aspire tout ce qui passe… puis il rote
+   hammer  le requin-marteau : BONG ! et son sens électrique révèle les raies cachées
+   breach  le mégalodon saute hors de l'eau, et retombe de tout son poids */
+function noteStun(c) {
+  if (c.stunNoted) return;
+  c.stunNoted = true;
+  game.stunned = game.stunned || {};
+  game.stunned[c.id] = (game.stunned[c.id] || 0) + 1;
+}
+
+function ringFx(R, color) {
+  particles.push({ x: player.x, y: player.y, vx: 0, vy: 0, life: 0, max: 0.55, size: R, color, ring: true });
+}
+
+function firePower() {
+  const P = CH.power, p = player;
+  const R = P.range * stats.power;
+  p.strikeT = P.recharge;
+  p.mouth = 1;
+  const near = creatures.filter((c) => dist(c, p) < R + c.size);
+  if (P.type === 'flash') {
+    sfx.flashy();
+    p.flashT = 0.5;
+    p.litT = 3;
+    flash = { a: 0.7, color: '190,255,245' };
+    ringFx(R, '#9EFFEF');
+    addFloater('FLASH !', p.x, p.y - p.size * 2.4, '#9EFFEF', 1.3);
+    for (const c of near) {
+      if (c.sp.kind === 'hunter') {
+        c.stunT = 2.5;
+        noteStun(c);
+      } else if (canEat(c)) {
+        c.lureT = 3;                   // les proies adorent la lumière…
+      }
+    }
+  } else if (P.type === 'whip') {
+    sfx.whip();
+    p.whipT = 0.45;
+    shake = Math.max(shake, 0.25);
+    ringFx(R, '#FFFFFF');
+    particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.35, size: p.size * 1.4, face: p.face || 1, color: '#FFFFFF', slash: 'queue', ang: p.angle });
+    addFloater('FLAC !', p.x, p.y - p.size * 2, '#FFFFFF', 1.3);
+    for (const c of near) {
+      if (c.sp.kind === 'hunter') {
+        c.stunT = 2;
+        noteStun(c);
+        addFloater('Aïe !', c.x, c.y - c.size * 1.6, '#FFD24A', 1);
+      } else if (canEat(c)) {
+        c.stunT = 3.5;
+      }
+    }
+  } else if (P.type === 'gulp') {
+    sfx.gulp();
+    p.gulpT = 2;
+    addFloater('AAAAH…', p.x, p.y - p.size * 2, '#FFE58A', 1.3);
+    later(() => {
+      if (state !== 'playing' || !player) return;
+      sfx.burp();
+      shake = Math.max(shake, 0.2);
+      addFloater('BUUURP !', player.x, player.y - player.size * 2.2, '#B8F36B', 1.6);
+      sayOnce('burp', LINES.burp, 60, 1);
+      for (let i = 0; i < 8; i++) bubbleAt(player.x + Math.cos(player.angle) * player.size, player.y + Math.sin(player.angle) * player.size, player.size * 0.3);
+    }, 2300);
+  } else if (P.type === 'hammer') {
+    sfx.bong();
+    p.bongT = 0.3;
+    shake = Math.max(shake, 0.3);
+    ringFx(R, '#FFE58A');
+    addFloater('BONG !', p.x, p.y - p.size * 1.8, '#FFD24A', 1.4);
+    let found = 0;
+    for (const c of near) {
+      if (c.buried) {
+        // le sens électrique : la raie sort du sable, tout étourdie
+        c.buried = false;
+        c.stunT = 2;
+        found++;
+        continue;
+      }
+      if (dist(c, p) > p.size * 2.6 + c.size * 0.9) continue;
+      if (c.sp.kind === 'hunter' || canEat(c)) {
+        c.stunT = c.sp.kind === 'hunter' ? 2.5 : 3;
+        noteStun(c);
+        burst(c.x, c.y - c.size * 0.5, 8, ['#FFD24A', '#FFFFFF'], c.size * 4 + 40, Math.max(2, c.size * 0.08));
+      }
+    }
+    if (found) {
+      addFloater(`${found} trouvée${found > 1 ? 's' : ''} !`, p.x, p.y - p.size * 2.8, '#7CF0A0', 1.2);
+      sayOnce('found', LINES.found, 40, 1);
+    }
+  } else if (P.type === 'breach') {
+    // il jaillit hors de l'eau : plus rien ne peut le toucher tant qu'il vole
+    sfx.dash();
+    p.airT = BREACH_TIME;
+    p.vx = Math.cos(p.angle) * maxSpeed() * 1.5;
+    p.vy = Math.sin(p.angle) * maxSpeed() * 1.5;
+    for (let i = 0; i < 16; i++) bubbleAt(p.x, p.y, p.size * 0.5);
+    addFloater('HOP !', p.x, p.y - p.size * 2, '#FFFFFF', 1.4);
+  }
+  checkMissions();
+}
+
+/** Il retombe, de tout son poids : une vague qui assomme tout ce qui est autour */
+function landBreach() {
+  const p = player;
+  const R = CH.power.range * stats.power;
+  sfx.thud();
+  sfx.splash();
+  shake = Math.max(shake, 0.8);
+  flash = { a: 0.35, color: '230,245,255' };
+  buzz([60, 40, 80]);
+  ringFx(R, '#E6F6FF');
+  addFloater('SPLAAASH !', p.x, p.y - p.size * 1.8, '#E6F6FF', 1.8);
+  for (let i = 0; i < 40; i++) bubbleAt(p.x + rand(-1, 1) * p.size * 2, p.y + rand(-1, 1) * p.size * 2, p.size * 0.35);
+  for (const c of creatures) {
+    if (dist(c, p) > R + c.size) continue;
+    if (c.sp.kind === 'hunter') {
+      c.stunT = 2.5;
+      noteStun(c);
+    } else if (canEat(c)) {
+      c.stunT = 3;
+    }
+    if (c.sp.breachHit) hitBoss(c);
+  }
+  checkMissions();
+}
+
+/** Un boss touché : sa barre descend, et il n'est vraiment pas content */
+function hitBoss(c) {
+  if (c.hitT > 0) return;
+  c.hitT = 1.5;
+  game.hits = game.hits || {};
+  game.hits[c.id] = (game.hits[c.id] || 0) + 1;
+  sfx.snap();
+  sfx.thud();
+  shake = Math.max(shake, 0.45);
+  burst(c.x, c.y, 16, ['#FFFFFF', '#FFD24A'], c.size * 3 + 60, Math.max(3, c.size * 0.05));
+  addFloater(c.sp.hitLine || 'AÏE !', c.x, c.y - c.size * 1.8, '#FF8FA8', 1.5);
+  deed(30, c.x, c.y - c.size * 2.3);
+  sayOnce('bossHit', LINES.bossHit, 30, 2);
+  if (!(c.stunT > 0) && c.state === 'wander') {
+    c.rest = 0;
+    spot(c);
+  }
+  checkMissions();
+}
+
+/* La frénésie : manger vite de suite, ça rapporte de plus en plus (world.combo) */
+function comboUp(c) {
+  comboN++;
+  comboT = 2.4;
+  if (comboN < 2) return;
+  const bonus = Math.min(comboN - 1, 6);
+  game.adn += bonus;
+  addFloater(`Combo x${comboN} !`, c.x, c.y - c.size * 1.2 - 40 / zoom, comboN >= 5 ? '#FF8FA8' : '#FFD24A', 1 + Math.min(0.6, comboN * 0.05));
+  if (comboN >= 5) sfx.pickup();
+  if (comboN === 8) say(pick(LINES.combo), 2, 4000);
 }
 
 /** Un loup sauvage rôde autour des moutons qui ne sont pas à l'abri… */
@@ -1899,9 +2136,14 @@ function onScreen(e, margin) {
 /* ---------- Qui mange qui ---------- */
 function updateContacts() {
   const p = player;
-  if (p.dead) return;
+  if (p.dead || p.airT > 0) return;
   for (const c of creatures) {
-    if (c.dead) continue;
+    if (c.dead || c.buried) continue;
+    // mordre la queue d'un boss
+    if (c.sp.tailBite && c.spine && !(c.hitT > 0)) {
+      const tp = c.spine[c.spine.length - 2];
+      if (mouthDist(p, tp.x, tp.y) < p.size * 0.6 + c.size * 0.4) hitBoss(c);
+    }
     const dm = mouthDist(p, c.x, c.y);
     // 1. le joueur croque
     if (canEat(c)) {
@@ -1979,6 +2221,7 @@ function playerEats(c) {
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (sp.trust) gainTrust(sp.trust);
+  if (LV.world.combo) comboUp(c);
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
     addFloater('CROC !', c.x, c.y - c.size * 1.8, '#FF6F91', 1.4);
@@ -2119,6 +2362,12 @@ function missionInfo(m) {
     const name = m.n > 1 ? sp.plural : sp.proper ? sp.name : sp.name.toLowerCase();
     return { text: m.text || `Croque ${m.n} ${name}`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp), revenge: m.revenge };
   }
+  if (m.type === 'stun' || m.type === 'hit') {
+    // assommer avec son pouvoir, toucher un boss
+    const sp = SPECIES[m.species];
+    const cur = Math.min(m.n, (m.type === 'stun' ? game.stunned : game.hits)?.[m.species] || 0);
+    return { text: m.text || `Assomme ${m.n} ${m.n > 1 ? sp.plural : sp.name}`, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp), revenge: m.type === 'hit' };
+  }
   if (m.type === 'pack') {
     // rassembler une meute (le plus grand nombre de loups atteint)
     const cur = Math.min(m.n, game.packMax || 0);
@@ -2254,7 +2503,8 @@ function setupChapter(keepPos) {
   waterItem.title = CH.trust ? LINES.trustTitle : meter().title;
   shownBark = -1;
   shownStrike = -1;
-  if (LV.world.strike) strikeBtn.innerHTML = `${LV.world.strike.icon} ${escapeHtml(LV.world.strike.name)} <kbd class="desktop-only">F</kbd>`;
+  const pw = CH.power || LV.world.strike;
+  if (pw) strikeBtn.innerHTML = `${pw.icon} ${escapeHtml(pw.name)} <kbd class="desktop-only">F</kbd>`;
   huntTarget = null;
   $('sizeIcon').textContent = CH.pack ? '🐺' : '📏';
   $('sizeLabel').textContent = CH.pack ? 'Meute' : 'Taille';
@@ -2287,7 +2537,7 @@ function openChapterIntro() {
     <p class="dlg-sub">🎯 Tes missions :</p>
     <ul class="mission-rows">${rows}</ul>
     <p class="dlg-unlocks">Nouvelles évolutions possibles : ${unlocks}</p>
-    ${LV.world.strike && LV.world.strike.from === game.chapter + 1 ? `<p class="dlg-say">🆕 ${escapeHtml(LV.world.strike.intro)}</p>` : ''}
+    ${CH.power ? `<p class="dlg-say">🆕 ${escapeHtml(CH.power.intro)}</p>` : LV.world.strike && LV.world.strike.from === game.chapter + 1 ? `<p class="dlg-say">🆕 ${escapeHtml(LV.world.strike.intro)}</p>` : ''}
     <div class="dlg-actions"><button class="primary" data-act="close">C'est parti !</button></div>`, {
     close: closeDialog,
   });
@@ -2382,6 +2632,8 @@ evoBtn.addEventListener('click', (e) => { e.currentTarget.blur(); openEvolutions
 /* ---------- Mises à jour ---------- */
 function update(dt) {
   worldT += dt;
+  comboT -= dt;
+  if (comboT <= 0) comboN = 0;
   if (evolving) {
     updateEvolving(dt);
     updateFx(dt);
@@ -2416,7 +2668,7 @@ function update(dt) {
     seenT = 0.5;
     const vr = visionR();
     for (const c of creatures) {
-      if (game.seen[c.id] || dist(c, player) > vr || !onScreen(c, 0)) continue;
+      if (game.seen[c.id] || c.buried || dist(c, player) > vr || !onScreen(c, 0)) continue;
       game.seen[c.id] = true;
       speciesFact(c.id);
     }
@@ -2536,6 +2788,7 @@ function draw() {
   for (const c of list) {
     if (CH.pack) drawPackMark(c);
     if (c.stunT > 0) drawStars(c);
+    if (c.sp.hits) drawBossBar(c);
     if (c.mark) {
       const pop = Math.min(1, (1.1 - c.markT) * 6 + 0.3);
       drawAlert(ctx, c.x, c.y - c.size * 1.5 - 14 / zoom, 15 / zoom, c.mark, pop);
@@ -2559,6 +2812,16 @@ function draw() {
   drawMinimap();
 }
 
+/** La barre de vie d'un boss : elle descend à chaque coup */
+function drawBossBar(c) {
+  const left = clamp(1 - (game.hits?.[c.id] || 0) / c.sp.hits, 0, 1);
+  const w = c.size * 2, h = 14 / zoom, x = c.x - w / 2, y = c.y - c.size * 1.5;
+  ctx.fillStyle = 'rgba(8, 30, 45, 0.85)';
+  ctx.fillRect(x - 2 / zoom, y - 2 / zoom, w + 4 / zoom, h + 4 / zoom);
+  ctx.fillStyle = left > 0.34 ? '#FF8FA8' : '#FF4B5E';
+  ctx.fillRect(x, y, w * left, h);
+}
+
 /** Assommé : des étoiles tournent au-dessus de sa tête */
 function drawStars(c) {
   const fs = Math.max(14 / zoom, c.size * 0.35);
@@ -2571,9 +2834,10 @@ function drawStars(c) {
   }
 }
 
-/** La meute : un loup seul à rejoindre (un anneau doré), la barre de vie du renne */
+/** La meute : un loup seul à rejoindre (un anneau doré), la barre de vie des grosses bêtes */
 function drawPackMark(c) {
   if (c.sp.kind === 'stray') {
+    if (game.packN >= PACK_MAX) return;
     ctx.strokeStyle = `rgba(255, 210, 74, ${0.6 + Math.sin(worldT * 5) * 0.3})`;
     ctx.lineWidth = 4 / zoom;
     ctx.beginPath();
@@ -2582,7 +2846,10 @@ function drawPackMark(c) {
     return;
   }
   if (!c.sp.hp) return;
-  const w = c.size * 1.7, h = 12 / zoom, x = c.x - w / 2, y = c.y - c.size * 1.9;
+  // (une très grosse bête : la barre reste à l'écran, sous les boutons du haut)
+  const w = c.size * 1.7, h = 12 / zoom, x = c.x - w / 2;
+  const top = cam.y - viewH / 2 + 84 / zoom;
+  const y = c.y > top ? Math.max(c.y - c.size * 1.9, top) : c.y - c.size * 1.9;
   ctx.fillStyle = 'rgba(8, 30, 45, 0.85)';
   ctx.fillRect(x - 2 / zoom, y - 2 / zoom, w + 4 / zoom, h + 4 / zoom);
   ctx.fillStyle = c.hp > c.sp.hp * 0.35 ? '#7CF0A0' : '#FF6B6B';
@@ -2594,7 +2861,7 @@ function drawPackMark(c) {
   ctx.textBaseline = 'bottom';
   ctx.lineWidth = 4 / zoom;
   ctx.strokeStyle = 'rgba(8, 30, 45, 0.85)';
-  const label = `🐺 ${packNear}/${c.sp.need}`;
+  const label = `🐺 ${Math.min(packNear, c.sp.need)}/${c.sp.need}`;
   ctx.strokeText(label, c.x, y - 4 / zoom);
   ctx.fillStyle = packNear >= c.sp.need ? '#7CF0A0' : '#FFD24A';
   ctx.fillText(label, c.x, y - 4 / zoom);
@@ -2626,7 +2893,19 @@ function drawCones(inView) {
 function drawThePlayer() {
   const p = player;
   if (p.dead) return;
-  const blinkOff = p.invul > 0 && Math.floor(p.invul * 6) % 2 === 1;
+  // le saut : son ombre reste dans l'eau, lui monte et grossit
+  const air = p.airT > 0 ? Math.sin((1 - p.airT / BREACH_TIME) * Math.PI) : 0;
+  if (air > 0) {
+    ctx.fillStyle = `rgba(0, 10, 25, ${0.4 - air * 0.15})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + p.size * 0.3, p.size * (1.6 - air * 0.4), p.size * (0.7 - air * 0.2), p.angle, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(p.x, p.y - air * p.size * 1.4);
+    ctx.scale(1 + air * 0.5, 1 + air * 0.5);
+    ctx.translate(-p.x, -p.y);
+  }
+  const blinkOff = !air && p.invul > 0 && Math.floor(p.invul * 6) % 2 === 1;
   ctx.globalAlpha = p.hidden ? 0.6 : blinkOff ? 0.45 : 1;
   const sq = 1 + p.squash * 0.15;
   if (sq !== 1) {
@@ -2647,6 +2926,7 @@ function drawThePlayer() {
   }
   drawPlayer(ctx, p, CH.form, game.owned, worldT);
   if (sq !== 1) ctx.restore();
+  if (air > 0) ctx.restore();
   ctx.globalAlpha = 1;
   // les coups que la carapace peut encore encaisser
   if (stats.shield > 0) {
@@ -2671,7 +2951,7 @@ function drawFx() {
       ctx.lineWidth = p.size * 0.14;
       ctx.beginPath();
       if (p.slash === 'queue') {
-        const mid = p.face > 0 ? Math.PI : 0, R = p.size * (1.6 + k * 1.2);
+        const mid = p.ang !== undefined ? p.ang + Math.PI : p.face > 0 ? Math.PI : 0, R = p.size * (1.6 + k * 1.2);
         ctx.arc(p.x, p.y, R, mid - 1.3, mid + 1.3);
       } else {
         for (const o of [-0.6, 0, 0.6]) {
@@ -2814,6 +3094,10 @@ function missionTarget() {
   const prey = nearestCreature((c) => eat.includes(c.id) && canEat(c));
   if (prey) return at(prey);
   for (const m of todo) {
+    if (m.type === 'stun' || m.type === 'hit') {
+      const t = nearestCreature((c) => c.id === m.species);
+      if (t) return at(t);
+    }
     const hunt = m.type === 'eat' && SPECIES[m.species].hp;
     if (m.type === 'pack' || (hunt && (game.packN || 0) < SPECIES[m.species].need)) {
       const t = nearestCreature((c) => c.sp.kind === 'stray');
@@ -2944,7 +3228,7 @@ function drawMinimap() {
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);
       mctx.fill();
-    } else if (c.sp.kind === 'stray' || (CH.pack && c.sp.hp)) {
+    } else if ((c.sp.kind === 'stray' && game.packN < PACK_MAX) || (CH.pack && c.sp.hp)) {
       mctx.fillStyle = '#FFD24A';
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);
@@ -3381,6 +3665,11 @@ function playIntro() {
       sfx,
       drawHero: (c, x, y, r, angle, t, walk, mood) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, 'musaraigne', {}, t),
     });
+  } else if (LV.intro === 'requins') {
+    intro = createSharkIntro({
+      sfx,
+      drawHero: (c, x, y, r, t, mood, flashT) => drawPlayer(c, { x, y, angle: -0.1, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.4, flashT, spine: null }, 'requin-lanterne', {}, t),
+    });
   } else if (LV.intro === 'loup') {
     intro = createWolfIntro({
       sfx,
@@ -3425,7 +3714,7 @@ function startEnding() {
   endCues.clear();
   const crowd = LV.ending.crowd || [];
   const scene = LV.ending.scene;
-  endFx = Array.from({ length: scene === 'meteorite' || scene === 'feu' || scene === 'chien' ? 9 : 26 }, (_, i) => ({
+  endFx = Array.from({ length: scene === 'meteorite' || scene === 'feu' || scene === 'chien' || scene === 'requins' ? 7 : 26 }, (_, i) => ({
     a: (i / 26) * TAU, d: rand(0.6, 1.3), s: rand(0.5, 1), sp: pick(crowd), seed: Math.random() * 10,
     x: rand(0.08, 0.92), y: rand(0.3, 0.92), ang: rand(0, TAU),
   }));
@@ -3466,6 +3755,8 @@ function startEnding() {
     later(() => sfx.victory(), 600);
   } else if (scene === 'chien') {
     sfx.howl();
+  } else if (scene === 'requins') {
+    sfx.victory();
   } else {
     sfx.victory();
     confetti(120);
@@ -3541,6 +3832,7 @@ function drawEnding(dt) {
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
   if (LV.ending.scene === 'chien') { drawDogEnding(dt); return; }
+  if (LV.ending.scene === 'requins') { drawSharkEnding(dt); return; }
   endT += dt;
   if (endT > 2.4 && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
   const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
@@ -4083,6 +4375,104 @@ function drawFireEnding(dt) {
   if (cap && t < FIRE_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
 }
 
+/* ---------- La fin de la voie des requins : le mégalodon disparaît, ses cousins restent ----------
+   0 → 4,6 s    tu règnes sur toutes les mers, entouré de baleines
+   4,6 → 9 s    la mer se refroidit, les baleines partent : tu t'éloignes dans le noir
+   9 → 14 s     aujourd'hui : le défilé des requins, le grand requin blanc en tête
+   14 s →       le texte et le chemin suivant */
+const SHARK_TEXT_AT = 14;
+const SHARK_PARADE_AT = 9;
+const SHARK_PARADE = [
+  { look: 'requin-blanc', name: 'Grand requin blanc', color: '#8A98A6', k: 1.25 },
+  { look: 'requin-tigre', name: 'Requin-tigre', color: '#8E8A6A', k: 1.05 },
+  { look: 'requin-marteau', name: 'Requin-marteau', color: '#7E96A2', k: 0.95 },
+  { look: 'requin-renard', name: 'Requin-renard', color: '#6E7EA0', k: 0.8 },
+  { look: 'requin-lanterne', name: 'Requin-lanterne', color: '#4A6A78', k: 0.55 },
+];
+
+function drawSharkEnding(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('cold', 4.6, () => sfx.sad());
+  cueEnd('parade', SHARK_PARADE_AT + 0.3, () => { sfx.victory(); confetti(80); });
+  if (t > SHARK_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  const c = ectx;
+  const m = Math.min(w, h);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const T = 420;
+  for (let x = 0; x < w + T; x += T) for (let y = 0; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
+  c.globalCompositeOperation = 'lighter';
+  c.globalAlpha = 0.09;
+  const S = 540, o = (t * 14) % S;
+  for (let x = -S + o; x < w + S; x += S) for (let y = -S + o * 0.5; y < h + S; y += S) c.drawImage(caustics, x, y, S + 1, S + 1);
+  c.globalAlpha = 1;
+  c.globalCompositeOperation = 'source-over';
+
+  if (t < SHARK_PARADE_AT) {
+    const cold = clamp((t - 4.6) / 3, 0, 1);
+    // les baleines autour de toi… elles s'en vont vers le froid
+    endFx.forEach((f, i) => {
+      const sp = SPECIES[f.sp];
+      if (!sp) return;
+      const x = (f.x + cold * (f.x < 0.5 ? -0.6 : 0.6)) * w + Math.sin(t * 0.3 + i) * 20, y = f.y * h;
+      const left = f.x < 0.5 ? cold > 0 : cold <= 0;
+      drawCreature(c, { sp, x, y, angle: left ? Math.PI : 0, size: m * 0.05, seed: f.seed, mood: 'calm', mouth: 0, blink: 0, speed: 0.4, spine: null }, t);
+    });
+    // toi, le plus grand requin de tous les temps
+    const size = m * 0.11;
+    const px = w * (0.45 + cold * 0.75), py = h * 0.58 + Math.sin(t * 0.7) * m * 0.02;
+    c.globalAlpha = 1 - clamp((t - 7) / 1.6, 0, 1);
+    drawPlayer(c, { x: px, y: py, angle: -0.08, size, mouth: t < 1.6 ? 0.9 : 0, mood: 'happy', blink: 0, speed: 0.5, spine: null }, CH.form, game.owned, t);
+    c.globalAlpha = 1;
+    if (t < 4.6) drawCrown(c, px + size * 0.3, py - size * 1.3, size * 0.5);
+    // la mer devient froide et sombre
+    if (cold > 0) {
+      c.fillStyle = `rgba(190, 215, 235, ${0.28 * cold})`;
+      c.fillRect(0, 0, w, h);
+      c.fillStyle = `rgba(6, 20, 40, ${0.45 * cold})`;
+      c.fillRect(0, 0, w, h);
+    }
+    if (t > SHARK_PARADE_AT - 0.6) {
+      c.fillStyle = `rgba(0, 0, 0, ${(t - (SHARK_PARADE_AT - 0.6)) / 0.6})`;
+      c.fillRect(0, 0, w, h);
+    }
+  } else {
+    const u = t - SHARK_PARADE_AT;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    const base = m * 0.08;
+    SHARK_PARADE.forEach((d, i) => {
+      const k = clamp((u - i * 0.35) / 1.5, 0, 1);
+      if (k <= 0) return;
+      const e = 1 - (1 - k) ** 3;
+      const size = base * d.k;
+      const x = w * (i % 2 ? 0.68 : 0.3) + (1 - e) * w;
+      const y = h * (0.34 + i * 0.125) + Math.sin(t * 0.9 + i) * m * 0.01;
+      drawCreature(c, { sp: { look: d.look, color: d.color }, x, y, angle: Math.PI, size, seed: i, mood: 'calm', mouth: 0, blink: 0, speed: 0.6, spine: null }, t);
+      c.globalAlpha = k;
+      c.font = `800 ${Math.max(11, Math.round(m * 0.03))}px 'Baloo 2', sans-serif`;
+      c.lineWidth = 4;
+      c.strokeStyle = 'rgba(6, 30, 50, 0.85)';
+      c.strokeText(d.name, x, y + size * 0.95);
+      c.fillStyle = '#FFFFFF';
+      c.fillText(d.name, x, y + size * 0.95);
+      c.globalAlpha = 1;
+    });
+    if (u < 0.6) {
+      c.fillStyle = `rgba(0, 0, 0, ${1 - u / 0.6})`;
+      c.fillRect(0, 0, w, h);
+    }
+    const dim = clamp((t - SHARK_TEXT_AT + 0.6) / 0.8, 0, 1);
+    if (dim > 0) {
+      c.fillStyle = `rgba(6, 20, 40, ${0.55 * dim})`;
+      c.fillRect(0, 0, w, h);
+    }
+  }
+  const cap = LV.ending.captions.find(([a0, b0]) => t >= a0 && t < b0);
+  if (cap && t < SHARK_TEXT_AT) drawCaptionBox(c, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
 /* ---------- La fin du niveau 4 : le chien, meilleur ami de l'humain ----------
    0 → 8,8 s    la nuit, au village : le feu, les humains… et toi, qui viens te
                 coucher près d'un enfant
@@ -4474,7 +4864,18 @@ $('newGameBtn').addEventListener('click', () => {
    et achète les évolutions des missions dès qu'il peut. */
 let botDeaths = {};                  // (?debug) de quoi meurt le pilote automatique
 let botCareful = true;               // false = un enfant distrait, qui ne fuit qu'au dernier moment
+function botPower() {
+  const p = player;
+  if (!CH.power || p.strikeT > 0 || p.airT > 0) return;
+  if (CH.power.type !== 'breach') { activateStrike(); return; }
+  // le saut : seulement si on retombera près de sa cible
+  const R = CH.power.range * stats.power;
+  const t = nearestCreature((c) => c.sp.breachHit || (c.sp.kind === 'hunter' && dist(c, p) < 600));
+  if (t && dist(t, p) < R + t.size + maxSpeed() * 1.5) activateStrike();
+}
+
 function botDir() {
+  botPower();
   const p = player;
   let fx = 0, fy = 0, threat = 0;
   // la jauge baisse : direction la mare (ou la surface) la plus proche
@@ -4489,8 +4890,10 @@ function botDir() {
   }
   // (le loup et l'humain) un chasseur sur qui il faut aboyer : on ne le fuit pas tant qu'on peut aboyer
   const barkAt = stats.bark && p.barkT <= 0 ? CH.missions.filter((m) => m.type === 'bark' && !missionInfo(m).done).map((m) => m.species) : [];
+  // (les requins) la cible d'une mission : on y va
+  for (const m of CH.missions) if ((m.type === 'stun' || m.type === 'hit') && !missionInfo(m).done) barkAt.push(m.species);
   for (const c of creatures) {
-    if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked)) continue;
+    if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked && !(c.sp.kind === 'hunter' && p.strikeT > 1 && CH.power && !c.sp.tailBite))) continue;
     // un poisson géant ne peut rien contre nous si on reste au bord de sa mare
     if (c.home && dist(p, c.home) > c.home.r * (c.sp.reach || 0.85) + p.size + 150) continue;
     if (!botCareful && c.state !== 'chase') continue;
@@ -4540,6 +4943,15 @@ function botJob() {
   };
   for (const m of CH.missions) {
     if (missionInfo(m).done) continue;
+    if (m.type === 'stun' || m.type === 'hit') {
+      const t = nearestCreature((c) => c.id === m.species && !c.stunNoted);
+      if (t && t.sp.tailBite) {
+        // on file vers le bout de sa queue
+        const tp = t.spine[t.spine.length - 2];
+        return go(tp.x, tp.y);
+      }
+      if (t) return go(t.x, t.y);
+    }
     const hunt = m.type === 'eat' && SPECIES[m.species].hp;
     if (m.type === 'pack' || (hunt && (game.packN || 0) < SPECIES[m.species].need)) {
       const t = nearestCreature((c) => c.sp.kind === 'stray');

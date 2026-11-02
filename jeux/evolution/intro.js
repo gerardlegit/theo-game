@@ -6,7 +6,8 @@
 //   12 → 16 s   bien plus tard, une cellule géante s'approche : mange ou sois mangé !
 // Puis celles du niveau 2 : sur la terre (createLandIntro) ou dans la mer
 // (createSeaIntro), celle du niveau 3, après la météorite (createMammalIntro),
-// et celle du niveau 4, la meute de loups sous la lune (createWolfIntro).
+// celle du niveau 4, la meute de loups sous la lune (createWolfIntro),
+// et celle des requins, dans la mer noire après la météorite (createSharkIntro).
 // ============================================================================
 
 const TAU = Math.PI * 2;
@@ -912,6 +913,122 @@ export function createWolfIntro({ sfx, drawHero, drawAnimal }) {
       if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
       if (t > WOLF_DURATION - 0.6) {
         ctx.fillStyle = `rgba(0, 0, 0, ${(t - (WOLF_DURATION - 0.6)) / 0.6})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    },
+  };
+  return intro;
+}
+
+/* ============================================================================
+   L'animation de la voie des requins (environ 14 s) : la mer juste après la météorite.
+   0 → 4,5 s   la mer est noire, les cendres tombent, les grands monstres ont disparu
+   4,5 → 9 s   une petite lumière s'allume dans le noir : c'est toi !
+   9 → 14 s    les crevettes accourent… et une ombre énorme passe
+   drawHero(ctx, x, y, r, t, mood, flashT) dessine le joueur en requin-lanterne.
+   ============================================================================ */
+const SHARK_DURATION = 14;
+const SHARK_CAPTIONS = [
+  [0.3, 4.5, "Après la météorite, le ciel est noir et la mer est glacée. Les mosasaures ont tous disparu…"],
+  [4.7, 9, "Mais dans le noir, une toute petite lumière s'allume : c'est toi, un requin-lanterne !"],
+  [9.2, 14, "La mer est à prendre. De requin en requin, ta grande famille va devenir la reine des océans !"],
+];
+
+export function createSharkIntro({ sfx, drawHero }) {
+  let t = 0;
+  const cues = new Set();
+  const ash = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, v: 0.02 + Math.random() * 0.04 }));
+  const prey = Array.from({ length: 16 }, (_, i) => ({ a: i * 2.4, d: 0.35 + Math.random() * 0.45, s: 0.6 + Math.random() * 0.8 }));
+
+  function cue(name, at, fn) {
+    if (t >= at && !cues.has(name)) { cues.add(name); fn(); }
+  }
+
+  const intro = {
+    done: false,
+    update(dt) {
+      t += dt;
+      cue('flash', 4.9, () => sfx.flashy());
+      cue('flash2', 7.6, () => sfx.flashy());
+      cue('h1', 10.6, () => sfx.heart(false));
+      cue('h2', 11.3, () => sfx.heart(true));
+      if (t >= SHARK_DURATION) intro.done = true;
+    },
+    draw(ctx, w, h) {
+      const m = Math.min(w, h);
+      const g = ctx.createRadialGradient(w / 2, h / 2, m * 0.1, w / 2, h / 2, Math.hypot(w, h) * 0.65);
+      g.addColorStop(0, '#16324A');
+      g.addColorStop(1, '#040C16');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      // le squelette d'un mosasaure, au fond
+      const sx = w * 0.72, sy = h * 0.72, s = m * 0.24;
+      ctx.strokeStyle = 'rgba(225, 225, 210, 0.3)';
+      ctx.lineWidth = Math.max(2, s * 0.03);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx - s * 1.3, sy + s * 0.2);
+      ctx.quadraticCurveTo(sx, sy - s * 0.1, sx + s, sy);
+      for (let i = 0; i < 9; i++) {
+        const x = sx - s * 0.6 + i * s * 0.16;
+        for (const k of [-1, 1]) {
+          ctx.moveTo(x, sy);
+          ctx.quadraticCurveTo(x + s * 0.05, sy + k * s * 0.15, x - s * 0.02, sy + k * s * 0.26);
+        }
+      }
+      ctx.stroke();
+      // le héros : une lumière dans le noir
+      const on = clamp01((t - 4.6) / 0.5);
+      const hx = w * (0.38 + 0.06 * Math.sin(t * 0.4)), hy = h * 0.52 + Math.sin(t * 0.9) * m * 0.02;
+      const pulse = t > 4.9 && t < 5.4 || t > 7.6 && t < 8.1;
+      if (on > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        const R = m * (pulse ? 0.55 : 0.32) * on;
+        const gl = ctx.createRadialGradient(hx, hy, 0, hx, hy, R);
+        gl.addColorStop(0, 'rgba(120, 255, 235, 0.55)');
+        gl.addColorStop(1, 'rgba(60, 220, 255, 0)');
+        ctx.fillStyle = gl;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // les crevettes attirées par la lumière
+      if (t > 7.6) {
+        const k = ease(clamp01((t - 7.6) / 2.6));
+        ctx.fillStyle = '#F4B59A';
+        for (const p of prey) {
+          const d = p.d * m * (1.3 - k * 0.8);
+          ctx.beginPath();
+          ctx.ellipse(hx + Math.cos(p.a + t * 0.5) * d, hy + Math.sin(p.a + t * 0.5) * d, 5 * p.s, 3 * p.s, p.a + t * 0.5, 0, TAU);
+          ctx.fill();
+        }
+      }
+      if (on > 0) drawHero(ctx, hx, hy, m * 0.05 * (0.6 + on * 0.4), t, t > 10.6 ? 'scared' : 'happy', pulse ? 1 : 0);
+      // une grande ombre passe (une énorme gueule de crocodile marin)
+      if (t > 10.3) {
+        const k = clamp01((t - 10.3) / 3.2);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.55 * Math.sin(k * Math.PI)})`;
+        const ox = w * (1.3 - k * 1.6), oy = h * 0.3;
+        ctx.beginPath();
+        ctx.ellipse(ox, oy, m * 0.38, m * 0.09, 0.05, 0, TAU);
+        ctx.moveTo(ox - m * 0.3, oy);
+        ctx.ellipse(ox - m * 0.42, oy + m * 0.01, m * 0.24, m * 0.035, 0.05, 0, TAU);
+        ctx.moveTo(ox + m * 0.3, oy);
+        ctx.ellipse(ox + m * 0.55, oy, m * 0.25, m * 0.03, -0.1, 0, TAU);
+        ctx.fill();
+      }
+      // les cendres
+      ctx.fillStyle = 'rgba(210, 215, 220, 0.6)';
+      for (const a of ash) {
+        const y = ((a.y + t * a.v) % 1) * h;
+        const x = (a.x * w + Math.sin(t + a.x * 10) * 10) % w;
+        ctx.beginPath();
+        ctx.arc(x, y, a.s, 0, TAU);
+        ctx.fill();
+      }
+      const cap = SHARK_CAPTIONS.find(([a, b]) => t >= a && t < b);
+      if (cap) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+      if (t > SHARK_DURATION - 0.6) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${(t - (SHARK_DURATION - 0.6)) / 0.6})`;
         ctx.fillRect(0, 0, w, h);
       }
     },
