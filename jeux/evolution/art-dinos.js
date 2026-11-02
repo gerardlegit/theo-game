@@ -11,7 +11,7 @@
 // ses propres couleurs (PLAYER, qui changent à chaque chapitre).
 // ============================================================================
 
-import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, shade, smoothClosed } from './art.js';
+import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, LANDFX, shade, smoothClosed } from './art.js';
 import { SIDE } from './art-terre.js';
 
 const TAU = Math.PI * 2;
@@ -39,6 +39,7 @@ export function startSide(ctx, c) {
 }
 
 export function groundShadow(ctx, x0, x1, y, h) {
+  if (LANDFX.noShadow) return;
   ctx.fillStyle = 'rgba(0, 25, 15, 0.22)';
   ctx.beginPath();
   ctx.ellipse((x0 + x1) / 2, y, Math.abs(x1 - x0) / 2, h, 0, 0, TAU);

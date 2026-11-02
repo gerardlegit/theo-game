@@ -10,6 +10,7 @@ const TAU = Math.PI * 2;
 export const INK = '#1E2A3A';
 
 /* ---------- Registres : d'autres fichiers (art-terre.js…) y ajoutent leurs dessins ---------- */
+export const LANDFX = { noShadow: false };   // (terre.js) en plein saut, l'animal ne dessine pas son ombre
 export const LOOKS = {};           // look d'une espèce → fonction (ctx, c, t)
 export const FORMS = {};           // forme du joueur → fonction (ctx, p, parts, t, mood)
 export const DECORS = {};          // type de décor posé au sol → fonction (ctx, d, t)

@@ -1,6 +1,6 @@
 // ============================================================================
 // Évolution — le moteur du jeu. Le joueur est un être vivant qui nage dans
-// l'océan, puis marche sur la terre ferme (reptile, dinosaure, mammifère) ou
+// l'océan, puis court et saute sur la terre ferme (voir terre.js) ou
 // retourne dans la mer : il mange ce qui est plus petit que
 // lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
 // gros, et fait évoluer son corps. Au niveau du loup, il chasse avec sa meute,
@@ -20,6 +20,7 @@ import './art-mer.js';
 import './art-mammiferes.js';
 import { BREED_PARADE, campFire } from './art-loup.js';
 import './art-requins.js';
+import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
@@ -44,6 +45,10 @@ fixTypo(LINES);
 /* ---------- Réglages de la nage ---------- */
 const DRAG = 3;                    // l'eau freine : sans nager, on s'arrête en ~1 s
 const TURN = 7;                    // rad/s pour se tourner
+const TURN_LAND = 13;              // (sur la terre) on se tourne bien plus vite
+const LAND_CHASE = 1.15;           // (sur la terre) les chasseurs foncent, car tu vas bien plus vite
+const LAND_MUD = 0.85;             // (sur la terre) la boue et la neige ralentissent à peine…
+const LAND_WATER = 0.78;           // …et l'eau aussi (en sautant, on passe au-dessus)
 const BASE_SPEED = 110;            // vitesse = BASE_SPEED + SPEED_PER_SIZE × taille
 const SPEED_PER_SIZE = 1.4;
 const DASH_TIME = 0.75;            // s de sprint
@@ -135,6 +140,7 @@ const ictx = introCanvas.getContext('2d');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
 const dashBtn = $('dashBtn');
+const jumpBtn = $('jumpBtn');
 const barkBtn = $('barkBtn');
 const strikeBtn = $('strikeBtn');
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
@@ -368,7 +374,10 @@ function recalc() {
 // (world.noGrow : dans ce niveau, manger ne fait pas grandir)
 const growthK = () => (LV.world.noGrow ? 0 : clamp(game.earned / CH.growth, 0, 1));
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
-const maxSpeed = () => (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1) * (LV.world.speed || 1);
+const maxSpeed = () => {
+  const v = (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1);
+  return LV.world.ground === 'land' ? Math.min(LAND_MAX, v * LAND_SPEED) : v * (LV.world.speed || 1);
+};
 const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1) * (player.litT > 0 ? 2.6 : 1);
 const drying = () => !!CH.dry && stats.dry > 0;
 
@@ -401,7 +410,7 @@ function isThreat(c) {
 
 /** Où est la gueule d'un animal (ou du joueur) */
 function mouthPoint(e, k = 0.8) {
-  if (e.side) return { x: e.x + e.face * e.size * e.side[0], y: e.y + e.size * e.side[1] };
+  if (e.side) return terre.bodyPoint(e, e.side[0], e.side[1]);
   k = SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
@@ -421,7 +430,7 @@ function mouthDist(e, x, y) {
 
 /** Le bout de la queue (pointes du stégosaure, massue de l'ankylosaure) */
 function tailPoint(c) {
-  if (c.side) return { x: c.x - c.face * c.size * 2.2, y: c.y };
+  if (c.side) return terre.bodyPoint(c, -2.2, 0);
   return c.spine ? c.spine[c.spine.length - 1] : c;
 }
 
@@ -537,6 +546,15 @@ function buildWorld() {
   clouds = W.ground === 'land' ? Array.from({ length: 16 }, () => ({ x: rnd() * W.w - 2000, y: rnd() * W.h - 800, r: 300 + rnd() * 500 })) : [];
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
+
+/* ---------- La terre ferme : la course, le pivot, le saut… (voir terre.js) ---------- */
+const terre = createTerre({
+  level: () => LV, chapter: () => CH, game: () => game, player: () => player, creatures: () => creatures,
+  zones: () => zones, particles: () => particles, ctx: () => ctx, zoom: () => zoom, viewW: () => viewW, viewH: () => viewH,
+  lines: () => LINES, maxSpeed: () => maxSpeed(), blocked: () => isBlocked(), canEat: (c) => canEat(c), eat: (c) => playerEats(c),
+  noteStun: (c) => noteStun(c), deed: (n, x, y) => deed(n, x, y), floater: (...a) => addFloater(...a), burst: (...a) => burst(...a),
+  ring: (R, col) => ringFx(R, col), addShake: (v) => { shake = Math.max(shake, v); }, buzz: (v) => buzz(v), sayOnce: (...a) => sayOnce(...a),
+});
 
 /* ---------- Le joueur ---------- */
 function formLook() {
@@ -733,7 +751,10 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
-  if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+  if (e.code === 'Space' && terre.on()) {
+    e.preventDefault();
+    if (!e.repeat) terre.press();
+  } else if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
     e.preventDefault();
     if (!e.repeat) activateDash();
   } else if (e.code === 'KeyE' || e.code === 'KeyV') {
@@ -748,6 +769,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const dir = KEYMAP[e.code];
   if (dir) keys[dir] = false;
+  if (e.code === 'Space' && LV && player && state === 'playing') terre.release();
 });
 
 function releaseAll() {
@@ -767,6 +789,8 @@ document.querySelectorAll('.dpad button').forEach((btn) => {
   btn.addEventListener('pointercancel', release);
 });
 dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateDash(); });
+jumpBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); terre.press(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => jumpBtn.addEventListener(ev, () => { if (LV && player) terre.release(); }));
 barkBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateBark(); });
 strikeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); activateStrike(); });
 
@@ -784,7 +808,7 @@ canvas.addEventListener('pointerdown', (e) => {
   updatePointer(e);
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignoré */ }
   const now = performance.now();
-  if (now - pointer.lastDown < 320) activateDash();
+  if (now - pointer.lastDown < 320) { if (terre.on()) terre.press(); else activateDash(); }
   pointer.lastDown = now;
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -834,7 +858,8 @@ function activateDash() {
     if (heard) sayOnce('noise', LINES.noise, 45, 2);
   }
   if (CH.trust) startleHumans();
-  for (let i = 0; i < 10; i++) bubbleAt(player.x - Math.cos(player.angle) * player.size, player.y - Math.sin(player.angle) * player.size, player.size * 0.25);
+  if (terre.on()) terre.dust(player.x, player.y + player.size * 0.85, 10, 130, Math.max(5, player.size * 0.25));
+  else for (let i = 0; i < 10; i++) bubbleAt(player.x - Math.cos(player.angle) * player.size, player.y - Math.sin(player.angle) * player.size, player.size * 0.25);
 }
 
 /* Le bouton Fonce se remplit pendant la recharge */
@@ -1070,22 +1095,29 @@ function updatePlayer(dt) {
   const dir = inputDir();
   if (dir) lastMoveAt = performance.now();
   // dans l'eau ou dans la boue, on avance moins vite (sauf le tétrapode, qui nage bien)
-  const zone = zoneAt(p.x, p.y);
+  const onLand = terre.on();
+  const inAir = onLand && p.z > 0;     // en plein saut, on passe au-dessus de la boue et des mares
+  const zone = inAir ? p.zone : zoneAt(p.x, p.y);
   if (zone !== p.zone) enterZone(zone);
-  const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
+  const zk = inAir ? 1 : onLand ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1)
+    : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
   const ms = maxSpeed() * zk;
   const dashing = p.dash > 0;
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
   let want = dir;
   if (dashing && !want) want = { x: Math.cos(p.angle), y: Math.sin(p.angle) };
-  if (want && !(p.airT > 0)) {
-    const acc = ms * boost * DRAG;
-    p.vx += want.x * acc * dt;
-    p.vy += want.y * acc * dt;
+  if (onLand) {
+    terre.run(p, want, ms * boost, dt, dashing);
+  } else {
+    if (want && !(p.airT > 0)) {
+      const acc = ms * boost * DRAG;
+      p.vx += want.x * acc * dt;
+      p.vy += want.y * acc * dt;
+    }
+    const k = p.airT > 0 ? 1 : Math.exp(-DRAG * dt);
+    p.vx *= k;
+    p.vy *= k;
   }
-  const k = p.airT > 0 ? 1 : Math.exp(-DRAG * dt);
-  p.vx *= k;
-  p.vy *= k;
   const ox = p.x, oy = p.y;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
@@ -1099,11 +1131,14 @@ function updatePlayer(dt) {
   const sp = Math.hypot(p.vx, p.vy);
   p.speed = clamp(sp / ms, 0, 1.5);
   p.walk += sp * dt / Math.max(10, p.size) * 1.3;
-  if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (stats.dash ? 10 : TURN) * dt);
+  if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (onLand ? TURN_LAND : stats.dash ? 10 : TURN) * dt);
   updateFace(p);
+  terre.turn(p, dt);
+  terre.update(p, dt);
+  if (p.dead) return;
   if (dashing) {
     p.dash -= dt;
-    if (Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
+    if (!onLand && Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
   } else {
     p.charge = Math.min(1, p.charge + dt / (stats.dash ? 2.2 : DASH_RECHARGE));
   }
@@ -1122,7 +1157,7 @@ function updatePlayer(dt) {
   updateDrying(dt, zone);
   // caché dans les algues (ou les fougères) ?
   const wasHidden = p.hidden;
-  p.hidden = hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
+  p.hidden = !inAir && hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
   // près du feu des humains qui te font confiance, aucun chasseur n'ose venir
   p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
   p.barkT = Math.max(0, (p.barkT || 0) - dt);
@@ -1275,6 +1310,7 @@ function updateCreatures(dt) {
       steer(c, 0, 0, 0, dt);
       c.mood = 'scared';
       c.fleeing = false;
+      if (c === huntTarget) huntBites(c, dt);
     } else if (c.scaredT > 0) {
       // un aboiement : il file sans demander son reste
       c.scaredT -= dt;
@@ -1341,7 +1377,7 @@ function updateCreatures(dt) {
         c.lunge -= dt;
         const lx = p.x + p.vx * 0.25 - c.x, ly = p.y + p.vy * 0.25 - c.y;
         const ld = Math.hypot(lx, ly) || 1;
-        steer(c, lx / ld, ly / ld, sp.speed * (c.lunge > 0 ? LUNGE : 1), dt);
+        steer(c, lx / ld, ly / ld, sp.speed * (c.lunge > 0 ? LUNGE : 1) * (terre.on() ? LAND_CHASE : 1), dt);
         if (d < c.size * 2.6 + p.size) {
           mouthTarget = 0.5 + 0.5 * Math.abs(Math.sin(worldT * 9));
           if (Math.random() < dt * 2.5 && onScreen(c, 0)) sfx.snap();
@@ -1442,7 +1478,7 @@ function updateCreatures(dt) {
     }
     // la boue colle, l'eau ralentit ceux qui marchent
     const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
-    const zk = zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
+    const zk = terre.on() ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1) : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
     const ox = c.x, oy = c.y;
     c.x += c.vx * dt * zk;
     c.y += c.vy * dt * zk;
@@ -1454,6 +1490,8 @@ function updateCreatures(dt) {
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
     updateFace(c);
+    terre.turn(c, dt);
+    terre.stepCreature(c, dt);
     c.speed = sp.speed ? Math.min(1, v / sp.speed) : 0;
     c.swim = (c.swim || 0) + dt * (0.35 + c.speed * 0.8);
     c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
@@ -1614,7 +1652,13 @@ function updateHunted(c, dt) {
     const a = Math.atan2(dy, dx) + zig;
     steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.7, dt);
   }
-  let bites = d < (c.size + p.size) * 0.9 ? 1 : 0;
+  huntBites(c, dt);
+}
+
+/** Chaque loup qui touche la bête lui enlève de la vie */
+function huntBites(c, dt) {
+  const d = dist(c, player);
+  let bites = d < (c.size + player.size) * 0.9 ? 1 : 0;
   for (const o of creatures) {
     if (o.sp.kind === 'ally' && dist(o, c) < (c.size + o.size) * 0.9) bites++;
   }
@@ -2066,7 +2110,7 @@ function spot(c) {
     sfx.alert();
   }
   buzz(40);
-  if (sayOnce('spotted', LINES.spotted, 12, 2) && !game.dashUsed) later(() => sayOnce('dashHint', LINES.dashHint, 60, 2), 2200);
+  if (sayOnce('spotted', LINES.spotted, 12, 2) && (terre.on() ? !game.boinged : !game.dashUsed)) later(() => sayOnce('dashHint', terre.on() ? LINES.dashHintLand : LINES.dashHint, 60, 2), 2200);
 }
 
 /** Si c'est une meute, les autres membres arrivent aussi */
@@ -2161,18 +2205,19 @@ function updateContacts() {
     // 2. un chasseur nous croque avec sa gueule
     if (c.sp.kind === 'hunter' && isDanger(c) && p.invul <= 0) {
       if (mouthDist(c, p.x, p.y) < p.size * 0.85 + c.size * 0.3) {
+        if (terre.airborne()) { if (c.state === 'chase') terre.dodge(c); continue; }
         bitten(c);
         if (p.dead) return;
         continue;
       }
     }
     // 3. une méduse pique
-    if (c.sp.kind === 'stinger' && isDanger(c) && p.invul <= 0 && d < c.size * 0.85 + p.size * 0.7) {
+    if (c.sp.kind === 'stinger' && isDanger(c) && p.invul <= 0 && !terre.airborne() && d < c.size * 0.85 + p.size * 0.7) {
       stung(c);
       continue;
     }
     // 4. un herbivore qui charge (ou la queue à pointes), un géant qui écrase
-    if (p.invul <= 0 && !canEat(c) && hurtsByContact(c, d)) {
+    if (p.invul <= 0 && !terre.airborne() && !canEat(c) && hurtsByContact(c, d)) {
       stung(c);
       continue;
     }
@@ -2180,7 +2225,7 @@ function updateContacts() {
     if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
     // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
+    if (d < touch && !terre.airborne() && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
@@ -2221,7 +2266,7 @@ function playerEats(c) {
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (sp.trust) gainTrust(sp.trust);
-  if (LV.world.combo) comboUp(c);
+  if (LV.world.combo || terre.on()) comboUp(c);
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
     addFloater('CROC !', c.x, c.y - c.size * 1.8, '#FF6F91', 1.4);
@@ -2476,6 +2521,25 @@ function timeTravel() {
   }, 3000);
 }
 
+const howToFirst = $('howToFirst');
+const HOWTO_SEA = howToFirst.innerHTML;
+const HOWTO_LAND = HOWTO_SEA.replace('pour nager', 'pour courir').replace('<kbd>Espace</kbd> : foncer', '<kbd>Espace</kbd> : sauter, <kbd>Maj</kbd> : foncer');
+
+/** Sur la terre, Espace fait sauter (le sprint passe sur Maj) ; dans la mer, Espace fait foncer */
+function setupLandUi() {
+  const land = terre.on();
+  jumpBtn.hidden = !land;
+  dashBtn.innerHTML = `💨 Fonce <kbd class="desktop-only">${land ? 'Maj' : 'Espace'}</kbd>`;
+  const arrows = '<kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd>';
+  $('deskHelp').innerHTML = land
+    ? `${arrows} courir · <kbd>Espace</kbd> sauter (deux fois : plonger) · <kbd>Maj</kbd> foncer · <kbd>E</kbd> évoluer`
+    : `${arrows} nager · <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer`;
+  if (land && !game.jumped) {
+    later(() => sayOnce('landHelp', LINES.landHelp, 25, 3), 2500);
+    later(() => { if (game.jumped) sayOnce('landHelp2', LINES.landHelp2, 60, 2); }, 16000);
+  }
+}
+
 /** Les couleurs du joueur changent à chaque chapitre (chapters[].skin) */
 const PLAYER_DEFAULT = { ...PLAYER };
 function applySkin() {
@@ -2517,6 +2581,8 @@ function setupChapter(keepPos) {
   drops = [];
   particles = [];
   floaters = [];
+  terre.setup();
+  setupLandUi();
   populate();
   missionsShown = '';
   renderAll();
@@ -2763,6 +2829,7 @@ function draw() {
   ctx.globalAlpha = 1;
   if (stats.cones) drawCones(inView);
   for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
+  if (land) terre.drawBumps(inView);
 
   // les créatures, des plus petites aux plus grosses ; le joueur à sa place ; ce qui vole, tout en haut
   const list = creatures.filter((c) => inView(c, c.size * 3.5)).sort(land ? (a, b) => a.y - b.y : (a, b) => a.size - b.size);
@@ -2770,9 +2837,10 @@ function draw() {
   for (const c of list) {
     if (c.sp.flying) continue;
     if (!playerDrawn && (land ? c.y > player.y : c.size > player.size)) { drawThePlayer(); playerDrawn = true; }
-    drawCreature(ctx, c, worldT + c.seed);
+    terre.paint(c, () => drawCreature(ctx, c, worldT + c.seed));
   }
   if (!playerDrawn) drawThePlayer();
+  if (land) terre.drawChains(inView, worldT);
 
   // par-dessus : les cachettes (algues, fougères) et les feuillages, transparents quand on est dessous
   for (const a of covers) {
@@ -2924,7 +2992,7 @@ function drawThePlayer() {
     ctx.arc(p.x, p.y, p.size * (2 + k * 2), 0, TAU);
     ctx.fill();
   }
-  drawPlayer(ctx, p, CH.form, game.owned, worldT);
+  terre.paint(p, () => drawPlayer(ctx, p, CH.form, game.owned, worldT));
   if (sq !== 1) ctx.restore();
   if (air > 0) ctx.restore();
   ctx.globalAlpha = 1;
@@ -2960,6 +3028,15 @@ function drawFx() {
           ctx.quadraticCurveTo(x + p.face * p.size * 0.5, y, x - p.face * p.size * 0.1, y + p.size * 0.8);
         }
       }
+      ctx.stroke();
+    } else if (p.streak !== undefined) {
+      // (sur la terre) un trait de vitesse
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(1.5 / zoom, p.size * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - Math.cos(p.streak) * p.size, p.y - Math.sin(p.streak) * p.size);
       ctx.stroke();
     } else if (p.ring) {
       // l'onde d'un aboiement
@@ -3426,6 +3503,8 @@ function renderStartInfo() {
     $('startDone').hidden = !done;
     $('startGoal').hidden = done;
     $('howTo').hidden = done || !!LV.world.noGrow;
+    howToFirst.innerHTML = terre.on() ? HOWTO_LAND : HOWTO_SEA;
+    $('howToLand').hidden = !terre.on();
     return;
   }
   // un autre niveau de la carte
@@ -4903,6 +4982,7 @@ function botDir() {
       : botCareful ? c.size * 2.5 + p.size * 3 + (c.state === 'chase' ? 260 : 120) : c.size * 1.6 + p.size * 2;
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
+  if (terre.on()) terre.botThink(threat, 1 / 30);
   if (threat > 0.15) {
     if (canStrike() && p.strikeT <= 0 && creatures.some((c) => inStrikeReach(c) && isThreat(c))) activateStrike();
     // (le loup et l'humain) un aboiement fait fuir les chasseurs

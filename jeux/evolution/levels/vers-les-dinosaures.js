@@ -21,7 +21,6 @@ const world = {
     intro: "Nouveau : le coup de queue ! Appuie sur F ou sur le bouton orange, quand un adversaire est tout près de toi : il reste assommé 2 secondes.",
   },
   maxChasers: 4,
-  speed: 1.43,                     // sur la terre, le joueur est plus vif que dans l'océan
   noise: 560,                      // un sprint s'entend jusque-là : les chasseurs se retournent
   penalty: { adn: 0.3, growth: 0.06 },   // se faire manger coûte un peu moins cher que dans l'océan
   decor: [

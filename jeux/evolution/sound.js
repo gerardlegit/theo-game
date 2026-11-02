@@ -73,6 +73,16 @@ function noise(start, dur, { vol = 0.2, freq = 2000, to = null, q = 1, type = 'b
 function play(fn) { if (enabled) fn(); }
 
 export const sfx = {
+  /* (terre.js) le saut, l'atterrissage, le rebond, le plongeon, le champignon, l'ADN en l'air */
+  jump: () => play(() => { tone(NOTE(67), 0, 0.16, { type: 'triangle', vol: 0.12, to: NOTE(79) }); noise(0, 0.05, { vol: 0.05, freq: 900 }); }),
+  land: () => play(() => { noise(0, 0.08, { vol: 0.09, freq: 500, type: 'lowpass' }); tone(110, 0, 0.08, { type: 'triangle', vol: 0.09, to: 70 }); }),
+  skid: () => play(() => { noise(0, 0.22, { vol: 0.06, freq: 2600, to: 900 }); }),
+  boing: (n = 1) => play(() => { const f = NOTE(60 + Math.min(n, 8) * 2); tone(f, 0, 0.26, { type: 'sine', vol: 0.18, to: f * 2.4 }); tone(f * 0.5, 0, 0.14, { type: 'triangle', vol: 0.12, to: f }); }),
+  dive: () => play(() => { tone(NOTE(84), 0, 0.22, { type: 'triangle', vol: 0.1, to: NOTE(55) }); }),
+  slam: () => play(() => { noise(0, 0.3, { vol: 0.24, freq: 500, to: 90, type: 'lowpass' }); tone(90, 0, 0.32, { type: 'triangle', vol: 0.24, to: 38 }); }),
+  spring: () => play(() => { tone(NOTE(62), 0, 0.42, { type: 'sine', vol: 0.18, to: NOTE(90) }); tone(NOTE(69), 0.05, 0.34, { type: 'triangle', vol: 0.08, to: NOTE(93) }); }),
+  gem: (i = 1) => play(() => { tone(NOTE(76 + [0, 2, 4, 7, 9, 12, 14, 16][Math.min(i - 1, 7)]), 0, 0.14, { type: 'triangle', vol: 0.1 }); }),
+  perfect: () => play(() => { [76, 79, 84, 88].forEach((n, i) => tone(NOTE(n), i * 0.07, 0.2, { type: 'triangle', vol: 0.12 })); }),
   /* une petite bouchée : « plop » (plus grave pour les grosses proies) */
   eat: (big = 0) => play(() => {
     const f = 700 - big * 380 + Math.random() * 80;
