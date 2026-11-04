@@ -58,7 +58,8 @@
 //      faut "need" loups pour l'attaquer ; fights : au lieu de fuir, il se retourne et charge), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
-//      ferme), art-dinos.js (dinosaures : trex, triceratops, stegosaure…),
+//      ferme), art-dinos.js (dinosaures de profil, pour la fin), art-trois-quarts.js (les
+//      animaux du niveau 2 vus de trois quarts : look 'tq-trex', 'tq-stegosaure'…),
 //      art-mer.js (reptiles marins, requins, tortues, ammonites…) ou
 //      art-mammiferes.js (mammouth, bison, renne, hyene, oiseau-terreur,
 //      titanoboa, oiseau…).
@@ -79,7 +80,8 @@
 //      la confiance des humains en %, bark = faire fuir en aboyant, herd =
 //      ramener dans l'enclos, play = jouer avec ; "text" change la phrase).
 //      power = le pouvoir de ce chapitre, touche F (type 'flash' / 'whip' / 'gulp' /
-//      'hammer' / 'breach', name, icon, recharge, range, intro) ; missions stun
+//      'hammer' / 'breach' / 'decoy' = la queue-leurre / 'roar' = le rugissement,
+//      name, icon, recharge, range, intro, cry = le mot qui s'affiche) ; missions stun
 //      (assommer) et hit (toucher un boss) ; start = où l'on arrive dans ce chapitre ; pack: N = la jauge de meute (N loups) ; trust: true = la jauge 🤝 de
 //      confiance des humains, treat = ce qu'ils
 //      te lancent à manger. Sur la terre : dry
@@ -93,9 +95,6 @@
 //      la foule ("crowd"), les légendes ("captions"), le titre et les choix ;
 //      chaque choix nomme le niveau suivant ("level"). Tant qu'il n'existe
 //      pas, la fin annonce « bientôt » (texte "soon").
-//      engine: 'dino3d' = ce niveau se joue en 3D, dans son propre moteur : tout
-//      est décrit dans le fichier du niveau (voir levels/vers-les-dinosaures.js) ;
-//      les corps sont dans dino3d/animaux.js, le décor dans dino3d/monde.js.
 //      Le niveau a aussi une icône ("icon"), une intro ('ocean' / 'terre' /
 //      'mer' / 'mammiferes' / 'loup' / 'requins') et, si besoin, le numéro affiché ("num" : deux
 //      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur

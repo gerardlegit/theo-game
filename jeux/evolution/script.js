@@ -20,6 +20,7 @@ import './art-mer.js';
 import './art-mammiferes.js';
 import { BREED_PARADE, campFire } from './art-loup.js';
 import './art-requins.js';
+import { drawDecoyTail } from './art-trois-quarts.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
@@ -157,6 +158,7 @@ let player = null;
 let creatures = [];
 let drops = [];
 let particles = [];
+let decoys = [];                   // (la queue-leurre) les bouts de queue qui gigotent par terre
 let floaters = [];
 let decor = [];                    // ce qui est posé au fond (rochers, éponges…)
 let hides = [];                    // les cachettes (algues, fougères)
@@ -399,7 +401,7 @@ function canEat(c) {
 /* Une meute assez grande fait fuir ce chasseur (packFear = le nombre de loups qu'il faut) */
 const fearsPack = (c) => !!CH.pack && !!c.sp.packFear && packNear >= c.sp.packFear;
 function isDanger(c) {
-  return !(c.stunT > 0) && (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && player.size < c.size * DANGER_RATIO && !canEat(c) && !fearsPack(c);
+  return !(c.stunT > 0) && (c.sp.kind === 'hunter' || c.sp.kind === 'stinger') && (player.size < c.size * DANGER_RATIO || !!c.sp.fierce) && !canEat(c) && !fearsPack(c);
 }
 /* Tout ce qui peut faire mal : chasseurs, méduses, herbivores qui chargent, géants qui écrasent */
 function isThreat(c) {
@@ -1155,6 +1157,10 @@ function updatePlayer(dt) {
   p.flashT = Math.max(0, (p.flashT || 0) - dt);
   p.whipT = Math.max(0, (p.whipT || 0) - dt);
   p.bongT = Math.max(0, (p.bongT || 0) - dt);
+  p.tailT = Math.max(0, (p.tailT || 0) - dt);
+  p.roarT = Math.max(0, (p.roarT || 0) - dt);
+  p.tailCut = p.tailT > 0 ? Math.min(3, Math.ceil(p.tailT / 2)) : 0;
+  if (p.roarT > 0) p.mouth = 1;
   if (p.gulpT > 0) {
     // l'aspirateur : tout ce qui se mange arrive dans sa bouche
     p.gulpT -= dt;
@@ -1308,6 +1314,8 @@ function updateCreatures(dt) {
       steer(c, Math.cos(a), Math.sin(a), sp.speed * 0.9, dt);
       c.mood = 'scared';
       c.fleeing = true;
+    } else if (chaseDecoy(c, dt)) {
+      // (la queue-leurre du lézard : il ne pense plus qu'à elle)
     } else if (c === huntTarget) {
       updateHunted(c, dt);
     } else if (sp.kind === 'stray') {
@@ -1849,7 +1857,7 @@ function firePower() {
     p.litT = 3;
     flash = { a: 0.7, color: '190,255,245' };
     ringFx(R, '#9EFFEF');
-    addFloater('FLASH !', p.x, p.y - p.size * 2.4, '#9EFFEF', 1.3);
+    addFloater(P.cry || 'FLASH !', p.x, p.y - p.size * 2.4, '#9EFFEF', 1.3);
     for (const c of near) {
       if (c.sp.kind === 'hunter') {
         c.stunT = 2.5;
@@ -1864,7 +1872,7 @@ function firePower() {
     shake = Math.max(shake, 0.25);
     ringFx(R, '#FFFFFF');
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.35, size: p.size * 1.4, face: p.face || 1, color: '#FFFFFF', slash: 'queue', ang: p.angle });
-    addFloater('FLAC !', p.x, p.y - p.size * 2, '#FFFFFF', 1.3);
+    addFloater(P.cry || 'FLAC !', p.x, p.y - p.size * 2, '#FFFFFF', 1.3);
     for (const c of near) {
       if (c.sp.kind === 'hunter') {
         c.stunT = 2;
@@ -1877,7 +1885,7 @@ function firePower() {
   } else if (P.type === 'gulp') {
     sfx.gulp();
     p.gulpT = 2;
-    addFloater('AAAAH…', p.x, p.y - p.size * 2, '#FFE58A', 1.3);
+    addFloater(P.cry || 'AAAAH…', p.x, p.y - p.size * 2, '#FFE58A', 1.3);
     later(() => {
       if (state !== 'playing' || !player) return;
       sfx.burp();
@@ -1891,7 +1899,7 @@ function firePower() {
     p.bongT = 0.3;
     shake = Math.max(shake, 0.3);
     ringFx(R, '#FFE58A');
-    addFloater('BONG !', p.x, p.y - p.size * 1.8, '#FFD24A', 1.4);
+    addFloater(P.cry || 'BONG !', p.x, p.y - p.size * 1.8, '#FFD24A', 1.4);
     let found = 0;
     for (const c of near) {
       if (c.buried) {
@@ -1912,6 +1920,37 @@ function firePower() {
       addFloater(`${found} trouvée${found > 1 ? 's' : ''} !`, p.x, p.y - p.size * 2.8, '#7CF0A0', 1.2);
       sayOnce('found', LINES.found, 40, 1);
     }
+  } else if (P.type === 'decoy') {
+    // le lézard laisse sa queue par terre : elle gigote, et les chasseurs se jettent dessus
+    sfx.snap();
+    p.tailT = 7;
+    decoys.push({ x: p.x - Math.cos(p.angle) * p.size * 1.6, y: p.y - Math.sin(p.angle) * p.size * 1.6, a: p.angle + 1.2, size: p.size * 0.7, life: 6, bites: 0 });
+    addFloater(P.cry || 'CLAC !', p.x, p.y - p.size * 2, '#FFE58A', 1.3);
+    sayOnce('decoy', LINES.decoy, 40, 1);
+    for (let i = 0; i < 8; i++) bubbleAt(p.x, p.y, p.size * 0.3);
+  } else if (P.type === 'roar') {
+    // le rugissement du T. rex : tout ce qui est autour est assommé de peur
+    sfx.roar(1.4);
+    p.roarT = 0.9;
+    shake = Math.max(shake, 0.75);
+    flash = { a: 0.25, color: '255,230,180' };
+    buzz([60, 40, 90]);
+    ringFx(R, '#FFE0A0');
+    ringFx(R * 0.6, '#FFFFFF');
+    addFloater(P.cry || 'GROAR !', p.x, p.y - p.size * 1.8, '#FFD24A', 1.8);
+    let scared = 0;
+    for (const c of near) {
+      if (c.sp.kind === 'hunter') {
+        c.stunT = 2.5;
+        noteStun(c);
+        scared++;
+      } else if (canEat(c) || c.sp.kind === 'defender' || c.sp.kind === 'neutral') {
+        c.stunT = 2.5;
+      }
+      if (c.sp.breachHit) hitBoss(c);
+      if (c.stunT > 0) burst(c.x, c.y - c.size * 0.5, 6, ['#FFD24A', '#FFFFFF'], c.size * 3 + 40, Math.max(2, c.size * 0.06));
+    }
+    if (scared) sayOnce('roared', LINES.roared, 40, 1);
   } else if (P.type === 'breach') {
     // il jaillit hors de l'eau : plus rien ne peut le toucher tant qu'il vole
     sfx.dash();
@@ -1947,6 +1986,36 @@ function landBreach() {
     if (c.sp.breachHit) hitBoss(c);
   }
   checkMissions();
+}
+
+/** (la queue-leurre) Un chasseur près d'un bout de queue qui gigote : il fonce dessus et le croque */
+function chaseDecoy(c, dt) {
+  if (!decoys.length || c.sp.kind !== 'hunter') return false;
+  let best = null, bd = Infinity;
+  for (const d of decoys) {
+    const dd = dist(c, d);
+    if (dd < bd && dd < c.sp.sense * 1.6 + 200) { bd = dd; best = d; }
+  }
+  if (!best) return false;
+  if (c.state === 'chase' || c.state === 'alert') c.state = 'wander';
+  c.mood = 'angry';
+  c.fleeing = false;
+  const dx = best.x - c.x, dy = best.y - c.y, dd = Math.hypot(dx, dy) || 1;
+  steer(c, dx / dd, dy / dd, c.sp.speed * 1.1, dt);
+  if (dd < c.size * 0.8 + best.size) {
+    // il croque… et ça gigote encore dans sa gueule : il ne sait plus où il en est
+    c.chomp = 0.4;
+    c.stunT = 2.2;
+    c.rest = Math.max(c.rest, 4);
+    best.bites++;
+    best.life = Math.min(best.life, 0.6);
+    noteStun(c);
+    sfx.snap();
+    addFloater(c.sp.hitLine || 'Beurk !', c.x, c.y - c.size * 1.6, '#FFE58A', 1.2);
+    burst(best.x, best.y, 8, ['#FFE58A', '#FFFFFF'], best.size * 4, Math.max(2, best.size * 0.1));
+    checkMissions();
+  }
+  return true;
 }
 
 /** Un boss touché : sa barre descend, et il n'est vraiment pas content */
@@ -2557,6 +2626,7 @@ function setupChapter(keepPos) {
   const y = keepPos && CH.start ? CH.start.y : keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
   placePlayer(x, y);
   drops = [];
+  decoys = [];
   particles = [];
   floaters = [];
   setupLandUi();
@@ -2721,6 +2791,8 @@ function update(dt) {
 }
 
 function updateDrops(dt) {
+  for (const d of decoys) d.life -= dt;
+  decoys = decoys.filter((d) => d.life > 0);
   for (const d of drops) {
     d.life -= dt;
     d.x += d.vx * dt;
@@ -2806,6 +2878,7 @@ function draw() {
   ctx.globalAlpha = 1;
   if (stats.cones) drawCones(inView);
   for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
+  for (const d of decoys) if (inView(d, d.size * 3)) drawDecoyTail(ctx, d, worldT);
 
   // les créatures, des plus petites aux plus grosses ; le joueur à sa place ; ce qui vole, tout en haut
   const list = creatures.filter((c) => inView(c, c.size * 3.5)).sort(land ? (a, b) => a.y - b.y : (a, b) => a.size - b.size);
@@ -3394,7 +3467,6 @@ function loop(now) {
   const dt = Math.min(0.05, last ? (now - last) / 1000 : 0);
   last = now;
   if (mustRotate()) return;        // téléphone tenu debout : tout est en pause
-  if (state === 'dino') return;    // le niveau en 3D a sa propre boucle (dino3d/jeu.js)
   if (state === 'playing' && isBlocked()) runTimers(0);
   else runTimers(dt);
   if (state === 'intro' && intro) {
@@ -3681,54 +3753,7 @@ function enterLevel(i, fresh = false) {
   goToLevel(i);
 }
 
-/* ---------- Le niveau en 3D (LV.engine) : il prend tout l'écran, puis rend la main pour la fin ---------- */
-let dino3d = null;
-function startEngine3d() {
-  state = 'dino';
-  game.started = true;
-  saveGame();
-  const bail = (err) => {
-    // pas de 3D sur cet appareil (ou pas de réseau pour la charger) : on ne bloque pas l'enfant
-    console.warn('Évolution 3D indisponible', err);
-    if (dino3d) { dino3d.stop(); dino3d = null; }
-    document.getElementById('dino3d')?.remove();
-    document.body.classList.remove('dino-on');
-    state = 'playing';
-    openDialog(`
-      <p class="dlg-title">🦖 Ce niveau est en 3D</p>
-      <p class="dlg-say">Il ne peut pas s'afficher ici : ton appareil n'a pas assez de puissance, ou Internet ne répond pas. Tu peux réessayer plus tard, ou passer directement à la fin du niveau.</p>
-      <div class="dlg-actions"><button class="primary" data-act="skip">Voir la fin du niveau</button><button class="ghost-btn" data-act="retry">Réessayer</button></div>`, {
-      skip: () => { closeDialog(); finishEngine3d(); },
-      retry: () => { closeDialog(); startEngine3d(); },
-    });
-  };
-  import('./dino3d/jeu.js').then((m) => {
-    if (state !== 'dino') return;
-    try {
-      dino3d = m.startDinoGame({
-        level: LV, game, sfx, debug: DEBUG, isPhone: phoneMQ.matches, ammoSvg: AMMO_SVG,
-        isSoundOn, toggleSound: () => { const on = toggleSound(); renderSoundBtn(); return on; },
-        buzz, confetti, save: saveGame,
-        isPaused: () => !quitOverlay.hidden || !rotateOverlay.hidden,
-        onFinish: () => { dino3d = null; finishEngine3d(); },
-      });
-    } catch (err) { bail(err); }
-  }).catch(bail);
-}
-
-/** Le niveau en 3D est fini : la météorite (le dessin de la fin) et le choix de la suite */
-function finishEngine3d() {
-  game.chapter = CHAPTERS.length - 1;
-  CH = CHAPTERS[game.chapter];
-  if (game.dino && game.dino.diet === 'herbivore') CH = { ...CH, form: 'roi-tricera' };
-  setupChapter(false);
-  startEnding();
-  endT = METEOR_TEXT_AT - 0.3;     // la météorite vient de tomber, en 3D : place au choix de la suite
-  for (const k of ['rumble', 'boom', 'sad', 'hope']) endCues.add(k);
-}
-
 function beginPlay() {
-  if (LV.engine === 'dino3d') { startEngine3d(); return; }
   state = 'playing';
   lastMoveAt = performance.now();
   nextTipAt = lastMoveAt + 25000;
@@ -3913,7 +3938,6 @@ function goToLevel(i) {
   game.pos = null;
   game.started = false;
   game.tipsSaid = {};
-  game.dino = null;
   Object.assign(game, freshChapter());
   game.chapterDone = false;
   setupGame();
@@ -4912,7 +4936,7 @@ function goHome() {
   window.location.href = '../../';
 }
 function openQuit() {
-  if (state !== 'playing' && state !== 'dino') { goHome(); return; }
+  if (state !== 'playing') { goHome(); return; }
   quitOverlay.hidden = false;
   $('quitNo').focus({ preventScroll: true });
 }
@@ -4969,6 +4993,15 @@ let botCareful = true;               // false = un enfant distrait, qui ne fuit 
 function botPower() {
   const p = player;
   if (!CH.power || p.strikeT > 0 || p.airT > 0) return;
+  if (CH.power.type === 'decoy') {
+    if (creatures.some((c) => c.sp.kind === 'hunter' && (c.state === 'chase' || c.state === 'alert' || dist(c, p) < 520) && dist(c, p) < 700)) activateStrike();
+    return;
+  }
+  if (CH.power.type === 'roar') {
+    const R = CH.power.range * stats.power;
+    if (creatures.some((c) => (c.sp.breachHit || c.sp.kind === 'hunter') && dist(c, p) < R * 0.8 + c.size)) activateStrike();
+    return;
+  }
   if (CH.power.type !== 'breach') { activateStrike(); return; }
   // le saut : seulement si on retombera près de sa cible
   const R = CH.power.range * stats.power;
@@ -5052,6 +5085,8 @@ function botJob() {
         const tp = t.spine[t.spine.length - 2];
         return go(tp.x, tp.y);
       }
+      // (la queue-leurre) on l'attire de loin, puis on le laisse croquer la queue
+      if (t && CH.power && CH.power.type === 'decoy' && (decoys.length || dist(t, p) < 520)) return go(p.x + (p.x - t.x), p.y + (p.y - t.y));
       if (t) return go(t.x, t.y);
     }
     const hunt = m.type === 'eat' && SPECIES[m.species].hp;
@@ -5147,7 +5182,6 @@ async function init() {
   if (DEBUG) {
     // pour tester : ?debug, puis __evo.chapter(3), __evo.adn(500)…
     window.__evo = {
-      get dino() { return dino3d; },
       get game() { return game; }, get player() { return player; }, get creatures() { return creatures; }, get state() { return state; },
       get zones() { return zones; },
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },

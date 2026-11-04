@@ -77,6 +77,8 @@ export const LINES = {
   crushed: "Écrasé ! Ne passe jamais sous les pattes d'un géant…",
   stunned: "Bam ! Il est assommé pendant 2 secondes : file, ou profites-en !",
   // les requins
+  decoy: "Ta queue gigote toute seule par terre ! Les chasseurs vont foncer dessus. Toi, file !",
+  roared: "GROAAAR ! Ils sont tout tremblants. Personne n'ose défier le roi !",
   burp: "Oh ! Ça ne se fait pas, de roter comme ça… Bon, c'était quand même très réussi.",
   found: "Bien joué ! Ton sens électrique a trouvé les raies. Vite, croque-les avant qu'elles filent !",
   bossHit: "Touché ! Oh là là, il n'est vraiment pas content… FILE !",

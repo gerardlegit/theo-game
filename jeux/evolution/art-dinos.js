@@ -1323,8 +1323,3 @@ for (const [form, B] of Object.entries(PLAYER_BUILD)) {
   FORM_SPINE[form] = null;
   FRAMES[form] = { r: 0.16, x: 0.58, y: 0.55 };
 }
-
-/* Le roi herbivore, pour le dessin de la fin (niveau 2, le chemin du Triceratops) */
-FORMS['roi-tricera'] = (ctx, p, parts, t, mood) => drawQuadruped(ctx, { ...p, sp: { kind: 'player' }, mood, seed: 0 }, t, QUAD.triceratops, '#A58A52');
-SIDE['roi-tricera'] = mouthOf(QUAD.triceratops.head);
-FORM_SPINE['roi-tricera'] = null;
