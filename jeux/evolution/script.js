@@ -3394,6 +3394,7 @@ function loop(now) {
   const dt = Math.min(0.05, last ? (now - last) / 1000 : 0);
   last = now;
   if (mustRotate()) return;        // téléphone tenu debout : tout est en pause
+  if (state === 'dino') return;    // le niveau en 3D a sa propre boucle (dino3d/jeu.js)
   if (state === 'playing' && isBlocked()) runTimers(0);
   else runTimers(dt);
   if (state === 'intro' && intro) {
@@ -3680,7 +3681,54 @@ function enterLevel(i, fresh = false) {
   goToLevel(i);
 }
 
+/* ---------- Le niveau en 3D (LV.engine) : il prend tout l'écran, puis rend la main pour la fin ---------- */
+let dino3d = null;
+function startEngine3d() {
+  state = 'dino';
+  game.started = true;
+  saveGame();
+  const bail = (err) => {
+    // pas de 3D sur cet appareil (ou pas de réseau pour la charger) : on ne bloque pas l'enfant
+    console.warn('Évolution 3D indisponible', err);
+    if (dino3d) { dino3d.stop(); dino3d = null; }
+    document.getElementById('dino3d')?.remove();
+    document.body.classList.remove('dino-on');
+    state = 'playing';
+    openDialog(`
+      <p class="dlg-title">🦖 Ce niveau est en 3D</p>
+      <p class="dlg-say">Il ne peut pas s'afficher ici : ton appareil n'a pas assez de puissance, ou Internet ne répond pas. Tu peux réessayer plus tard, ou passer directement à la fin du niveau.</p>
+      <div class="dlg-actions"><button class="primary" data-act="skip">Voir la fin du niveau</button><button class="ghost-btn" data-act="retry">Réessayer</button></div>`, {
+      skip: () => { closeDialog(); finishEngine3d(); },
+      retry: () => { closeDialog(); startEngine3d(); },
+    });
+  };
+  import('./dino3d/jeu.js').then((m) => {
+    if (state !== 'dino') return;
+    try {
+      dino3d = m.startDinoGame({
+        level: LV, game, sfx, debug: DEBUG, isPhone: phoneMQ.matches, ammoSvg: AMMO_SVG,
+        isSoundOn, toggleSound: () => { const on = toggleSound(); renderSoundBtn(); return on; },
+        buzz, confetti, save: saveGame,
+        isPaused: () => !quitOverlay.hidden || !rotateOverlay.hidden,
+        onFinish: () => { dino3d = null; finishEngine3d(); },
+      });
+    } catch (err) { bail(err); }
+  }).catch(bail);
+}
+
+/** Le niveau en 3D est fini : la météorite (le dessin de la fin) et le choix de la suite */
+function finishEngine3d() {
+  game.chapter = CHAPTERS.length - 1;
+  CH = CHAPTERS[game.chapter];
+  if (game.dino && game.dino.diet === 'herbivore') CH = { ...CH, form: 'roi-tricera' };
+  setupChapter(false);
+  startEnding();
+  endT = METEOR_TEXT_AT - 0.3;     // la météorite vient de tomber, en 3D : place au choix de la suite
+  for (const k of ['rumble', 'boom', 'sad', 'hope']) endCues.add(k);
+}
+
 function beginPlay() {
+  if (LV.engine === 'dino3d') { startEngine3d(); return; }
   state = 'playing';
   lastMoveAt = performance.now();
   nextTipAt = lastMoveAt + 25000;
@@ -3865,6 +3913,7 @@ function goToLevel(i) {
   game.pos = null;
   game.started = false;
   game.tipsSaid = {};
+  game.dino = null;
   Object.assign(game, freshChapter());
   game.chapterDone = false;
   setupGame();
@@ -4863,7 +4912,7 @@ function goHome() {
   window.location.href = '../../';
 }
 function openQuit() {
-  if (state !== 'playing') { goHome(); return; }
+  if (state !== 'playing' && state !== 'dino') { goHome(); return; }
   quitOverlay.hidden = false;
   $('quitNo').focus({ preventScroll: true });
 }
@@ -5098,6 +5147,7 @@ async function init() {
   if (DEBUG) {
     // pour tester : ?debug, puis __evo.chapter(3), __evo.adn(500)…
     window.__evo = {
+      get dino() { return dino3d; },
       get game() { return game; }, get player() { return player; }, get creatures() { return creatures; }, get state() { return state; },
       get zones() { return zones; },
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },

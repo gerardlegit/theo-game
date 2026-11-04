@@ -28,11 +28,12 @@ Each game is self-contained in `jeux/<slug>/`: `index.html`, `style.css`, `scrip
 Cross-game reuse to be aware of:
 - `safari-planete/` has **only** an `index.html` and runs `../pin-the-globe/script.js` + `style.css`. `<body data-game="safari">` selects the `GAMES.safari` config in `pin-the-globe/script.js`. Changes to pin-the-globe affect Safari Planète.
 - `livraisons-espace/` imports `../espace/art.js`, `../espace/data.js` and `../espace/style.css` (Mission Cosmos). The levels are documented in `livraisons-espace/levels/index.js` ("POUR AJOUTER UN NIVEAU").
+- `evolution/`: the dinosaur level (`levels/vers-les-dinosaures.js`, `engine: 'dino3d'`) runs in 3D in its own engine, `evolution/dino3d/` (three.js via `importmap`, loaded only for that level). `script.js` hands over in `startEngine3d` and takes back for the ending.
 
 ## Conventions
 
 - **No assets in the repo for games.** Art is drawn in code (inline SVG strings or `<canvas>` in `art.js`). Sound is synthesized with WebAudio (`sound.js`), with no audio files. Photos/emoji come from external URLs (Wikimedia, Noto Emoji via fonts.gstatic.com). Games that use photos list them in a `credits.html`: add an attribution there when you add a photo.
-- **External libs via CDN only**, with pinned versions: d3/topojson (continents), three.js via `importmap` (pin-the-globe), flag-icons CSS, Firebase 12.17.1 from gstatic, Google Fonts (Baloo 2 + Quicksand on most pages).
+- **External libs via CDN only**, with pinned versions: d3/topojson (continents), three.js via `importmap` (pin-the-globe, evolution), flag-icons CSS, Firebase 12.17.1 from gstatic, Google Fonts (Baloo 2 + Quicksand on most pages).
 - **Header comments**: files open with a `// ====…` banner explaining in French what the file does. Match that style and the existing comment density.
 - **localStorage**: keys are prefixed with the game slug (`espace-sound`, `la-quete-save-v1`, `royaume-des-mots-v2`…). Every access is wrapped in `try/catch`, because storage can be blocked. Save formats carry a version, so bump the key/version instead of breaking old saves.
 - **Internal links point to folders, never to `index.html`**: `jeux/<slug>/`, `../../` (back to home), `./` (from `credits.html`). This matches the canonical URLs and the sitemap.

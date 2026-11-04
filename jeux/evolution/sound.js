@@ -73,6 +73,14 @@ function noise(start, dur, { vol = 0.2, freq = 2000, to = null, q = 1, type = 'b
 function play(fn) { if (enabled) fn(); }
 
 export const sfx = {
+  /* (dino3d) le tambour du duel, la foudre, les feuilles quand on se cache */
+  drum: (hard = false) => play(() => {
+    tone(hard ? 78 : 62, 0, 0.2, { type: 'triangle', vol: 0.3, to: 40 });
+    noise(0, 0.05, { vol: 0.05, freq: 300, type: 'lowpass' });
+    tone(hard ? 104 : 82, 0.14, 0.14, { type: 'triangle', vol: 0.18, to: 52 });
+  }),
+  bolt: () => play(() => { noise(0, 0.4, { vol: 0.32, freq: 3000, to: 200 }); tone(58, 0.02, 0.5, { type: 'sawtooth', vol: 0.12, to: 30 }); }),
+  rustle: () => play(() => { noise(0, 0.28, { vol: 0.07, freq: 3400, to: 1800 }); }),
   /* (terre.js) demi-tour à pleine vitesse : on dérape */
   skid: () => play(() => { noise(0, 0.22, { vol: 0.06, freq: 2600, to: 900 }); }),
   /* une petite bouchée : « plop » (plus grave pour les grosses proies) */
