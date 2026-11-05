@@ -28,7 +28,7 @@ Each game is self-contained in `jeux/<slug>/`: `index.html`, `style.css`, `scrip
 Cross-game reuse to be aware of:
 - `safari-planete/` has **only** an `index.html` and runs `../pin-the-globe/script.js` + `style.css`. `<body data-game="safari">` selects the `GAMES.safari` config in `pin-the-globe/script.js`. Changes to pin-the-globe affect Safari Planète.
 - `livraisons-espace/` imports `../espace/art.js`, `../espace/data.js` and `../espace/style.css` (Mission Cosmos). The levels are documented in `livraisons-espace/levels/index.js` ("POUR AJOUTER UN NIVEAU").
-- `evolution/`: one 2D engine (`script.js`) for every level. Sea animals are drawn from above along a spine; the dinosaur level (`levels/vers-les-dinosaures.js`) uses the same spine bodies seen from three quarters (`art-trois-quarts.js`); the mammal and wolf levels draw animals in profile, turned by `terre.js` + `art-vues.js`.
+- `evolution/`: one 2D engine (`script.js`) for every level. Sea animals are drawn from above along a spine; the dinosaur level (`levels/vers-les-dinosaures.js`) uses the same spine bodies seen from three quarters (`art-trois-quarts.js`); the mammal and wolf levels use the same 3/4 drawer with mammal parts (fur, ears, hooves, trunks, antlers) and standing humans (`art-poils.js`). The older profile art (`art-mammiferes.js`, `art-loup.js`) is still used by the intros and the dog parade.
 
 ## Conventions
 

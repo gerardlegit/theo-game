@@ -27,7 +27,8 @@ export function shade(hex, k) {
   if (!byK) { byK = new Map(); shadeCache.set(hex, byK); }
   let out = byK.get(k);
   if (out) return out;
-  const n = parseInt(hex.slice(1), 16);
+  // (une couleur déjà assombrie arrive écrite « rgb(…) » : on la relit aussi)
+  const n = hex[0] === '#' ? parseInt(hex.slice(1), 16) : hex.match(/\d+/g).slice(0, 3).reduce((v, x) => (v << 8) | Number(x), 0);
   let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
   if (k < 0) { r *= 1 + k; g *= 1 + k; b *= 1 + k; } else { r += (255 - r) * k; g += (255 - g) * k; b += (255 - b) * k; }
   out = `rgb(${r | 0},${g | 0},${b | 0})`;

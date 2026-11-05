@@ -21,6 +21,7 @@ import './art-mammiferes.js';
 import { BREED_PARADE, campFire } from './art-loup.js';
 import './art-requins.js';
 import { drawDecoyTail } from './art-trois-quarts.js';
+import './art-poils.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
@@ -4501,7 +4502,9 @@ function drawFireEnding(dt) {
     drawPlayer(c, { x: px, y: py, angle: 0, size, mouth: roaring ? 0.9 : 0.15, mood: scare ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t * (scare ? 2 : 0.6), spine: null }, CH.form, game.owned, t);
     const fall = t > 8.6 ? Math.min(1, (t - 8.6) / 1) : 0;
     c.globalAlpha = 1 - clamp((t - 9.8) / 1, 0, 1);
-    drawCrown(c, px + size * 0.9 - fall * size * 0.6, py - size * 1.35 + fall * size * 1.9, size * 0.55);
+    // (la couronne sur la tête : en trois quarts, la tête est moins loin devant et moins haut qu'en profil)
+    const hx = formLook() ? 0.5 : 0.9, hy = formLook() ? 0.95 : 1.35;
+    drawCrown(c, px + size * hx - fall * size * 0.6, py - size * hy + fall * size * 1.9, size * 0.55);
     c.globalAlpha = 1;
     for (const d of endDecor) if (d.type !== 'rocher') drawCover(c, d, t);
     // la nuit tombe

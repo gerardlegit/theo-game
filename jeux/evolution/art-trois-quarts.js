@@ -20,6 +20,7 @@ const HORN = '#EFE4C8';
 const CLAW = '#2E2620';
 const TOOTH = '#FBF6E9';
 const MOUTH = '#5E1B28';
+const HOOF = '#3A2E26';
 
 let fine = true;
 function setDetail(ctx, r) {
@@ -42,11 +43,14 @@ function walkSpine(c, look, t, S) {
   const k = clamp(c.speed ?? 0.3, 0, 1.3);
   const ph = (c.walk ?? t * 1.5) * (S.cadence ?? 1.5) + (c.seed || 0) * 3;
   const amp = (S.sway ?? 0.06) * (0.35 + k);
+  // (S.wag : la queue frétille quand il est content, à partir de S.tailAt)
+  const wag = S.wag && c.mood === 'happy' ? S.wag : 0;
   return base.map((p, i) => {
     if (i === 0) return { x: p.x, y: p.y };
     const d = segDir(base, i);
     const u = i / (n - 1);
-    const off = Math.sin(ph * 0.5 + t * 0.6 - i * 0.7) * amp * r * Math.pow(u, 1.6);
+    let off = Math.sin(ph * 0.5 + t * 0.6 - i * 0.7) * amp * r * Math.pow(u, 1.6);
+    if (wag && u > (S.tailAt ?? 0.6)) off += Math.sin(t * 15 + (c.seed || 0) - i * 0.5) * wag * r * (u - (S.tailAt ?? 0.6));
     return { x: p.x - d.y * off, y: p.y + d.x * off };
   });
 }
@@ -55,8 +59,10 @@ function walkSpine(c, look, t, S) {
 function leg(ctx, L, col, dark, lw, biped) {
   const { hip, foot, w, out } = L;
   // le genou ressort vers l'extérieur ; celui d'un bipède pointe vers l'avant
-  const kx = hip.x + (foot.x - hip.x) * 0.45 + out.x * w * 0.7 + (biped ? L.d.x * w * 0.9 : 0);
-  const ky = hip.y + (foot.y - hip.y) * 0.45 + out.y * w * 0.35 + (biped ? L.d.y * w * 0.9 - w * 0.3 : 0);
+  // (L.knee : de combien il part vers l'avant, ou vers l'arrière s'il est négatif ; en × largeur de la patte)
+  const kn = L.knee ?? (biped ? 0.9 : 0);
+  const kx = hip.x + (foot.x - hip.x) * 0.45 + out.x * w * 0.7 + L.d.x * w * kn;
+  const ky = hip.y + (foot.y - hip.y) * 0.45 + out.y * w * 0.35 + L.d.y * w * kn - (biped ? w * 0.3 : 0);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   // le contour, puis la couleur : un tube qui s'affine
@@ -86,21 +92,75 @@ function leg(ctx, L, col, dark, lw, biped) {
   ctx.fillStyle = col;
   ctx.strokeStyle = dark;
   ctx.lineWidth = lw;
-  ctx.beginPath();
-  ctx.ellipse(hip.x, hip.y + w * 0.1, w * 1.08, w * 0.88, Math.atan2(L.d.y, L.d.x), 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-  if (fine) {
+  const tw = w * (L.thigh ?? 1);
+  if (!L.noThigh) {
+    ctx.beginPath();
+    ctx.ellipse(hip.x, hip.y + w * 0.1, tw * 1.08, tw * 0.88, Math.atan2(L.d.y, L.d.x), 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (fine && !L.noThigh) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.beginPath();
-    ctx.ellipse(hip.x - w * 0.25, hip.y - w * 0.2, w * 0.45, w * 0.28, -0.4, 0, TAU);
+    ctx.ellipse(hip.x - tw * 0.25, hip.y - tw * 0.2, tw * 0.45, tw * 0.28, -0.4, 0, TAU);
     ctx.fill();
   }
-  footPrint(ctx, foot.x, foot.y, Math.atan2(L.d.y, L.d.x), w * 0.78, col, dark, lw, L.toes);
+  footPrint(ctx, foot.x, foot.y, Math.atan2(L.d.y, L.d.x), w * 0.78, col, dark, lw, L.toes, L.footType, L.claws);
 }
 
-function footPrint(ctx, x, y, a, w, col, dark, lw, toes) {
+/* Le pied posé par terre. foot : 'sabot' (cheval, cerf), 'colonne' (mammouth, avec ses ongles),
+   'patte' (chat, loup : des coussinets, et des griffes si claws) ; sinon, des doigts griffus (dinosaures) */
+function footPrint(ctx, x, y, a, w, col, dark, lw, toes, foot, claws) {
   const fx = Math.cos(a), fy = Math.sin(a);
+  if (foot === 'sabot') {
+    ctx.fillStyle = HOOF;
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw * 0.8;
+    ctx.beginPath();
+    ctx.ellipse(x + fx * w * 0.1, y, w * 0.62, w * 0.42, Math.atan2(fy * 0.5, fx), 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
+  if (foot === 'colonne' || foot === 'patte') {
+    const big = foot === 'colonne';
+    const R = big ? w * 1.0 : w * 0.78;
+    ctx.fillStyle = col;
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.ellipse(x, y, R, R * 0.62, Math.atan2(fy * 0.5, fx), 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    if (!fine) return;
+    // les ongles du mammouth, les doigts (et les griffes) d'une patte, devant
+    for (const k of [-1, 0, 1]) {
+      const px = x + fx * R * 0.62 - fy * R * k * 0.5, py = y + fy * R * 0.38 + fx * R * k * 0.3 + R * 0.12;
+      if (big) {
+        ctx.fillStyle = HORN;
+        ctx.beginPath();
+        ctx.ellipse(px, py, R * 0.2, R * 0.13, Math.atan2(fy * 0.5, fx), 0, TAU);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = shade(col, -0.35);
+        ctx.lineWidth = lw * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(px - fx * R * 0.3, py - fy * R * 0.18);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        if (claws) {
+          ctx.fillStyle = CLAW;
+          ctx.beginPath();
+          ctx.moveTo(px - fy * R * 0.1, py + fx * R * 0.06);
+          ctx.lineTo(px + fx * R * 0.34, py + fy * R * 0.2 + R * 0.08);
+          ctx.lineTo(px + fy * R * 0.1, py - fx * R * 0.06);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    return;
+  }
   if (toes && fine) {
     // les doigts, avec leurs griffes, devant le pied
     for (let k = 0; k < toes; k++) {
@@ -177,10 +237,14 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
   const full = base.length;
   const widths = pts.map((_, i) => r * profileAt(S.body, i / (full - 1)));
   // le cou des géants monte vers le ciel (vers le haut de l'écran)
-  const lift = (i) => (S.neck ? Math.pow(Math.max(0, 1 - i / S.neck.n), 1.3) * S.neck.h * r : 0);
+  // (S.arch : le dos se bombe — la bosse du bison, les épaules hautes de la hyène, la queue levée du chien)
+  const lift = (i) => (S.neck ? Math.pow(Math.max(0, 1 - i / S.neck.n), 1.3) * S.neck.h * r : 0) + (S.arch ? profileAt(S.arch, i / (full - 1)) * r : 0);
   const P = pts.map((p, i) => ({ x: p.x, y: p.y - lift(i) }));
   const H = (S.hip ?? 0.3) * r;        // le sol, sous l'animal, est plus bas sur l'écran
   const T = (S.flank ?? 0.16) * r;     // l'épaisseur du flanc qu'on voit
+  // (S.flankTaper : le flanc s'affine avec le corps — une queue fine n'a pas un gros flanc)
+  const maxW = Math.max(...widths);
+  const Ti = (i) => (S.flankTaper ? T * clamp(widths[i] / (maxW * 0.55), 0.15, 1) : T);
   const spd = clamp(c.speed ?? 0, 0, 1.3);
   const d0 = segDir(pts, 0);
   const a = Math.atan2(d0.y, d0.x);
@@ -204,7 +268,9 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
       const d = segDir(pts, i);
       const ox = -d.y * s, oy = d.x * s;
       const w = widths[i];
-      const hip = { x: P[i].x + ox * w * 0.6, y: P[i].y + oy * w * 0.6 + T * 0.5 };
+      // (S.legsUnder : les pattes sortent de sous le ventre, comme chez les mammifères)
+      const hk = S.legsUnder ? 0.72 : 0.6, ht = S.legsUnder ? Ti(i) * 0.85 : T * 0.5;
+      const hip = { x: P[i].x + ox * w * hk, y: P[i].y + oy * w * hk + ht };
       const ph = (c.walk ?? 0) * (S.cadence ?? 1.5) + (L.ph || 0) * Math.PI + (s > 0 ? 0 : Math.PI);
       const k = Math.min(1, spd * 1.5);
       const swing = Math.sin(ph) * (L.stride ?? 0.3) * r * k;
@@ -216,10 +282,14 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
       };
       // la patte tournée vers nous passe devant le corps, l'autre derrière
       const near = oy > 0.05 || (Math.abs(oy) <= 0.05 && s > 0);
-      legs.push({ hip, foot, w: (L.w ?? 0.14) * r, near, out: { x: ox, y: oy }, toes: L.toes ?? 3, d });
+      legs.push({ hip, foot, w: (L.w ?? 0.14) * r, near, out: { x: ox, y: oy }, toes: L.toes ?? 3, d, knee: L.knee, thigh: L.thigh, footType: L.foot, claws: L.claws });
     }
   }
-  for (const L of legs) if (!L.near) leg(ctx, L, shade(legCol, -0.22), dark, lw, S.biped);
+  // les crochets d'un autre fichier (art-poils.js : crinière, laine, fourrure…), sous le corps, sur le dos, devant
+  const X = S.under || S.over || S.last ? { S, c, t, P, pts, widths, n, full, r, col, flankCol, dark, lw, T, H, a, o, stripe, legs } : null;
+  if (S.under) S.under(ctx, X);
+  for (const L of legs) if (!L.near) leg(ctx, L, shade(o.legCol || legCol, -0.22), dark, lw, S.biped);
+  if (S.legsUnder) for (const L of legs) if (L.near) leg(ctx, { ...L, noThigh: true }, o.legCol || legCol, dark, lw, S.biped);
   if (S.arms) arms(ctx, P, pts, widths, full, S, false, legCol, dark, lw, r, c, t);
 
   // la queue à nageoire du tétrapode
@@ -229,9 +299,34 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
   ctx.fillStyle = flankCol;
   ctx.strokeStyle = dark;
   ctx.lineWidth = lw;
-  smoothClosed(ctx, spineShape(P.map((p) => ({ x: p.x, y: p.y + T })), widths, 0.6));
+  const flank = spineShape(P.map((p, i) => ({ x: p.x, y: p.y + Ti(i) })), widths, 0.6);
+  smoothClosed(ctx, flank);
   ctx.fill();
+  if (S.belly && o.belly && fine) {
+    // le ventre clair, en bas du flanc
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = o.belly;
+    smoothClosed(ctx, spineShape(P.map((p, i) => ({ x: p.x, y: p.y + Ti(i) * 1.55 })), widths.map((w) => w * 0.92), 0.6));
+    ctx.fill();
+    ctx.restore();
+    smoothClosed(ctx, flank);
+  }
   ctx.stroke();
+  if (S.legsUnder) {
+    // l'épaule et la cuisse, bien musclées, sur le flanc (le dos passe par-dessus)
+    for (const L of legs) {
+      if (!L.near) continue;
+      const tw = L.w * (L.thigh ?? 1);
+      ctx.fillStyle = shade(col, -0.16);
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.ellipse(L.hip.x, L.hip.y - Ti(0) * 0.3, tw * 0.95, tw * 0.8, Math.atan2(L.d.y, L.d.x), 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
 
   // le dos : éclairé au milieu, plus sombre sur les bords, c'est rond
   const outline = spineShape(P, widths, 0.6);
@@ -274,6 +369,8 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
   smoothClosed(ctx, outline);
   ctx.stroke();
 
+  if (S.over) S.over(ctx, X);
+
   // ce qui se dresse sur le dos
   if (S.sail) sail(ctx, P, S.sail, full, r, o.sail || S.sailCol || '#C8553D', dark, lw);
   if (S.plates) plates(ctx, P, pts, S.plates, full, r, S.plateCol || '#D9734E', dark, lw);
@@ -292,13 +389,18 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
     ctx.stroke();
   }
 
-  // la tête
-  drawHead(ctx, c, t, S, P[0], a, fx, fy, r, col, flankCol, dark, lw, T, o);
+  // la tête (S.drawHead : une autre tête, celle des mammifères par exemple)
+  (S.drawHead || drawHead)(ctx, c, t, S, P[0], a, fx, fy, r, col, flankCol, dark, lw, T, o);
 
   // ce qui passe devant : les petits bras, les pattes tournées vers nous
   if (S.arms) arms(ctx, P, pts, widths, full, S, true, legCol, dark, lw, r, c, t);
-  for (const L of legs) if (L.near) leg(ctx, L, legCol, dark, lw, S.biped);
+  if (!S.legsUnder) for (const L of legs) if (L.near) leg(ctx, L, o.legCol || legCol, dark, lw, S.biped);
+  if (S.last) S.last(ctx, X);
 }
+
+/** Pour les autres dessinateurs en trois quarts : le niveau de détail, une dent, le bord de la gueule */
+export const isFine3q = () => fine;
+export { tooth, rimSample, cone, profileAt, setDetail, register as registerBeast, walkSpine };
 
 /** Une dent : un croc pointu et un peu courbé, cerné de noir. dir = 1 vers le bas, -1 vers le haut */
 function tooth(ctx, x, y, dir, len, w, dark, lw) {
