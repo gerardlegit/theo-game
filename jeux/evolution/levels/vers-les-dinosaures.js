@@ -90,7 +90,7 @@ const species = {
     fact: "Meganeura, une libellule de 70 centimètres d'envergure ! C'est le plus grand insecte volant de tous les temps.",
   },
   'lezard-rival': {
-    name: 'Lézard rival', plural: 'lézards rivaux', kind: 'rival', look: 'tq-reptile', color: '#B8803A',
+    name: 'Lézard rival', plural: 'lézards rivaux', kind: 'rival', look: 'tq-reptile', color: '#7E9A3A', ownColor: true,
     size: 33, speed: 270, sense: 330, adn: 0,
     fact: "Les premiers reptiles se disputaient les mêmes insectes. Celui qui attrape la blatte le premier a gagné… alors fonce !",
   },
@@ -127,7 +127,7 @@ const species = {
     fact: "Postosuchus n'était pas un dinosaure, mais un cousin des crocodiles. Au Trias, c'était lui le grand chasseur, et les premiers dinosaures en avaient peur !",
   },
   'dino-rival': {
-    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'tq-premier-dino', color: '#C8553D',
+    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'tq-premier-dino', color: '#8E6A3A', ownColor: true,
     size: 58, speed: 330, sense: 380, adn: 0,
     fact: "Les premiers dinosaures étaient nombreux à chasser les mêmes proies. Et les grands crocodiles du Trias, eux, les croquaient tous sans distinction !",
   },
@@ -175,7 +175,7 @@ const species = {
     fact: "Diplodocus mesurait plus de 25 mètres, dont une queue immense. Elle claquait peut-être comme un fouet… assez fort pour faire un bang !",
   },
   'allosaure-rival': {
-    name: 'Allosaurus rival', plural: 'Allosaurus rivaux', proper: true, kind: 'rival', look: 'tq-allosaure', color: '#3E7CB8',
+    name: 'Allosaurus rival', plural: 'Allosaurus rivaux', proper: true, kind: 'rival', look: 'tq-allosaure', color: '#7A5E8E', ownColor: true,
     size: 106, speed: 450, sense: 460, adn: 0,
     fact: "On a trouvé des os d'Allosaurus avec des morsures… d'Allosaurus ! Entre grands chasseurs, on se disputait les proies, et parfois on se mangeait.",
   },
@@ -213,7 +213,7 @@ const species = {
     fact: "Le crâne de Triceratops mesurait plus de 2 mètres. On a trouvé ses os marqués par les dents du T. rex… et des T. rex blessés par ses cornes !",
   },
   'jeune-trex': {
-    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'tq-trex', color: '#2F6E73',
+    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'tq-trex', color: '#8A7A44', ownColor: true,
     size: 160, speed: 560, sense: 560, adn: 0,
     fact: "Les jeunes T. rex étaient fins et rapides : ils chassaient de plus petites proies que les adultes. Mais un vieux T. rex n'aurait pas hésité à en croquer un !",
   },
@@ -345,6 +345,7 @@ const chapters = [
     title: 'Les premiers dinosaures',
     ago: [230, 220],
     form: 'tq-premier-dino',
+    rivalHunt: { rival: 'dino-rival', by: ['postosuchus', 'coelophysis'], every: [20, 32] },   // sous tes yeux, un chasseur croque un rival
     skin: { body: '#C8553D', belly: '#F6CFA8', dark: '#5E1F14', stripe: '#7A2A1C' },
     size: [62, 62],
     vision: 1.35,
@@ -374,6 +375,7 @@ const chapters = [
     title: 'Le Jurassique',
     ago: [150, 145],
     form: 'tq-allosaure',
+    rivalHunt: { rival: 'allosaure-rival', by: ['ceratosaure'], every: [20, 32] },
     skin: { body: '#3E7CB8', belly: '#DCEAF5', dark: '#1B3A5C', stripe: '#F2C14E' },
     size: [112, 112],
     vision: 1.3,
@@ -403,6 +405,7 @@ const chapters = [
     title: 'Le Crétacé',
     ago: [68, 66],
     form: 'tq-trex',
+    rivalHunt: { rival: 'jeune-trex', by: ['trex-rival'], every: [22, 34] },
     skin: { body: '#2F6E73', belly: '#F2D7A6', dark: '#123336', stripe: '#E9822B' },
     size: [180, 180],
     vision: 1.25,

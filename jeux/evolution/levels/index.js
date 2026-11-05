@@ -38,7 +38,10 @@
 //        defender charge quand on s'approche trop (tricératops…)
 //        giant   écrase quand on passe dessous (brachiosaure)
 //        rival   un animal de ton espèce : de temps en temps, il te vole tes proies ;
-//                il fuit les gros chasseurs… qui le croquent s'ils l'attrapent
+//                il fuit les gros chasseurs… qui le croquent s'ils l'attrapent (chapitre :
+//                ownColor = il garde sa couleur au lieu de prendre celle du joueur ;
+//                rivalHunt = { rival, by, every } : de temps en temps, sous les yeux du joueur,
+//                un chasseur de la liste « by » surgit et s'attaque à un rival)
 //        ally    un loup de ta meute : il te suit et attaque avec toi
 //        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches
 //        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te

@@ -158,6 +158,7 @@ let player = null;
 let creatures = [];
 let drops = [];
 let particles = [];
+let rivalHuntT = 12;               // (chapters[].rivalHunt) dans combien de temps un grand chasseur s'attaque à un rival
 let decoys = [];                   // (la queue-leurre) les bouts de queue qui gigotent par terre
 let floaters = [];
 let decor = [];                    // ce qui est posé au fond (rochers, éponges…)
@@ -1314,6 +1315,8 @@ function updateCreatures(dt) {
       steer(c, Math.cos(a), Math.sin(a), sp.speed * 0.9, dt);
       c.mood = 'scared';
       c.fleeing = true;
+    } else if (chaseRival(c, dt)) {
+      // (une chasse mise en scène : il ne pense plus qu'au rival)
     } else if (chaseDecoy(c, dt)) {
       // (la queue-leurre du lézard : il ne pense plus qu'à elle)
     } else if (c === huntTarget) {
@@ -1456,10 +1459,14 @@ function updateCreatures(dt) {
                 sayOnce('stolen', LINES.stolen, 40, 1);
               }
               if (rivalSnack) {
-                addFloater('Croqué !', o.x, o.y - o.size * 1.4, '#FF8A8A', 1.2);
+                addFloater('CROC !', o.x, o.y - o.size * 1.4, '#FF8A8A', 1.6);
                 sfx.snap();
+                sfx.roar(Math.min(1.2, c.size / 180));
+                shake = Math.max(shake, 0.35);
+                burst(o.x, o.y, 14, [o.sp.color, '#F4ECD8', '#FFFFFF'], o.size * 5, o.size * 0.18);
                 sayOnce('rivalEaten', LINES.rivalEaten, 45, 2);
               }
+              if (c.huntLock === o) c.huntLock = null;
               if (o.sp.kind === 'flock') {
                 addFloater(`${o.sp.name} croqué !`, o.x, o.y - o.size * 1.4, '#FF8A8A', 1.1);
                 sayOnce('flockEaten', LINES.flockEaten, 30, 2);
@@ -1519,6 +1526,65 @@ function updateCreatures(dt) {
   if (creatures.some((c) => c.dead)) creatures = creatures.filter((c) => !c.dead);
 }
 
+/** (chapters[].rivalHunt) De temps en temps, sous tes yeux : un grand chasseur surgit et s'attaque à un rival.
+    Le rival passe près de toi, le chasseur arrive du bord de l'écran, de l'autre côté. */
+function stageRivalHunt(dt) {
+  const H = CH.rivalHunt, p = player;
+  rivalHuntT -= dt;
+  if (rivalHuntT > 0 || p.dead) return;
+  rivalHuntT = rand(H.every[0], H.every[1]);
+  // pas pendant que le joueur se fait poursuivre : il ne pourrait pas regarder
+  if (creatures.some((c) => c.state === 'chase' && dist(c, p) < viewW) || creatures.some((c) => c.huntLock)) { rivalHuntT = 4; return; }
+  const minV = Math.min(viewW, viewH);
+  // le rival : un qui est déjà à l'écran, sinon il arrive tout près
+  let rival = creatures.find((c) => c.id === H.rival && !c.dead && onScreen(c, -40));
+  if (!rival) {
+    rival = spawnCreature(H.rival, true);
+    if (!rival) return;
+    const a = Math.random() * TAU;
+    rival.x = clamp(p.x + Math.cos(a) * minV * 0.24, 100, LV.world.w - 100);
+    rival.y = clamp(p.y + Math.sin(a) * minV * 0.2, 100, LV.world.h - 100);
+    rival.angle = a + Math.PI / 2;
+    resetSpine(rival, SPINES[rival.sp.look] ? rival.sp.look : null);
+  }
+  // le chasseur : il arrive du bord de l'écran, du côté opposé au joueur
+  const away = Math.atan2(rival.y - p.y, rival.x - p.x) + rand(-0.5, 0.5);
+  const id = pick(H.by);
+  let hunter = creatures.find((c) => c.id === id && !c.dead && dist(c, rival) < Math.hypot(viewW, viewH));
+  if (!hunter) hunter = spawnCreature(id, true);
+  if (!hunter) return;
+  if (!onScreen(hunter, 0)) {
+    const D = Math.hypot(viewW, viewH) * 0.34 + hunter.size * 0.6;
+    hunter.x = clamp(rival.x + Math.cos(away) * D, 100, LV.world.w - 100);
+    hunter.y = clamp(rival.y + Math.sin(away) * D, 100, LV.world.h - 100);
+    hunter.angle = away + Math.PI;
+    resetSpine(hunter, SPINES[hunter.sp.look] ? hunter.sp.look : null);
+  }
+  hunter.huntLock = rival;
+  hunter.huntLockT = 9;
+  hunter.state = 'wander';
+  hunter.mark = '!';
+  hunter.markT = 1;
+  if (sayOnce('rivalHunt', LINES.rivalHunt, 60, 2)) sfx.alert();
+  sfx.roar(Math.min(1.2, hunter.size / 180));
+}
+
+/** La chasse mise en scène : le grand chasseur fonce sur le rival, et rien d'autre ne compte */
+function chaseRival(c, dt) {
+  const o = c.huntLock;
+  if (!o) return false;
+  c.huntLockT -= dt;
+  if (o.dead || c.huntLockT <= 0 || c.stunT > 0) { c.huntLock = null; return false; }
+  const dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy) || 1;
+  // il vise un peu devant le rival, là où il va
+  const lx = o.x + (o.vx || 0) * 0.3 - c.x, ly = o.y + (o.vy || 0) * 0.3 - c.y, ld = Math.hypot(lx, ly) || 1;
+  steer(c, lx / ld, ly / ld, c.sp.speed * (d < c.size * 3 ? 1.3 : 1.1), dt);
+  c.mood = 'angry';
+  c.fleeing = false;
+  if (d < c.size * 2.5) c.chomp = Math.max(c.chomp || 0, 0.2);
+  return true;
+}
+
 /** Un gros chasseur qui ne t'a pas vu va chercher un rival à croquer (s'il y en a un pas loin) */
 function huntRival(c, dt) {
   let best = null, bd = c.sp.sense * 0.9;
@@ -1544,7 +1610,7 @@ function fleeHunter(c, dt) {
   }
   if (!best) return false;
   const a = Math.atan2(c.y - best.y, c.x - best.x) + Math.sin(worldT * 4 + c.seed) * 0.4;
-  steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.85, dt);
+  steer(c, Math.cos(a), Math.sin(a), c.sp.speed * (best.huntLock === c ? 0.7 : 0.85), dt);
   c.mood = 'scared';
   c.fleeing = true;
   c.prey = null;
@@ -2635,7 +2701,7 @@ function applySkin() {
   Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null }, CH.skin || {});
   // les rivaux sont de ton espèce : ils ont tes couleurs
   for (const sp of Object.values(SPECIES)) {
-    if (sp.kind === 'rival') Object.assign(sp, { color: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe });
+    if (sp.kind === 'rival' && !sp.ownColor) Object.assign(sp, { color: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe });
   }
 }
 
@@ -2669,6 +2735,7 @@ function setupChapter(keepPos) {
   placePlayer(x, y);
   drops = [];
   decoys = [];
+  rivalHuntT = rand(10, 16);
   particles = [];
   floaters = [];
   setupLandUi();
@@ -2800,6 +2867,7 @@ function update(dt) {
   updateTrust(dt);
   maintainPopulation(dt);
   updateDrops(dt);
+  if (CH.rivalHunt) stageRivalHunt(dt);
   updateFx(dt);
   // poursuite : le cœur bat, l'écran rougit
   const chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'charge');

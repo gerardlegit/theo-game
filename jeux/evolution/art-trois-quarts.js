@@ -351,8 +351,10 @@ function drawHead(ctx, c, t, S, h, a, fx, fy, r, col, flankCol, dark, lw, T, o) 
     frill(ctx, f.x, f.y - HW * 0.75, a, HW * Hd.frill.r, Hd.frill, col, dark, lw);
   }
   const open = clamp(c.mouth || 0, 0, 1);
-  const lift = open * HL * 0.08;             // la mâchoire du haut se relève un peu…
-  const drop = Th + open * HL * 0.55;         // …et celle du bas tombe, vers le bas de l'écran
+  // (la gueule s'ouvre selon la taille de la tête, sans que la mâchoire ait l'air de se décrocher)
+  const lift = open * Math.min(HL * 0.05, HW * 0.1);   // la mâchoire du haut se relève un peu…
+  const drop = Th + open * Math.min(HL * 0.3, HW * 0.55); // …et celle du bas tombe, vers le bas de l'écran
+  const jawT = Math.min(HL * 0.08, HW * 0.16);         // l'épaisseur de la mâchoire du bas
   // le bord de la gueule, de la commissure gauche au bout du museau, puis à la commissure droite
   const RIM = [[-0.28, -0.93], [0.2, -0.86], [0.48, -sn], [0.6, 0], [0.48, sn], [0.2, 0.86], [-0.28, 0.93]];
   const rim = rimSample(RIM, HL, HW, 26);
@@ -382,7 +384,7 @@ function drawHead(ctx, c, t, S, h, a, fx, fy, r, col, flankCol, dark, lw, T, o) 
     ctx.fillStyle = shade(flankCol, -0.12);
     ctx.strokeStyle = dark;
     ctx.lineWidth = lw;
-    smoothClosed(ctx, rim.map((q) => at(q, drop + HL * 0.1)));
+    smoothClosed(ctx, rim.map((q) => at(q, drop + jawT)));
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#A03848';
