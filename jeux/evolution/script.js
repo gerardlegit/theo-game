@@ -1349,7 +1349,7 @@ function updateCreatures(dt) {
       c.fleeing = false;
       c.mood = 'angry';
       if (c.state === 'wander') {
-        if (!prowl(c, dt)) wander(c, sp.speed * 0.42, dt);
+        if (!huntRival(c, dt) && !prowl(c, dt)) wander(c, sp.speed * 0.42, dt);
         // il ne voit que devant lui (cône), sauf tout près ; mais il entend quand on court
         const inView = !sp.cone || Math.abs(angleDiff(c.angle, Math.atan2(dy, dx))) <= sp.cone / 2 || d < sp.sense * 0.3;
         const sees = !p.hidden && !p.safe && p.invul <= 0 && reachable && c.rest <= 0 && ((d < sp.sense && inView) || c.noiseT > 0);
@@ -1380,6 +1380,8 @@ function updateCreatures(dt) {
         }
         if (p.hidden || p.safe || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
       }
+    } else if (sp.kind === 'rival' && fleeHunter(c, dt)) {
+      // un rival a peur des gros chasseurs, lui aussi
     } else if (sp.kind === 'rival') {
       // un animal de ton espèce : de temps en temps, il a faim et file vers une proie… la tienne !
       c.fleeing = false;
@@ -1438,7 +1440,10 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.size > c.size * most || o.penned || o.buried || ['rival', 'human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
+          // un gros chasseur croque aussi les rivaux (plus petits que lui) ; un rival, jamais un autre rival
+          const rivalSnack = o.sp.kind === 'rival' && sp.kind === 'hunter' && o.size < c.size * 1.05;
+          if (o.sp.kind === 'rival' ? !rivalSnack : o.size > c.size * most) continue;
           if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
             o.dead = true;
             c.chomp = 0.35;
@@ -1449,6 +1454,11 @@ function updateCreatures(dt) {
               if (sp.kind === 'rival') {
                 addFloater('Volé !', c.x, c.y - c.size * 1.4, '#FFB36B', 1.1);
                 sayOnce('stolen', LINES.stolen, 40, 1);
+              }
+              if (rivalSnack) {
+                addFloater('Croqué !', o.x, o.y - o.size * 1.4, '#FF8A8A', 1.2);
+                sfx.snap();
+                sayOnce('rivalEaten', LINES.rivalEaten, 45, 2);
               }
               if (o.sp.kind === 'flock') {
                 addFloater(`${o.sp.name} croqué !`, o.x, o.y - o.size * 1.4, '#FF8A8A', 1.1);
@@ -1507,6 +1517,38 @@ function updateCreatures(dt) {
     }
   }
   if (creatures.some((c) => c.dead)) creatures = creatures.filter((c) => !c.dead);
+}
+
+/** Un gros chasseur qui ne t'a pas vu va chercher un rival à croquer (s'il y en a un pas loin) */
+function huntRival(c, dt) {
+  let best = null, bd = c.sp.sense * 0.9;
+  for (const o of creatures) {
+    if (o.sp.kind !== 'rival' || o.dead || o.size >= c.size * 1.05) continue;
+    const d = dist(o, c);
+    if (d < bd) { bd = d; best = o; }
+  }
+  if (!best) return false;
+  const dx = best.x - c.x, dy = best.y - c.y, d = Math.hypot(dx, dy) || 1;
+  steer(c, dx / d, dy / d, c.sp.speed * 1.05, dt);
+  c.mood = 'angry';
+  return true;
+}
+
+/** Un rival qui voit un gros chasseur arriver : il file */
+function fleeHunter(c, dt) {
+  let best = null, bd = Infinity;
+  for (const o of creatures) {
+    if (o.sp.kind !== 'hunter' || o.dead || o.size < c.size * 0.95 || o.stunT > 0) continue;
+    const d = dist(o, c);
+    if (d < bd && d < o.size * 2 + c.sp.sense * 0.6) { bd = d; best = o; }
+  }
+  if (!best) return false;
+  const a = Math.atan2(c.y - best.y, c.x - best.x) + Math.sin(worldT * 4 + c.seed) * 0.4;
+  steer(c, Math.cos(a), Math.sin(a), c.sp.speed * 0.85, dt);
+  c.mood = 'scared';
+  c.fleeing = true;
+  c.prey = null;
+  return true;
 }
 
 /** La proie qu'un rival va te voler : une petite bête près de lui… et près de toi */

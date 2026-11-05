@@ -89,6 +89,11 @@ const species = {
     eatLine: "Une libellule grande comme un corbeau ! Il y avait tant d'oxygène dans l'air que les insectes devenaient géants.",
     fact: "Meganeura, une libellule de 70 centimètres d'envergure ! C'est le plus grand insecte volant de tous les temps.",
   },
+  'lezard-rival': {
+    name: 'Lézard rival', plural: 'lézards rivaux', kind: 'rival', look: 'tq-reptile', color: '#B8803A',
+    size: 33, speed: 270, sense: 330, adn: 0,
+    fact: "Les premiers reptiles se disputaient les mêmes insectes. Celui qui attrape la blatte le premier a gagné… alors fonce !",
+  },
   arthropleura: {
     name: 'Arthropleura', plural: 'Arthropleura', proper: true, kind: 'defender', look: 'millepattes', color: '#5E4C34', stomp: true, hurt: 'Aïe, ses pattes !',
     size: 95, speed: 150, sense: 200, adn: 0,
@@ -113,13 +118,18 @@ const species = {
   },
   coelophysis: {
     name: 'Coelophysis', plural: 'Coelophysis', proper: true, kind: 'hunter', look: 'tq-coelophysis', color: '#B58A3C', noEat: true, pack: 2,
-    size: 68, speed: 380, sense: 340, cone: 2.4, adn: 0,
+    size: 68, speed: 390, sense: 440, cone: 3, adn: 0,
     fact: "Coelophysis, un des premiers dinosaures, était fin et très rapide. On a retrouvé des centaines de squelettes ensemble : ils vivaient sans doute en groupe.",
   },
   postosuchus: {
     name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'tq-postosuchus', color: '#6E6A44', noEat: true, roar: true, maxTurn: 2.4, stomp: true,
-    size: 115, speed: 360, sense: 380, cone: 2.2, adn: 0, hitLine: 'Ouille !',
+    size: 115, speed: 385, sense: 480, cone: 2.8, adn: 0, hitLine: 'Ouille !',
     fact: "Postosuchus n'était pas un dinosaure, mais un cousin des crocodiles. Au Trias, c'était lui le grand chasseur, et les premiers dinosaures en avaient peur !",
+  },
+  'dino-rival': {
+    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'tq-premier-dino', color: '#C8553D',
+    size: 58, speed: 330, sense: 380, adn: 0,
+    fact: "Les premiers dinosaures étaient nombreux à chasser les mêmes proies. Et les grands crocodiles du Trias, eux, les croquaient tous sans distinction !",
   },
   plateosaure: {
     name: 'Plateosaurus', plural: 'Plateosaurus', proper: true, kind: 'neutral', look: 'tq-plateosaure', color: '#7FA84F', noEat: true, pack: 2,
@@ -150,7 +160,7 @@ const species = {
   },
   stegosaure: {
     name: 'Stegosaurus', plural: 'Stegosaurus', proper: true, kind: 'defender', look: 'tq-stegosaure', color: '#7D9440', noEat: true, stomp: true, hurt: 'Aïe, les piquants !',
-    size: 160, speed: 230, sense: 300, adn: 0,
+    size: 160, speed: 250, sense: 380, adn: 0,
     fact: "Les pointes de la queue de Stegosaurus étaient redoutables : on a retrouvé un os d'Allosaurus percé par l'une d'elles !",
   },
   brachiosaure: {
@@ -164,9 +174,14 @@ const species = {
     size: 300, speed: 140, sense: 0, adn: 0,
     fact: "Diplodocus mesurait plus de 25 mètres, dont une queue immense. Elle claquait peut-être comme un fouet… assez fort pour faire un bang !",
   },
+  'allosaure-rival': {
+    name: 'Allosaurus rival', plural: 'Allosaurus rivaux', proper: true, kind: 'rival', look: 'tq-allosaure', color: '#3E7CB8',
+    size: 106, speed: 450, sense: 460, adn: 0,
+    fact: "On a trouvé des os d'Allosaurus avec des morsures… d'Allosaurus ! Entre grands chasseurs, on se disputait les proies, et parfois on se mangeait.",
+  },
   ceratosaure: {
     name: 'Ceratosaurus', plural: 'Ceratosaurus', proper: true, kind: 'hunter', look: 'tq-ceratosaure', color: '#8C5A3C', noEat: true, roar: true, maxTurn: 2.6,
-    size: 135, speed: 470, sense: 420, cone: 2.3, adn: 0,
+    size: 135, speed: 490, sense: 540, cone: 2.8, adn: 0,
     fact: "Ceratosaurus portait une corne sur le nez et une rangée de petites plaques sur le dos. Personne ne sait vraiment à quoi servait sa corne !",
   },
 
@@ -184,23 +199,28 @@ const species = {
   },
   dakotaraptor: {
     name: 'Dakotaraptor', plural: 'Dakotaraptor', proper: true, kind: 'hunter', look: 'tq-dakotaraptor', color: '#5A5288', noEat: true, fierce: true, pack: 2,
-    size: 112, speed: 610, sense: 480, cone: 2.4, adn: 0,
+    size: 112, speed: 620, sense: 560, cone: 3, adn: 0,
     fact: "Dakotaraptor, un raptor géant de 5 mètres, avait des plumes et une griffe en forme de faux à chaque pied. En meute, même un T. rex devait se méfier !",
   },
   ankylosaure: {
     name: 'Ankylosaurus', plural: 'Ankylosaurus', proper: true, kind: 'defender', look: 'tq-ankylosaure', color: '#7A7050', noEat: true, stomp: true, hurt: 'Aïe, la massue !',
-    size: 160, speed: 210, sense: 280, adn: 0,
+    size: 160, speed: 230, sense: 340, adn: 0,
     fact: "Ankylosaurus était un vrai char d'assaut : blindé de plaques d'os, jusqu'aux paupières ! Un coup de sa queue-massue pouvait briser une patte de T. rex.",
   },
   triceratops: {
     name: 'Triceratops', plural: 'Triceratops', proper: true, kind: 'defender', look: 'tq-triceratops', color: '#A58A52', noEat: true, stomp: true, hurt: 'Aïe, les cornes !',
-    size: 190, speed: 300, sense: 320, adn: 0,
+    size: 190, speed: 320, sense: 420, adn: 0,
     fact: "Le crâne de Triceratops mesurait plus de 2 mètres. On a trouvé ses os marqués par les dents du T. rex… et des T. rex blessés par ses cornes !",
+  },
+  'jeune-trex': {
+    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'tq-trex', color: '#2F6E73',
+    size: 160, speed: 560, sense: 560, adn: 0,
+    fact: "Les jeunes T. rex étaient fins et rapides : ils chassaient de plus petites proies que les adultes. Mais un vieux T. rex n'aurait pas hésité à en croquer un !",
   },
   'trex-rival': {
     name: 'Le T. rex rival', plural: 'T. rex', proper: true, kind: 'hunter', look: 'tq-trex-rival', color: '#6A5234', noEat: true, roar: true, stomp: true, maxTurn: 1.6,
     breachHit: true, hits: 4, hitLine: 'GRRRR… !',
-    size: 205, speed: 600, sense: 620, cone: 2.2, adn: 0,
+    size: 205, speed: 620, sense: 760, cone: 2.8, adn: 0,
     fact: "La morsure du T. rex est la plus forte de tous les animaux terrestres connus : assez pour broyer les os. Deux T. rex ne se laissaient pas le territoire sans se battre !",
   },
 };
@@ -213,8 +233,8 @@ const evolutions = {
     fact: "Les premières pattes servaient sans doute d'abord à pousser dans la vase. Puis elles ont porté le corps hors de l'eau.",
   },
   poumons: {
-    name: 'Grands poumons', ch: 1, cost: 60, effect: { power: 1.4 },
-    short: 'Ta gueule-aspirateur attire de bien plus loin',
+    name: 'Grands poumons', ch: 1, cost: 60, effect: { dry: 0.55, power: 1.3 },
+    short: "Tu restes bien plus longtemps hors de l'eau, et tu aspires de plus loin",
     fact: "Grâce à leurs poumons, les premiers tétrapodes respiraient l'air. Pour eux, tout un monde vide s'ouvrait !",
   },
   ecailles: {
@@ -267,6 +287,7 @@ const chapters = [
     form: 'tq-tetrapode',
     skin: { body: '#4FAE9C', belly: '#F1E3A0', dark: '#1D5A4E', stripe: '#2E7A6C' },
     size: [24, 24],
+    dry: 1 / 22,                     // sur la terre, la réserve d'air et d'eau baisse : il faut retourner dans une mare
     vision: 1.3,
     fog: 0.5,
     palette: { water: ['#5E7F4E', '#33452A'], floor: '#7C8A55', motes: 'rgba(255, 250, 200, 0.5)' },
@@ -276,7 +297,7 @@ const chapters = [
       type: 'gulp', name: 'Aspiration', icon: '😋', recharge: 4, range: 300, cry: 'SLUUURP…',
       intro: "Ton pouvoir : l'ASPIRATION ! Appuie sur F ou sur le bouton orange : tu ouvres grand la gueule, et tout ce qui est petit autour de toi est aspiré dedans. Les premiers animaux à pattes mangeaient vraiment comme ça !",
     },
-    intro: "Il y a 375 millions d'années, personne n'avait encore marché sur la terre. Tu es un des premiers ! Croque les insectes sur les berges… Mais dans l'eau, Hyneria, un poisson géant, guette. Pour le chasser de ton marais, mords-lui la queue !",
+    intro: "Il y a 375 millions d'années, personne n'avait encore marché sur la terre. Tu es un des premiers ! Mais tu respires encore mal hors de l'eau : quand ta jauge 💧 baisse, replonge vite dans une mare. Et dans les mares, Hyneria, un poisson géant, guette. Pour le chasser de ton marais, mords-lui la queue !",
     missions: [
       { type: 'eat', species: 'insecte', n: 20, text: 'Aspire et croque 20 insectes' },
       { type: 'evolve', part: 'pattes' },
@@ -284,7 +305,9 @@ const chapters = [
       { type: 'hit', species: 'hyneria', n: 3, text: "Mords 3 fois la queue d'Hyneria" },
     ],
     tips: [
+      "Ta jauge 💧 baisse sur la terre : replonge dans une mare avant qu'elle soit vide !",
       "Aspire 😋 au milieu des insectes : ils arrivent tous dans ta gueule. Mange vite, c'est un COMBO !",
+      "Les petites mares sont plus sûres : Hyneria préfère les grandes.",
       "Le scorpion ne voit que devant lui : passe derrière, sans sprinter.",
       "Hyneria te poursuit dans l'eau ? Sors vite sur la berge, puis reviens lui mordre la queue !",
     ],
@@ -298,13 +321,13 @@ const chapters = [
     vision: 0.9,
     fog: 0.72,
     palette: { water: ['#3D5A3A', '#1E2E1C'], floor: '#4F6B3A', motes: 'rgba(210, 255, 170, 0.45)' },
-    species: { blatte: 24, 'mille-pattes': 10, meganeura: 6, arthropleura: 2, 'scorpion-geant': 2, dimetrodon: 2 },
+    species: { blatte: 26, 'mille-pattes': 10, meganeura: 6, 'lezard-rival': 4, arthropleura: 2, 'scorpion-geant': 2, dimetrodon: 2 },
     unlock: ['ecailles', 'longues-pattes'],
     power: {
       type: 'decoy', name: 'Queue-leurre', icon: '🦎', recharge: 5, range: 700, cry: 'CLAC !',
       intro: "Ton pouvoir : la QUEUE-LEURRE ! Appuie sur F : tu laisses ta queue par terre, et elle gigote toute seule ! Les chasseurs se jettent dessus… pendant que toi, tu files. Elle repousse, ne t'inquiète pas !",
     },
-    intro: "Des millions d'années ont passé. Te voilà lézard, dans une forêt d'arbres géants, sombre et humide. D'énormes libellules volent au-dessus de toi… et quelque part rôde Dimetrodon, le chasseur à la grande voile.",
+    intro: "Des millions d'années ont passé. Te voilà lézard, dans une forêt d'arbres géants, sombre et humide. Attention : d'autres lézards chassent les mêmes blattes que toi, et ils sont rapides ! Et quelque part rôde Dimetrodon, le chasseur à la grande voile.",
     missions: [
       { type: 'eat', species: 'blatte', n: 12, text: 'Croque 12 blattes géantes' },
       { type: 'evolve', part: 'ecailles' },
@@ -313,6 +336,7 @@ const chapters = [
     ],
     tips: [
       "Un chasseur te court après ? Laisse ta queue 🦎 : il va se jeter dessus. Toi, file te cacher !",
+      "Les lézards rivaux te volent tes blattes ! Sois plus rapide qu'eux… ou mets-leur la pression : le Dimetrodon les croque aussi.",
       "Les libellules volent bas de temps en temps : attrape-les au passage.",
       "Arthropleura ne mange que des plantes… mais si tu le déranges, il te marche dessus !",
     ],
@@ -326,7 +350,7 @@ const chapters = [
     vision: 1.35,
     fog: 0.4,
     palette: { water: ['#B98F5A', '#7A5534'], floor: '#C2A36B', motes: 'rgba(255, 230, 180, 0.5)' },
-    species: { cynodonte: 27, 'petit-poisson': 8, plateosaure: 4, coelophysis: 4, phytosaure: 2, postosuchus: 3 },
+    species: { cynodonte: 18, 'petit-poisson': 6, 'dino-rival': 3, plateosaure: 2, coelophysis: 2, phytosaure: 2, postosuchus: 2 },
     unlock: ['griffes', 'plumes'],
     power: {
       type: 'whip', name: 'Coup de queue', icon: '💥', recharge: 3, range: 300, cry: 'VLAN !',
@@ -343,6 +367,7 @@ const chapters = [
       "Les cynodontes courent en petites bandes : fonce au milieu et donne un coup de queue 💥, puis croque-les tous !",
       "Dans les mares, le phytosaure guette, juste sous l'eau. Pêche vite, et ressors !",
       "Postosuchus tourne moins vite que toi : vire au dernier moment, puis frappe !",
+      "Tes rivaux te volent tes proies… mais Postosuchus les croque aussi. Ici, tout le monde est le repas de quelqu'un !",
     ],
   },
   {
@@ -354,7 +379,7 @@ const chapters = [
     vision: 1.3,
     fog: 0.42,
     palette: { water: ['#5C7F4A', '#2F4A2A'], floor: '#6E8B4E', motes: 'rgba(255, 255, 210, 0.5)' },
-    species: { compsognathus: 18, dryosaure: 12, rhamphorhynchus: 6, stegosaure: 3, brachiosaure: 2, diplodocus: 2, ceratosaure: 3 },
+    species: { compsognathus: 12, dryosaure: 8, rhamphorhynchus: 3, 'allosaure-rival': 2, stegosaure: 2, brachiosaure: 1, diplodocus: 1, ceratosaure: 2 },
     unlock: ['cornes', 'machoire'],
     power: {
       type: 'hammer', name: 'Flair', icon: '👃', recharge: 3, range: 620, cry: 'SNIF SNIF !',
@@ -371,6 +396,7 @@ const chapters = [
       "Deux petits yeux qui brillent dans les fougères ? Fais SNIF 👃 : le Compsognathus sort, tout étourdi !",
       "Ne passe pas sous le ventre d'un géant : ses pattes écrasent tout !",
       "La queue du Diplodocus est très longue : mords le bout, loin des pattes.",
+      "Les Allosaurus rivaux te volent tes proies. Le Ceratosaurus, lui, n'hésite pas à les croquer !",
     ],
   },
   {
@@ -382,7 +408,7 @@ const chapters = [
     vision: 1.25,
     fog: 0.5,
     palette: { water: ['#7C7A4A', '#3F3C24'], floor: '#8A8656', motes: 'rgba(255, 240, 200, 0.5)' },
-    species: { edmontosaure: 12, pteranodon: 4, ankylosaure: 2, triceratops: 3, dakotaraptor: 4, 'trex-rival': 1 },
+    species: { edmontosaure: 7, pteranodon: 2, 'jeune-trex': 2, ankylosaure: 1, triceratops: 2, dakotaraptor: 4, 'trex-rival': 1 },
     unlock: ['morsure', 'peau-epaisse'],
     power: {
       type: 'roar', name: 'Rugissement', icon: '📢', recharge: 5, range: 640, cry: 'GROAAAAR !',
@@ -399,6 +425,7 @@ const chapters = [
       "Les Dakotaraptor chassent à deux, et ils n'ont peur de rien. Un bon rugissement 📢 les calme !",
       "L'autre T. rex tourne moins vite que toi. Attends qu'il soit tout près… et GROAAAR !",
       "Le Triceratops et l'Ankylosaurus chargent si tu les déranges. Laisse-les tranquilles !",
+      "Les jeunes T. rex te volent tes Edmontosaurus. Et l'autre grand T. rex, lui, les croque sans hésiter !",
     ],
   },
 ];

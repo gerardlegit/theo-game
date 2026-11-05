@@ -58,6 +58,7 @@ export const LINES = {
     "Trop longtemps sous l'eau ! Pense à remonter à la surface plus souvent.",
   ],
   ammonite: "Hé ! Ce sont mes cousines, les ammonites ! Bon… la nature est ainsi faite. Bon appétit…",
+  rivalEaten: "Oh ! Le chasseur a croqué un de tes rivaux… Ici, même les grands se font manger. Reste sur tes gardes !",
   stolen: [
     "Hé ! Un animal de ton espèce t'a piqué ta proie ! Sois plus rapide que lui…",
     "Volé ! Tes cousins ont faim, eux aussi. Dépêche-toi !",

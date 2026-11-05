@@ -300,6 +300,39 @@ export function drawBeast(ctx, c, t, S, col, o = {}) {
   for (const L of legs) if (L.near) leg(ctx, L, legCol, dark, lw, S.biped);
 }
 
+/** Une dent : un croc pointu et un peu courbé, cerné de noir. dir = 1 vers le bas, -1 vers le haut */
+function tooth(ctx, x, y, dir, len, w, dark, lw) {
+  ctx.fillStyle = TOOTH;
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = Math.max(0.5, lw * 0.45);
+  ctx.beginPath();
+  ctx.moveTo(x - w, y);
+  ctx.quadraticCurveTo(x - w * 0.35, y + dir * len * 0.65, x + w * 0.25, y + dir * len);
+  ctx.quadraticCurveTo(x + w * 0.55, y + dir * len * 0.45, x + w, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** Des points régulièrement espacés le long d'une ligne brisée (en coordonnées de la tête) */
+function rimSample(line, HL, HW, n) {
+  const seg = [];
+  let total = 0;
+  for (let i = 0; i < line.length - 1; i++) {
+    const L = Math.hypot((line[i + 1][0] - line[i][0]) * HL, (line[i + 1][1] - line[i][1]) * HW);
+    seg.push(L);
+    total += L;
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    let d = (k / (n - 1)) * total, i = 0;
+    while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
+    const w = seg[i] ? Math.min(1, d / seg[i]) : 0;
+    out.push([line[i][0] + (line[i + 1][0] - line[i][0]) * w, line[i][1] + (line[i + 1][1] - line[i][1]) * w]);
+  }
+  return out;
+}
+
 /* ---------- La tête : le crâne, la joue tournée vers nous, la gueule ---------- */
 function drawHead(ctx, c, t, S, h, a, fx, fy, r, col, flankCol, dark, lw, T, o) {
   const Hd = S.head || {};
@@ -318,63 +351,90 @@ function drawHead(ctx, c, t, S, h, a, fx, fy, r, col, flankCol, dark, lw, T, o) 
     frill(ctx, f.x, f.y - HW * 0.75, a, HW * Hd.frill.r, Hd.frill, col, dark, lw);
   }
   const open = clamp(c.mouth || 0, 0, 1);
-  const drop = Th + open * HL * 0.42;
-  // la gueule ouverte : la mâchoire du bas tombe (vers le bas de l'écran)
+  const lift = open * HL * 0.08;             // la mâchoire du haut se relève un peu…
+  const drop = Th + open * HL * 0.55;         // …et celle du bas tombe, vers le bas de l'écran
+  // le bord de la gueule, de la commissure gauche au bout du museau, puis à la commissure droite
+  const RIM = [[-0.28, -0.93], [0.2, -0.86], [0.48, -sn], [0.6, 0], [0.48, sn], [0.2, 0.86], [-0.28, 0.93]];
+  const rim = rimSample(RIM, HL, HW, 26);
+  const at = (q, dy, k = 1) => { const p = P(q[0] * k, q[1] * k); return { x: p.x, y: p.y + dy }; };
+  // une dent est visible si elle est sur le côté tourné vers nous (ou au bout du museau)
+  const facing = (q) => { const p = P(q[0], q[1]); return (p.y - cy) / (Math.hypot(p.x - cx, p.y - cy) || 1); };
+  const teethAt = (dy, dir, scale) => {
+    const N = Hd.teeth * 2 + 1;
+    for (let k = 0; k < N; k++) {
+      const q = rim[Math.round(((k + 0.5) / N) * (rim.length - 1))];
+      if (facing(q) < -0.3) continue;
+      const u = (k + 0.5) / N;
+      const big = 0.65 + Math.sin(u * Math.PI) * 0.45 + (k % 3 === 1 ? 0.18 : 0);
+      const p = at(q, dy);
+      tooth(ctx, p.x, p.y, dir, (Hd.toothL ?? 0.13) * HL * big * scale, HL * 0.045 * big, dark, lw);
+    }
+  };
   if (open > 0.06) {
-    const jaw = [P(-0.2, 0.86), P(0.25, 0.82), P(0.5, sn * 0.95), P(0.6, 0), P(0.5, -sn * 0.95), P(0.25, -0.82), P(-0.2, -0.86)];
-    ctx.fillStyle = MOUTH;
+    // le fond de la gueule, tout sombre
+    ctx.fillStyle = '#2A0810';
     ctx.beginPath();
-    jaw.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y + Th + open * HL * 0.2) : ctx.moveTo(p.x, p.y + Th + open * HL * 0.2)));
+    rim.forEach((q, i) => { const p = at(q, Th - lift); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+    for (let i = rim.length - 1; i >= 0; i--) { const p = at(rim[i], drop); ctx.lineTo(p.x, p.y); }
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = shade(col, -0.32);
+    // la mâchoire du bas : son côté, puis l'intérieur (la gencive et la langue)
+    ctx.fillStyle = shade(flankCol, -0.12);
     ctx.strokeStyle = dark;
     ctx.lineWidth = lw;
-    smoothClosed(ctx, jaw.map((p) => ({ x: p.x, y: p.y + drop })));
+    smoothClosed(ctx, rim.map((q) => at(q, drop + HL * 0.1)));
     ctx.fill();
     ctx.stroke();
-    if (Hd.teeth && fine) {
-      // les dents du bas, qui pointent vers le haut
-      ctx.fillStyle = TOOTH;
-      for (let k = 0; k <= Hd.teeth; k++) {
-        const u = -0.1 + (k / Hd.teeth) * 0.66;
-        for (const s of [-1, 1]) {
-          const p = P(u, s * (0.86 - u * 0.4));
-          const tw = HL * 0.05, tl = HL * 0.11;
-          ctx.beginPath();
-          ctx.moveTo(p.x - tw, p.y + drop);
-          ctx.lineTo(p.x, p.y + drop - tl);
-          ctx.lineTo(p.x + tw, p.y + drop);
-          ctx.fill();
-        }
-      }
-    }
+    ctx.fillStyle = '#A03848';
+    smoothClosed(ctx, rim.map((q) => at(q, drop, 0.84)));
+    ctx.fill();
+    ctx.fillStyle = '#E58A94';
+    const tg = P(0.05, 0);
+    ctx.beginPath();
+    ctx.ellipse(tg.x, tg.y + drop, HL * 0.28, HW * 0.38, a, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120, 30, 45, 0.6)';
+    ctx.lineWidth = lw * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(tg.x - fx * HL * 0.22, tg.y + drop - fy * HL * 0.22);
+    ctx.lineTo(tg.x + fx * HL * 0.18, tg.y + drop + fy * HL * 0.18);
+    ctx.stroke();
+    // les dents du bas, qui pointent vers le haut
+    if (Hd.teeth && fine) teethAt(drop, -1, 0.85);
+  } else {
+    // gueule fermée : le menton dépasse juste sous la joue
+    ctx.fillStyle = shade(flankCol, -0.14);
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw;
+    smoothClosed(ctx, rim.map((q) => at(q, Th + HL * 0.07, 0.96)));
+    ctx.fill();
+    ctx.stroke();
   }
   // la joue (le côté de la tête tourné vers nous)
   ctx.fillStyle = flankCol;
   ctx.strokeStyle = dark;
   ctx.lineWidth = lw;
-  smoothClosed(ctx, shape(Th));
+  smoothClosed(ctx, shape(Th - lift));
   ctx.fill();
   ctx.stroke();
-  // les dents du haut, qui dépassent de la gueule
-  if (Hd.teeth && fine) {
-    ctx.fillStyle = TOOTH;
-    for (let k = 0; k <= Hd.teeth; k++) {
-      const u = -0.05 + (k / Hd.teeth) * 0.58;
-      for (const s of [-1, 1]) {
-        const p = P(u, s * (0.92 - u * 0.45));
-        const tw = HL * 0.045, tl = HL * (0.08 + open * 0.06);
-        ctx.beginPath();
-        ctx.moveTo(p.x - tw, p.y + Th);
-        ctx.lineTo(p.x, p.y + Th + tl);
-        ctx.lineTo(p.x + tw, p.y + Th);
-        ctx.fill();
-      }
+  if (open <= 0.06 && fine) {
+    // la ligne de la gueule, qui remonte un peu au coin : un vrai sourire de carnassier
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw * 1.1;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    let started = false;
+    for (const q of rim) {
+      if (facing(q) < -0.3) { started = false; continue; }
+      const p = at(q, Th * 0.9);
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; } else ctx.lineTo(p.x, p.y);
     }
+    ctx.stroke();
   }
+  // les dents du haut, qui dépassent de la gueule
+  if (Hd.teeth && fine) teethAt(Th - lift + lw * 0.5, 1, open > 0.06 ? 1 : 0.6);
   // le dessus du crâne
-  const top = shape(0);
+  const top = shape(-lift);
   ctx.fillStyle = col;
   smoothClosed(ctx, top);
   ctx.fill();
@@ -383,7 +443,7 @@ function drawHead(ctx, c, t, S, h, a, fx, fy, r, col, flankCol, dark, lw, T, o) 
     ctx.clip();
     ctx.fillStyle = shade(col, 0.14);
     ctx.beginPath();
-    ctx.ellipse(cx - fx * HL * 0.1, cy - fy * HL * 0.1 - HW * 0.15, HL * 0.42, HW * 0.45, a, 0, TAU);
+    ctx.ellipse(cx - fx * HL * 0.1, cy - fy * HL * 0.1 - HW * 0.15 - lift, HL * 0.42, HW * 0.45, a, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
@@ -913,6 +973,8 @@ for (const [form, make] of Object.entries(PLAYER_FORMS)) {
   register(form, S0);
   FRAMES[form] = FRAME;
   FORM_SPINE[form] = form;
+  // (un rival, de ton espèce : le même corps, sans les évolutions)
+  LOOKS[form] = (ctx, c, t) => drawBeast(ctx, { ...c, look: form }, t, S0, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
   FORMS[form] = (ctx, p, parts, t, mood) => {
     const S = make(parts || {});
     drawBeast(ctx, { ...p, look: form, mood, seed: 0 }, t, S, PLAYER.body, {

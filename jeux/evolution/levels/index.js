@@ -37,7 +37,8 @@
 //        neutral se promène et ignore le joueur
 //        defender charge quand on s'approche trop (tricératops…)
 //        giant   écrase quand on passe dessous (brachiosaure)
-//        rival   un animal de ton espèce : de temps en temps, il te vole tes proies
+//        rival   un animal de ton espèce : de temps en temps, il te vole tes proies ;
+//                il fuit les gros chasseurs… qui le croquent s'ils l'attrapent
 //        ally    un loup de ta meute : il te suit et attaque avec toi
 //        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches
 //        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te
