@@ -64,9 +64,9 @@
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
 //      ferme), art-dinos.js (dinosaures de profil, pour la fin), art-trois-quarts.js (les
 //      animaux du niveau 2 vus de trois quarts : look 'tq-trex', 'tq-stegosaure'…),
-//      art-poils.js (les mammifères des niveaux 3 et 4 vus de trois quarts, avec
-//      leur fourrure, leurs cornes, leurs bois, leur trompe… et les humains :
-//      look 'tq-mammouth', 'tq-loup', 'tq-humain'…), art-mer.js (reptiles marins,
+//      art-decoupe.js + art-decoupe-animaux.js (les animaux des niveaux 3 et 4
+//      en papier découpé, de profil, de face et de dos : look 'dc-loup',
+//      'dc-mammouth'…), art-poils.js (les humains : 'tq-humain'…), art-mer.js (reptiles marins,
 //      requins, tortues, ammonites…) ou art-mammiferes.js (titanoboa, oiseau,
 //      et les dessins de profil des intros et du défilé des chiens).
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet

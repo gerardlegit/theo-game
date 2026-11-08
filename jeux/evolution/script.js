@@ -22,6 +22,8 @@ import { BREED_PARADE, campFire } from './art-loup.js';
 import './art-requins.js';
 import { drawDecoyTail } from './art-trois-quarts.js';
 import './art-poils.js';
+import { cutoutEyes } from './art-decoupe.js';
+import './art-decoupe-animaux.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
@@ -3281,9 +3283,15 @@ function drawDarkness() {
     const cs = worldToScreen(c.x, c.y);
     const fx = Math.cos(c.angle), fy = Math.sin(c.angle);
     const er = Math.max(3, c.size * zoom * 0.1);
-    for (const side of c.side ? [0] : [-1, 1]) {
+    // (les animaux en papier découpé savent où sont leurs yeux)
+    const spots = cutoutEyes(c);
+    for (const side of spots ? spots.map((_, i) => i) : c.side ? [0] : [-1, 1]) {
       let ex = cs.x + (fx * 0.3 - fy * 0.32 * side) * c.size * zoom, ey = cs.y + (fy * 0.3 + fx * 0.32 * side) * c.size * zoom;
-      if (c.side) {
+      if (spots) {
+        const sp = worldToScreen(spots[side].x, spots[side].y);
+        ex = sp.x;
+        ey = sp.y;
+      } else if (c.side) {
         ex = cs.x + c.face * c.side[0] * 0.65 * c.size * zoom;
         ey = cs.y + (c.side[1] - 0.15) * c.size * zoom;
       }
