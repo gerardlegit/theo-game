@@ -3,13 +3,10 @@
 // (world.ground === 'land'). Rien ici ne connaît une espèce par son nom.
 //
 //   - La course : réactive, avec de l'élan quand on garde sa direction.
-//   - Les vues : presque à l'horizontale, l'animal garde son beau dessin de
-//     profil ; dès qu'il monte ou descend, il est dessiné en volume, de dos,
-//     de face ou de trois quarts (art-vues.js).
+//   - La poussière sous les pattes, les traits de vitesse, le dérapage.
+// (Les animaux eux-mêmes sont dessinés vus de dessus : art-dessus.js.)
 // ============================================================================
 
-import { BODIES, PLAYER } from './art.js';
-import { drawVolume, CAM_TILT } from './art-vues.js';
 import { sfx } from './sound.js';
 
 const TAU = Math.PI * 2;
@@ -21,11 +18,6 @@ const GRIP = 11;                   // on suit vite ce que demande le joueur
 const GRIP_STOP = 9;               // et on s'arrête vite quand on lâche
 const ELAN_TIME = 1.3;             // s à garder sa direction pour être lancé à fond
 const ELAN_BONUS = 0.28;           // lancé à fond : 28 % plus vite
-
-/* ---------- Réglages des vues ---------- */
-const VOL_IN = 0.62;               // à partir de là (le sinus de la direction), dessin en volume…
-const VOL_OUT = 0.48;              // …et retour au profil (écart : pour ne pas clignoter entre les deux)
-const SIDE_TILT = 0.3;             // de profil, le corps s'incline un peu dans sa direction
 
 export function createTerre(api) {
   const on = () => api.level().world.ground === 'land';
@@ -72,65 +64,5 @@ export function createTerre(api) {
     }
   }
 
-  /* ---------- Quelle vue : le profil ou le volume ? ---------- */
-  const lookOf = (e) => (e === api.player() ? api.chapter().form : e.sp.look);
-
-  function turn(e, dt) {
-    if (!e.side) return;
-    const sn = Math.abs(Math.sin(e.angle));
-    const vol = e.vol ? sn > VOL_OUT : sn > VOL_IN;
-    // au moment où l'on passe d'un dessin à l'autre, le corps se resserre un instant
-    if (vol !== !!e.vol) e.viewT = 1;
-    e.vol = vol;
-    e.viewT = Math.max(0, (e.viewT || 0) - dt * 9);
-  }
-
-  /** Où est un point du corps (lx, ly en × taille, tourné vers l'avant), selon sa direction */
-  function bodyPoint(e, lx, ly) {
-    return { x: e.x + Math.cos(e.angle) * e.size * lx, y: e.y + e.size * (ly + Math.sin(e.angle) * CAM_TILT * lx) };
-  }
-
-  /** Dessine un animal de la terre ferme, dans la bonne vue */
-  function paint(e, fn) {
-    if (!e.side || !on()) { fn(); return; }
-    const c = api.ctx();
-    const dip = 1 - (e.viewT || 0) * 0.14;
-    // (les humains restent de profil, bien droits ; le berger a le même nom que le chien de berger)
-    const person = e !== api.player() && (e.sp.kind === 'human' || e.sp.kind === 'shepherd');
-    const B = person ? null : BODIES[lookOf(e)];
-    if (e.vol && B) {
-      c.save();
-      if (dip !== 1) {
-        c.translate(e.x, e.y);
-        c.scale(dip, 1);
-        c.translate(-e.x, -e.y);
-      }
-      if (e === api.player()) {
-        // le halo, pour toujours bien se voir
-        const r = e.size;
-        const g = c.createRadialGradient(e.x, e.y, r * 0.5, e.x, e.y, r * 2.6);
-        g.addColorStop(0, 'rgba(220, 255, 240, 0.28)');
-        g.addColorStop(1, 'rgba(220, 255, 240, 0)');
-        c.fillStyle = g;
-        c.beginPath();
-        c.arc(e.x, e.y, r * 2.6, 0, TAU);
-        c.fill();
-        drawVolume(c, { ...e, cute: true }, B, { col: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe }, api.worldT());
-      } else {
-        drawVolume(c, e, B, { col: e.sp.color, belly: e.sp.belly, stripe: e.sp.stripe }, api.worldT() + e.seed);
-      }
-      c.restore();
-      return;
-    }
-    // le profil, un peu incliné dans sa direction
-    const f = e.face || 1;
-    c.save();
-    c.translate(e.x, e.y);
-    c.transform(person ? 1 : dip, person ? 0 : Math.sin(e.angle) * SIDE_TILT * f, 0, 1, 0, 0);
-    c.translate(-e.x, -e.y);
-    fn();
-    c.restore();
-  }
-
-  return { on, run, turn, bodyPoint, paint, dust };
+  return { on, run, dust };
 }

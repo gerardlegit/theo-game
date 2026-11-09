@@ -1,10 +1,11 @@
 // ============================================================================
-// Dessins de la terre ferme (niveau 2), ajoutés aux registres de art.js :
-// le joueur en tétrapode et en reptile ; insectes, scorpions, libellules,
-// lézards, crocodiles et amphibiens ; et le décor : mares, boue, fougères,
-// arbres, os, nids… Les dinosaures et les reptiles volants sont dans
-// art-dinos.js. Les pattes bougent au rythme de la marche (e.walk, avancé
-// par script.js).
+// Dessins de la terre ferme, ajoutés aux registres de art.js : les petites
+// bêtes vues de dessus (insectes, blattes, mille-pattes, scorpions,
+// libellules) et les reptiles volants (ptéranodon, rhamphorhynchus) ; le lézard et le tétrapode DE PROFIL, qui ne servent plus que
+// dans l'intro du niveau 2 et la fin de la météorite ; et le décor : mares,
+// boue, fougères, arbres, os, nids… (Les animaux des niveaux sont vus de
+// dessus, dans art-dessus.js.) Les pattes bougent au rythme de la marche
+// (e.walk, avancé par script.js).
 // ============================================================================
 
 import {
@@ -19,8 +20,8 @@ Object.assign(SPINES, {
   millepattes: { n: 9, gap: 0.3 },
   scorpion: { n: 6, gap: 0.32 },
 });
-// les formes vues de profil n'ont pas besoin de colonne
-Object.assign(FORM_SPINE, { tetrapode: null, reptile: null });
+// la forme vue de profil (l'intro) n'a pas besoin de colonne
+FORM_SPINE.tetrapode = null;
 
 /* ---------- Petits outils ---------- */
 const dirAt = (pts, i) => segDir(pts, i);
@@ -380,18 +381,166 @@ function drawLibellule(ctx, c, t) {
 }
 
 /* ============================================================================
-   Les vertébrés de la terre ferme sont dessinés DE PROFIL (bien plus
-   reconnaissables qu'en vue de dessus) : ils regardent à gauche ou à droite
-   selon leur direction (c.face), avec une ombre au sol. Repère local : tourné
-   vers la droite, (0, 0) = le milieu du corps, les pieds en bas.
+   Les ptérosaures, vus de dessus pendant qu'ils volent (leur ombre au sol)
    ============================================================================ */
+function drawPterosaurTop(ctx, c, t, P, col) {
+  const r = c.size;
+  const dark = shade(col, -0.5);
+  const lw = Math.max(0.8, r * 0.035);
+  const big = r > 120;
+  // l'ombre, loin en dessous
+  ctx.fillStyle = 'rgba(0, 20, 10, 0.18)';
+  ctx.beginPath();
+  ctx.ellipse(c.x + r * 0.9, c.y + r * 1.3, r * P.span * 0.9, r * 0.35, c.angle, 0, TAU);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.angle);
+  const flap = Math.sin(t * (big ? 3 : 7) + (c.seed || 0));
+  const span = r * P.span * (0.82 + flap * 0.18);
+  // les ailes : une membrane tendue du long doigt jusqu'aux pattes arrière
+  for (const s of [-1, 1]) {
+    const wx = r * 0.15, wy = s * r * 0.12;
+    const elbow = { x: r * 0.35, y: s * span * 0.35 };
+    const wrist = { x: r * 0.2, y: s * span * 0.62 };
+    const tip = { x: -r * 0.35, y: s * span };
+    const g = ctx.createLinearGradient(0, 0, 0, s * span);
+    g.addColorStop(0, shade(col, -0.05));
+    g.addColorStop(1, P.wingCol || shade(col, 0.15));
+    ctx.fillStyle = g;
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(wx, wy);
+    ctx.quadraticCurveTo(elbow.x, elbow.y * 0.9, wrist.x, wrist.y);
+    ctx.quadraticCurveTo(r * 0.05, s * span * 0.85, tip.x, tip.y);
+    ctx.quadraticCurveTo(-r * 0.35, s * span * 0.5, -r * 0.45, s * r * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // le bord d'attaque : les os du bras et du grand doigt
+    ctx.strokeStyle = shade(col, -0.3);
+    ctx.lineWidth = Math.max(1, r * 0.06);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(wx, wy);
+    ctx.quadraticCurveTo(elbow.x, elbow.y * 0.9, wrist.x, wrist.y);
+    ctx.quadraticCurveTo(r * 0.05, s * span * 0.85, tip.x, tip.y);
+    ctx.stroke();
+    // les petits doigts griffus au poignet
+    claw(ctx, wrist.x, wrist.y, r * 0.12, -0.3, r * 0.025);
+  }
+  // la queue (Rhamphorhynchus : longue, avec une palette au bout)
+  if (P.longTail) {
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.4, 0);
+    ctx.quadraticCurveTo(-r * 1.0, Math.sin(t * 3) * r * 0.15, -r * 1.6, 0);
+    ctx.stroke();
+    ctx.fillStyle = P.vaneCol || '#E2574C';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.5, 0);
+    ctx.lineTo(-r * 1.68, -r * 0.16);
+    ctx.lineTo(-r * 1.86, 0);
+    ctx.lineTo(-r * 1.68, r * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // le corps, couvert d'un fin duvet
+  ctx.fillStyle = shade(col, -0.08);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.12, 0, r * 0.42, r * 0.2, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  // le cou et la tête au long bec
+  const nl = r * (P.neck || 0.25);
+  ctx.strokeStyle = shade(col, -0.05);
+  ctx.lineWidth = r * 0.13;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.2, 0);
+  ctx.lineTo(r * 0.2 + nl, 0);
+  ctx.stroke();
+  const hx = r * 0.22 + nl;
+  // la crête
+  if (P.crest) {
+    ctx.fillStyle = P.crestCol || '#D9534F';
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(hx, -r * 0.05);
+    ctx.lineTo(hx - r * P.crest, -r * 0.03);
+    ctx.lineTo(hx - r * P.crest * 0.9, r * 0.03);
+    ctx.lineTo(hx + r * 0.05, r * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = shade(col, 0.1);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.ellipse(hx, 0, r * 0.13, r * 0.11, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = P.beakCol || '#E3C873';
+  ctx.beginPath();
+  ctx.moveTo(hx + r * 0.08, -r * 0.07);
+  ctx.lineTo(hx + r * P.beak, 0);
+  ctx.lineTo(hx + r * 0.08, r * 0.07);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // les yeux, de chaque côté de la tête
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#F2C14E';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(0.5, r * 0.012);
+    ctx.beginPath();
+    ctx.arc(hx + r * 0.03, s * r * 0.08, r * 0.04, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(hx + r * 0.04, s * r * 0.08, r * 0.018, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
 
-/** Où est la gueule, en × taille, pour chaque look ou forme vue de profil (utilisé par script.js) */
-export const SIDE = {
-  lezard: [1.05, 0.05],
-  tetrapode: [1.0, 0.05],
-  reptile: [1.05, 0.05],
+/** Une petite griffe recourbée, de (x, y) dans la direction ang (au poignet des ptérosaures) */
+function claw(ctx, x, y, len, ang, w) {
+  const cx = Math.cos(ang), cy = Math.sin(ang), nx = -cy, ny = cx;
+  ctx.fillStyle = '#EDE3CC';
+  ctx.strokeStyle = 'rgba(40, 30, 20, 0.6)';
+  ctx.lineWidth = Math.max(0.5, w * 0.3);
+  ctx.beginPath();
+  ctx.moveTo(x + nx * w, y + ny * w);
+  ctx.quadraticCurveTo(x + cx * len * 0.7 + nx * w * 0.8, y + cy * len * 0.7 + ny * w * 0.8, x + cx * len + nx * len * 0.25, y + cy * len + ny * len * 0.25);
+  ctx.quadraticCurveTo(x + cx * len * 0.4, y + cy * len * 0.4, x - nx * w, y - ny * w);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+const PTERO = {
+  rhamphorhynchus: { span: 1.6, beak: 0.6, neck: 0.18, longTail: true, vaneCol: '#E2574C' },
+  pteranodon: { span: 2.3, beak: 0.85, neck: 0.22, crest: 0.6, crestCol: '#D9534F' },
 };
+for (const [id, P] of Object.entries(PTERO)) {
+  LOOKS[id] = (ctx, c, t) => drawPterosaurTop(ctx, c, t, P, c.sp.color);
+  FRAMES[id] = { r: id === 'rhamphorhynchus' ? 0.2 : 0.17, x: 0.55, y: 0.5 };
+}
+
+/* ============================================================================
+   Le lézard et le tétrapode, DE PROFIL (pour l'intro du niveau 2 et la fin
+   de la météorite) : ils regardent à gauche ou à droite selon leur direction
+   (c.face), avec une ombre au sol. Repère local : tourné vers la droite,
+   (0, 0) = le milieu du corps, les pieds en bas.
+   ============================================================================ */
 
 function sideStart(ctx, c) {
   const face = c.face || (Math.cos(c.angle) >= 0 ? 1 : -1);
@@ -465,7 +614,7 @@ function sideLeg(ctx, hx, hy, groundY, w, phase, col, dark, o = {}) {
   ctx.strokeStyle = dark;
   ctx.lineWidth = Math.max(0.8, w * 0.16);
   ctx.beginPath();
-  ctx.ellipse(fx + w * 0.35, fy - w * 0.1, w * (o.pillar ? 0.75 : 0.9), w * 0.42, 0, 0, TAU);
+  ctx.ellipse(fx + w * 0.35, fy - w * 0.1, w * 0.9, w * 0.42, 0, 0, TAU);
   ctx.fill();
   ctx.stroke();
   if (o.claws !== false) {
@@ -481,7 +630,7 @@ function sideLeg(ctx, hx, hy, groundY, w, phase, col, dark, o = {}) {
 }
 
 /** Une gueule de profil : mâchoire du haut fixe, mâchoire du bas qui s'ouvre */
-function sideJaw(ctx, hx, hy, len, h, open, col, dark, lw, teeth = true, beak = false) {
+function sideJaw(ctx, hx, hy, len, h, open, col, dark, lw, teeth = true) {
   const a = open * 0.55;
   // l'intérieur de la gueule
   if (open > 0.05) {
@@ -508,7 +657,7 @@ function sideJaw(ctx, hx, hy, len, h, open, col, dark, lw, teeth = true, beak = 
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  if (teeth && !beak) {
+  if (teeth) {
     ctx.fillStyle = '#FFFFFF';
     for (let i = 1; i <= 5; i++) {
       const x = len * (0.15 + i * 0.13);
@@ -520,7 +669,7 @@ function sideJaw(ctx, hx, hy, len, h, open, col, dark, lw, teeth = true, beak = 
     }
   }
   ctx.restore();
-  if (teeth && !beak) {
+  if (teeth) {
     ctx.fillStyle = '#FFFFFF';
     for (let i = 1; i <= 5; i++) {
       const x = hx + len * (0.12 + i * 0.14);
@@ -548,20 +697,19 @@ function sideTail(ctx, x0, y0, w0, tipx, tipy, sway, col, dark, lw) {
   ctx.stroke();
 }
 
-/* ---------- Lézards, crocodiles, amphibiens, cynodontes (et le joueur tétrapode / reptile) ---------- */
+/* ---------- Le lézard (et ses variantes : crocodile, petite bête à poils) et le tétrapode ---------- */
 function drawLizardSide(ctx, c, t, col = c.sp.color, b = c.sp.body || {}, o = {}) {
   const r = c.size;
   const dark = shade(col, -0.5);
   const lw = Math.max(1, r * 0.06);
   sideStart(ctx, c);
-  const erect = b.plates === 'back';               // Postosuchus se tenait droit sur ses pattes
-  const groundY = r * (erect ? 0.8 : 0.52);
+  const groundY = r * 0.52;
   groundShadow(ctx, -2.4 * r, 1.4 * r, groundY, r);
   const ph = (c.walk || 0) * 2.4;
-  const legW = r * (o.stubby ? 0.15 : erect ? 0.2 : 0.17);
+  const legW = r * (o.stubby ? 0.15 : 0.17);
   const legY = r * 0.18;
   // pattes du côté caché
-  for (const [x, off] of [[0.1, Math.PI], [-0.85, 0]]) sideLeg(ctx, x * r, legY, groundY, legW, ph + off, shade(col, -0.25), dark, { bend: erect ? 0.5 : -1.2, claws: !o.stubby });
+  for (const [x, off] of [[0.1, Math.PI], [-0.85, 0]]) sideLeg(ctx, x * r, legY, groundY, legW, ph + off, shade(col, -0.25), dark, { bend: -1.2, claws: !o.stubby });
   // queue (avec une nageoire pour le tétrapode)
   const sway = Math.sin(t * 2.2 + (c.seed || 0)) * r * 0.08;
   if (o.tailFin) {
@@ -599,34 +747,12 @@ function drawLizardSide(ctx, c, t, col = c.sp.color, b = c.sp.body || {}, o = {}
       ctx.lineTo(x - 0.08 * r, -0.36 * r);
       ctx.stroke();
     }
-  } else if (erect) {
-    // plaques d'os le long du dos
-    ctx.fillStyle = shade(col, -0.25);
-    for (let i = 0; i < 7; i++) {
-      const x = (-1.05 + i * 0.25) * r;
-      ctx.beginPath();
-      ctx.moveTo(x - 0.08 * r, -0.24 * r);
-      ctx.lineTo(x, -0.38 * r);
-      ctx.lineTo(x + 0.08 * r, -0.24 * r);
-      ctx.fill();
-    }
   } else {
     ctx.fillStyle = shade(col, -0.15);
     for (let i = 0; i < 7; i++) {
       ctx.beginPath();
       ctx.arc((-0.95 + i * 0.2) * r, (-0.08 + (i % 2) * 0.08) * r, r * 0.05, 0, TAU);
       ctx.fill();
-    }
-  }
-  if (o.scales) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = Math.max(1, r * 0.035);
-    for (let i = 0; i < 6; i++) {
-      for (const y of [-0.1, 0.1]) {
-        ctx.beginPath();
-        ctx.arc((-0.9 + i * 0.22) * r, y * r, r * 0.08, Math.PI * 0.1, Math.PI * 0.9);
-        ctx.stroke();
-      }
     }
   }
   if (o.stripe) {
@@ -680,7 +806,7 @@ function drawLizardSide(ctx, c, t, col = c.sp.color, b = c.sp.body || {}, o = {}
     ctx.stroke();
   }
   // pattes du côté visible
-  for (const [x, off] of [[0.1, 0], [-0.85, Math.PI]]) sideLeg(ctx, x * r, legY, groundY, legW, ph + off, col, dark, { bend: erect ? 0.5 : -1.2, claws: !o.stubby });
+  for (const [x, off] of [[0.1, 0], [-0.85, Math.PI]]) sideLeg(ctx, x * r, legY, groundY, legW, ph + off, col, dark, { bend: -1.2, claws: !o.stubby });
   if (o.cheek) {
     ctx.fillStyle = 'rgba(255, 120, 150, 0.55)';
     ctx.beginPath();
@@ -711,18 +837,13 @@ Object.assign(FRAMES, {
   libellule: { r: 0.22, x: 0.62, y: 0.42 },
   lezard: { r: 0.2, x: 0.62, y: 0.5 },
   tetrapode: { r: 0.2, x: 0.62, y: 0.5 },
-  reptile: { r: 0.2, x: 0.62, y: 0.5 },
 });
 
 /* ============================================================================
-   Le joueur sur la terre ferme
+   Le joueur en tétrapode (l'intro du niveau 2)
    ============================================================================ */
 FORMS.tetrapode = (ctx, p, parts, t, mood) => {
   drawLizardSide(ctx, { ...p, sp: { kind: 'player' }, mood, seed: 0 }, t, PLAYER.body, { wide: true }, { tailFin: true, stubby: !parts.pattes, eyesTop: true, cheek: true, bigEyes: true, belly: PLAYER.belly, stripe: PLAYER.stripe });
-};
-
-FORMS.reptile = (ctx, p, parts, t, mood) => {
-  drawLizardSide(ctx, { ...p, sp: { kind: 'player' }, mood, seed: 0 }, t, PLAYER.body, {}, { scales: !!parts.ecailles, cheek: true, bigEyes: true, belly: PLAYER.belly, stripe: PLAYER.stripe });
 };
 
 /* ============================================================================

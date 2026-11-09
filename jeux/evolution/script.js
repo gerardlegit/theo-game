@@ -14,11 +14,11 @@ import {
   drawCreature, drawPlayer, drawDecor, drawCover, drawDrop, drawSweat, drawAlert,
   buildFloorTile, buildCaustics, speciesThumb, playerThumb, makeSpine, SPINES, FORM_SPINE, SNOUT, AMMO_SVG, PLAYER, shade,
 } from './art.js';
-import { drawCloudShadows, SIDE } from './art-terre.js';
-import './art-dinos.js';
+import { drawCloudShadows } from './art-terre.js';
 import './art-mer.js';
 import './art-mammiferes.js';
-import { BREED_PARADE, campFire } from './art-loup.js';
+import { campFire } from './art-loup.js';
+import { BREED_PARADE } from './art-profil.js';
 import './art-requins.js';
 import { drawDecoyTail } from './art-dessus.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
@@ -197,6 +197,7 @@ const endCues = new Set();
 let wasChased = false;
 let packNear = 0;                  // les loups de ta meute tout près de toi
 let huntTarget = null;             // la grosse bête que la meute attaque
+let whiffT = 0, whiffCD = 8;       // (sp.lair) l'odeur d'un loup caché : combien de temps on la sent, et quand elle revient
 let comboN = 0, comboT = 0;        // la frénésie : les repas à la suite (world.combo)
 let pens = [];                     // les enclos de ce chapitre (leur barrière bloque les animaux)
 let boneT = 0;                     // avant le prochain os lancé par les humains
@@ -412,35 +413,19 @@ function isThreat(c) {
 
 /** Où est la gueule d'un animal (ou du joueur) */
 function mouthPoint(e, k = 0.8) {
-  if (e.side) return terre.bodyPoint(e, e.side[0], e.side[1]);
   k = SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
 
-/** Distance entre la gueule et un point. De profil, on mange aussi avec l'avant du
-    corps, dans la direction où l'on avance (sinon impossible d'attraper ce qui est
-    juste au-dessus ou en dessous). */
+/** Distance entre la gueule et un point */
 function mouthDist(e, x, y) {
   const m = mouthPoint(e);
-  let d = Math.hypot(m.x - x, m.y - y);
-  if (e.side) {
-    const fx = e.x + Math.cos(e.angle) * e.size * 0.8, fy = e.y + Math.sin(e.angle) * e.size * 0.8;
-    d = Math.min(d, Math.hypot(fx - x, fy - y));
-  }
-  return d;
+  return Math.hypot(m.x - x, m.y - y);
 }
 
 /** Le bout de la queue (pointes du stégosaure, massue de l'ankylosaure) */
 function tailPoint(c) {
-  if (c.side) return terre.bodyPoint(c, -2.2, 0);
   return c.spine ? c.spine[c.spine.length - 1] : c;
-}
-
-/** De profil, on regarde à droite ou à gauche (on ne se retourne pas pour un rien) */
-function updateFace(e) {
-  if (!e.side) return;
-  const cx = Math.cos(e.angle);
-  if (cx > 0.25) e.face = 1; else if (cx < -0.25) e.face = -1;
 }
 
 /** Petit écart d'angle (de -π à π) */
@@ -549,12 +534,8 @@ function buildWorld() {
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
 
-/* ---------- La terre ferme : la course et les vues en volume (voir terre.js) ---------- */
-const terre = createTerre({
-  level: () => LV, chapter: () => CH, player: () => player,
-  particles: () => particles, ctx: () => ctx,
-  worldT: () => worldT, shade,
-  });
+/* ---------- La terre ferme : la course et la poussière (voir terre.js) ---------- */
+const terre = createTerre({ level: () => LV, chapter: () => CH, particles: () => particles, shade });
 
 /* ---------- Le joueur ---------- */
 function formLook() {
@@ -569,7 +550,6 @@ function placePlayer(x, y) {
     dash: 0, charge: 1, shield: stats.shield, shieldT: 0,
     invul: 1.5, hidden: false, dead: false, deadT: 0, squash: 0,
     walk: 0, wet: 1, dryT: 0, zone: null,
-    side: SIDE[CH.form] || null, face: 1,
   };
   resetSpine(player, formLook());
   zoom = targetZoom();
@@ -662,7 +642,6 @@ function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
     seed: Math.random() * 10, mouth: 0, blink: 0, mood: 'calm',
     mark: null, markT: 0, eatT: rand(0, 0.3), chased: false,
     walk: Math.random() * 10, stepT: rand(0, 1), noiseT: 0, scaredT: 0, stunT: 0, playT: 0, lureT: 0, hitT: 0, buried: !!sp.buried, hp: sp.hp || 0,
-    side: SIDE[sp.look] || null, face: 1,
   };
   resetSpine(c, SPINES[sp.look] ? sp.look : null);
   return c;
@@ -671,6 +650,7 @@ function makeCreature(id, x, y, home = null, size = SPECIES[id].size) {
 function populate() {
   creatures = [];
   for (const [id, n] of Object.entries(CH.species)) {
+    if (SPECIES[id].lair) { placeLairs(id, n); continue; }
     for (let i = 0; i < n; i += SPECIES[id].pack || 1) spawnCreature(id, true);
   }
   // le berger, à l'entrée de l'enclos, et les moutons déjà rentrés
@@ -695,6 +675,43 @@ function populate() {
   }
 }
 
+/** (sp.lair) Des bêtes cachées : chacune a sa tanière, loin de toi et loin des autres, dans les
+    hautes herbes, et la plupart sont gardées par des chasseurs (lair.guards, de la plus proche à
+    la plus lointaine). Elles ne réapparaissent pas : ceux de ta meute ne comptent plus. */
+function placeLairs(id, n) {
+  const sp = SPECIES[id], L = sp.lair, W = LV.world;
+  if (CH.pack) n -= game.packN || 0;
+  const posts = [];
+  const ok = (x, y, gap) => x > 300 && y > 300 && x < W.w - 300 && y < W.h - 300 && !zoneAt(x, y)
+    && Math.hypot(x - player.x, y - player.y) >= (L.far || 2000) && posts.every((o) => Math.hypot(o.x - x, o.y - y) >= gap);
+  for (let k = 0; k < n; k++) {
+    let gap = L.gap || 2000, spot = null;
+    for (let tries = 0; tries < 400 && !spot; tries++) {
+      if (tries % 100 === 99) gap *= 0.8;               // (pas de place : on se rapproche un peu)
+      const h = Math.random() < 0.8 && hides.length ? pick(hides) : null;
+      const x = h ? h.x : rand(300, W.w - 300), y = h ? h.y : rand(300, W.h - 300);
+      if (ok(x, y, gap)) spot = { x, y, r: L.roam || 160 };
+    }
+    if (spot) posts.push(spot);
+  }
+  posts.sort((a, b) => dist(a, player) - dist(b, player));
+  posts.forEach((post, k) => {
+    const c = makeCreature(id, post.x, post.y);
+    c.post = post;
+    creatures.push(c);
+    const g = (L.guards || [])[k % Math.max(1, (L.guards || []).length)];
+    if (!g || !SPECIES[g]) return;
+    const a0 = Math.random() * TAU;
+    for (let i = 0; i < (SPECIES[g].pack || 1); i++) {
+      const a = a0 + i * 1.3, d = rand(260, 380);
+      const o = makeCreature(g, post.x + Math.cos(a) * d, post.y + Math.sin(a) * d);
+      o.post = { x: post.x, y: post.y, r: L.guardR || 520, in: (L.guardR || 520) * 0.5 };
+      o.guard = true;
+      creatures.push(o);
+    }
+  });
+}
+
 /** Garde le bon nombre de créatures autour du joueur (elles apparaissent hors de l'écran) */
 function maintainPopulation(dt) {
   spawnT -= dt;
@@ -702,10 +719,11 @@ function maintainPopulation(dt) {
   spawnT = 0.3;
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
-  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.penned || c === huntTarget || dist(c, player) < far * 1.35);
+  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.penned || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
-  for (const c of creatures) if (!c.penned) counts[c.id] = (counts[c.id] || 0) + 1;
+  for (const c of creatures) if (!c.penned && !c.guard) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
+    if (SPECIES[id].lair) continue;                     // (les bêtes cachées ne reviennent pas)
     let missing = n - (counts[id] || 0);
     while (missing > 0) {
       if (!spawnCreature(id)) break;
@@ -850,6 +868,12 @@ function activateDash() {
       heard = true;
     }
     if (heard) sayOnce('noise', LINES.noise, 45, 2);
+    for (const c of creatures) {
+      if (!c.sp.shy || c.sp.kind !== 'stray' || dist(c, player) > noise) continue;
+      c.shyT = 2.5;
+      addFloater('Il a eu peur !', c.x, c.y - c.size * 2, '#FFB36B', 1);
+      sayOnce('strayShy', LINES.strayShy, 20, 2);
+    }
   }
   if (CH.trust) startleHumans();
   if (terre.on()) terre.dust(player.x, player.y + player.size * 0.85, 10, 130, Math.max(5, player.size * 0.25));
@@ -916,7 +940,7 @@ function activateStrike() {
   p.strikeT = STRIKE_RECHARGE;
   p.mouth = 1;
   sfx.thud();
-  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.3, size: p.size, face: p.face || 1, color: '#FFFFFF', slash: LV.world.strike.type });
+  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.3, size: p.size, color: '#FFFFFF', slash: LV.world.strike.type, ang: p.angle });
   let hits = 0;
   for (const c of creatures) {
     if (!inStrikeReach(c)) continue;
@@ -1125,8 +1149,6 @@ function updatePlayer(dt) {
   p.speed = clamp(sp / ms, 0, 1.5);
   p.walk += sp * dt / Math.max(10, p.size) * 1.3;
   if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (onLand ? TURN_LAND : stats.dash ? 10 : TURN) * dt);
-  updateFace(p);
-  terre.turn(p, dt);
   if (dashing) {
     p.dash -= dt;
     if (!onLand && Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
@@ -1271,7 +1293,7 @@ function updateCreatures(dt) {
   const hearR = Math.hypot(viewW, viewH) * 0.9;     // on entend les grands pas jusque-là
   let chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'alert').length;
   packNear = p.dead ? 0 : creatures.filter((c) => c.sp.kind === 'ally' && dist(c, p) < PACK_RANGE).length;
-  if (CH.pack) updateHunt();
+  if (CH.pack) { updateHunt(); updateScent(dt); }
   for (const c of creatures) {
     const sp = c.sp;
     const dx = p.x - c.x, dy = p.y - c.y;
@@ -1502,8 +1524,6 @@ function updateCreatures(dt) {
     if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
-    updateFace(c);
-    terre.turn(c, dt);
     c.speed = sp.speed ? Math.min(1, v / sp.speed) : 0;
     c.swim = (c.swim || 0) + dt * (0.35 + c.speed * 0.8);
     c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
@@ -1667,8 +1687,18 @@ function updateStray(c, d, dx, dy, dt) {
   c.fleeing = false;
   c.mood = 'happy';
   if (p.dead) { wander(c, c.sp.speed, dt); return; }
+  // (sp.shy) il a peur : il s'enfuit quand tu fonces près de lui, ou quand un chasseur te poursuit
+  c.shyT = Math.max(0, (c.shyT || 0) - dt);
+  const chased = c.sp.shy && d < 650 && creatures.some((o) => o.sp.kind === 'hunter' && (o.state === 'chase' || o.state === 'alert'));
+  if (c.shyT > 0 || chased) {
+    steer(c, -dx / d, -dy / d, c.sp.speed * 2.6, dt);
+    c.mood = 'scared';
+    c.fleeing = true;
+    if (chased && d < 450 && sayOnce('strayChased', LINES.strayChased, 20, 2)) addFloater('Il a peur !', c.x, c.y - c.size * 2, '#FFB36B', 1);
+    return;
+  }
   // il entend ton hurlement et vient vers toi
-  if (stats.howl && d < 900 && game.packN < PACK_MAX) steer(c, dx / d, dy / d, c.sp.speed * 2.5, dt);
+  if (stats.howl && d < (c.sp.lair?.call || 900) && game.packN < PACK_MAX) steer(c, dx / d, dy / d, c.sp.speed * 2.5, dt);
   else wander(c, c.sp.speed, dt);
   if (d >= c.size + p.size + 50 || game.packN >= PACK_MAX) return;
   c.id = c.sp.joins;
@@ -1696,6 +1726,24 @@ function loseWolf() {
     addFloater('Un loup s’enfuit !', c.x, c.y - c.size * 2, '#FFB36B', 1.1);
   }
   later(() => say(LINES.packLost, 2, 5000), 1500);
+}
+
+/* (sp.lair) Un loup caché : on ne le sent que de près (lair.scent, plus loin avec le flair)…
+   ou quand le vent porte son odeur (lair.whiff secondes) : la flèche apparaît un moment. */
+const scentR = (c) => (c.sp.lair.scent || 900) * (stats.radar ? 1.6 : 1);
+const sensed = (c) => !c.sp.lair || whiffT > 0 || dist(c, player) < scentR(c);
+
+function updateScent(dt) {
+  whiffT = Math.max(0, whiffT - dt);
+  const t = nearestCreature((c) => c.sp.lair && c.sp.kind === 'stray');
+  if (!t || player.dead || game.packN >= PACK_MAX) return;
+  if (dist(t, player) < scentR(t)) { whiffCD = Math.max(whiffCD, 10); return; }
+  whiffCD -= dt;
+  if (whiffCD > 0) return;
+  whiffCD = (t.sp.lair.whiff || 30) * (stats.radar ? 0.6 : 1);
+  whiffT = 5;
+  addFloater('Snif snif…', player.x, player.y - player.size * 2, '#FFE58A', 1);
+  sayOnce('whiff', LINES.whiff, 90, 1);
 }
 
 /** La meute se lance quand tu arrives près d'une grosse bête, si elle est assez grande */
@@ -1979,7 +2027,7 @@ function firePower() {
     p.whipT = 0.45;
     shake = Math.max(shake, 0.25);
     ringFx(R, '#FFFFFF');
-    particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.35, size: p.size * 1.4, face: p.face || 1, color: '#FFFFFF', slash: 'queue', ang: p.angle });
+    particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.35, size: p.size * 1.4, color: '#FFFFFF', slash: 'queue', ang: p.angle });
     addFloater(P.cry || 'FLAC !', p.x, p.y - p.size * 2, '#FFFFFF', 1.3);
     for (const c of near) {
       if (c.sp.kind === 'hunter') {
@@ -2203,7 +2251,8 @@ function updateTrust(dt) {
   }
   if (!near || nd > 460 || p.dash > 0) return;
   const trust = game.trust || 0;
-  gainTrust(dt * (LV.world.noGrow ? 0.01 : 0.016) * stats.trust * (nd < 300 ? 1.5 : 1));
+  // (elle monte bien quand tu restes immobile ; si tu marches, à peine)
+  gainTrust(dt * (LV.world.noGrow ? 0.007 : 0.016) * stats.trust * (nd < 300 ? 1.5 : 1) * (p.speed < 0.15 ? 1 : 0.3));
   sayOnce('trustHint', LINES.trustHint, 120, 1);
   heartFxT -= dt;
   if (heartFxT <= 0) {
@@ -2309,10 +2358,12 @@ function keepInPond(c) {
 }
 
 function wander(c, speed, dt) {
-  if (Math.hypot(c.wx - c.x, c.wy - c.y) < c.size * 2 + 30 || Math.random() < dt * 0.15) {
-    const a = Math.random() * TAU, d = rand(150, 600);
-    c.wx = c.x + Math.cos(a) * d;
-    c.wy = c.y + Math.sin(a) * d;
+  const h = c.post;                                     // (une tanière : il ne s'en éloigne pas ; ses gardiens tournent autour, entre in et r)
+  const away = h && Math.hypot(c.x - h.x, c.y - h.y) > h.r * 1.6 && Math.hypot(c.wx - h.x, c.wy - h.y) > h.r;
+  if (away || Math.hypot(c.wx - c.x, c.wy - c.y) < c.size * 2 + 30 || Math.random() < dt * 0.15) {
+    const a = Math.random() * TAU, d = h ? (h.in || 0) + Math.sqrt(Math.random()) * (h.r - (h.in || 0)) : rand(150, 600);
+    c.wx = (h ? h.x : c.x) + Math.cos(a) * d;
+    c.wy = (h ? h.y : c.y) + Math.sin(a) * d;
   }
   const dx = c.wx - c.x, dy = c.wy - c.y;
   const d = Math.hypot(dx, dy) || 1;
@@ -2525,7 +2576,7 @@ function hurtsByContact(c, d) {
   if (k === 'human') return c.state === 'charge' && d < c.size * 0.9 + p.size * 0.6;
   if (k === 'giant') {
     // sous les pattes du géant (le milieu de son corps)
-    const mid = c.spine && !c.side ? c.spine[Math.floor(c.spine.length / 2)] : c;
+    const mid = c.spine ? c.spine[Math.floor(c.spine.length / 2)] : c;
     return Math.hypot(mid.x - p.x, mid.y - p.y) < c.size * 0.5 + p.size * 0.5;
   }
   if (k !== 'defender') return false;
@@ -2725,6 +2776,8 @@ function setupChapter(keepPos) {
   const pw = CH.power || LV.world.strike;
   if (pw) strikeBtn.innerHTML = `${pw.icon} ${escapeHtml(pw.name)} <kbd class="desktop-only">F</kbd>`;
   huntTarget = null;
+  whiffT = 0;
+  whiffCD = 8;
   $('sizeIcon').textContent = CH.pack ? '🐺' : '📏';
   $('sizeLabel').textContent = CH.pack ? 'Meute' : 'Taille';
   $('sizeItem').title = CH.pack ? LINES.packTitle : 'Ta taille : mange pour grandir';
@@ -2996,7 +3049,7 @@ function draw() {
   for (const c of list) {
     if (c.sp.flying) continue;
     if (!playerDrawn && (land ? c.y > player.y : c.size > player.size)) { drawThePlayer(); playerDrawn = true; }
-    terre.paint(c, () => drawCreature(ctx, c, worldT + c.seed));
+    drawCreature(ctx, c, worldT + c.seed);
   }
   if (!playerDrawn) drawThePlayer();
 
@@ -3063,7 +3116,7 @@ function drawStars(c) {
 /** La meute : un loup seul à rejoindre (un anneau doré), la barre de vie des grosses bêtes */
 function drawPackMark(c) {
   if (c.sp.kind === 'stray') {
-    if (game.packN >= PACK_MAX) return;
+    if (game.packN >= PACK_MAX || (c.sp.lair && dist(c, player) > scentR(c) * 0.6)) return;
     ctx.strokeStyle = `rgba(255, 210, 74, ${0.6 + Math.sin(worldT * 5) * 0.3})`;
     ctx.lineWidth = 4 / zoom;
     ctx.beginPath();
@@ -3150,7 +3203,7 @@ function drawThePlayer() {
     ctx.arc(p.x, p.y, p.size * (2 + k * 2), 0, TAU);
     ctx.fill();
   }
-  terre.paint(p, () => drawPlayer(ctx, p, CH.form, game.owned, worldT));
+  drawPlayer(ctx, p, CH.form, game.owned, worldT);
   if (sq !== 1) ctx.restore();
   if (air > 0) ctx.restore();
   ctx.globalAlpha = 1;
@@ -3175,18 +3228,22 @@ function drawFx() {
       ctx.strokeStyle = '#FFFFFF';
       ctx.lineCap = 'round';
       ctx.lineWidth = p.size * 0.14;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.ang || 0);
       ctx.beginPath();
       if (p.slash === 'queue') {
-        const mid = p.ang !== undefined ? p.ang + Math.PI : p.face > 0 ? Math.PI : 0, R = p.size * (1.6 + k * 1.2);
-        ctx.arc(p.x, p.y, R, mid - 1.3, mid + 1.3);
+        const R = p.size * (1.6 + k * 1.2);
+        ctx.arc(0, 0, R, Math.PI - 1.3, Math.PI + 1.3);
       } else {
         for (const o of [-0.6, 0, 0.6]) {
-          const x = p.x + p.face * p.size * (1.2 + o * 0.3), y = p.y + o * p.size;
-          ctx.moveTo(x - p.face * p.size * 0.5, y - p.size * 0.8);
-          ctx.quadraticCurveTo(x + p.face * p.size * 0.5, y, x - p.face * p.size * 0.1, y + p.size * 0.8);
+          const x = p.size * (1.2 + o * 0.3), y = o * p.size;
+          ctx.moveTo(x - p.size * 0.5, y - p.size * 0.8);
+          ctx.quadraticCurveTo(x + p.size * 0.5, y, x - p.size * 0.1, y + p.size * 0.8);
         }
       }
       ctx.stroke();
+      ctx.restore();
     } else if (p.streak !== undefined) {
       // (sur la terre) un trait de vitesse
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
@@ -3280,12 +3337,8 @@ function drawDarkness() {
     const cs = worldToScreen(c.x, c.y);
     const fx = Math.cos(c.angle), fy = Math.sin(c.angle);
     const er = Math.max(3, c.size * zoom * 0.1);
-    for (const side of c.side ? [0] : [-1, 1]) {
-      let ex = cs.x + (fx * 0.3 - fy * 0.32 * side) * c.size * zoom, ey = cs.y + (fy * 0.3 + fx * 0.32 * side) * c.size * zoom;
-      if (c.side) {
-        ex = cs.x + c.face * c.side[0] * 0.65 * c.size * zoom;
-        ey = cs.y + (c.side[1] - 0.15) * c.size * zoom;
-      }
+    for (const side of [-1, 1]) {
+      const ex = cs.x + (fx * 0.3 - fy * 0.32 * side) * c.size * zoom, ey = cs.y + (fy * 0.3 + fx * 0.32 * side) * c.size * zoom;
       const gg = ctx.createRadialGradient(ex, ey, 0, ex, ey, er * 3);
       gg.addColorStop(0, 'rgba(255, 60, 60, 0.95)');
       gg.addColorStop(0.35, 'rgba(255, 40, 40, 0.45)');
@@ -3335,8 +3388,9 @@ function missionTarget() {
     }
     const hunt = m.type === 'eat' && SPECIES[m.species].hp;
     if (m.type === 'pack' || (hunt && (game.packN || 0) < SPECIES[m.species].need)) {
-      const t = nearestCreature((c) => c.sp.kind === 'stray');
+      const t = nearestCreature((c) => c.sp.kind === 'stray' && sensed(c));
       if (t) return at(t);
+      if (creatures.some((c) => c.sp.kind === 'stray')) return null;   // (caché : il faut le chercher)
     }
     if (hunt) {
       const t = nearestCreature((c) => c.id === m.species);
@@ -3463,7 +3517,7 @@ function drawMinimap() {
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);
       mctx.fill();
-    } else if ((c.sp.kind === 'stray' && game.packN < PACK_MAX) || (CH.pack && c.sp.hp)) {
+    } else if ((c.sp.kind === 'stray' && game.packN < PACK_MAX && sensed(c)) || (CH.pack && c.sp.hp)) {
       mctx.fillStyle = '#FFD24A';
       mctx.beginPath();
       mctx.arc(m.x, m.y, 3, 0, TAU);

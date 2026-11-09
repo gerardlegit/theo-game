@@ -43,7 +43,14 @@
 //                rivalHunt = { rival, by, every } : de temps en temps, sous les yeux du joueur,
 //                un chasseur de la liste « by » surgit et s'attaque à un rival)
 //        ally    un loup de ta meute : il te suit et attaque avec toi
-//        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches
+//        stray   un loup seul : il rejoint ta meute ("joins") quand tu le touches ;
+//                shy = il s'enfuit si tu fonces près de lui ou si un chasseur te poursuit ;
+//                lair = { far, gap, scent, whiff, call, guards, roam, guardR } : chacun se
+//                cache dans sa tanière (des hautes herbes) à plus de "far" du départ et "gap"
+//                des autres, sans jamais réapparaître ; on ne le sent qu'à "scent" pixels
+//                (plus loin avec radar), ou toutes les "whiff" secondes quand le vent porte
+//                son odeur ; le hurlement l'attire de "call" pixels ; "guards" = l'espèce qui
+//                garde chaque tanière, de la plus proche à la plus lointaine
 //        human   un humain : il te chasse si tu t'approches trop tant qu'il ne te
 //                fait pas confiance (voir trust plus bas) ; on ne le mange jamais
 //        flock   un mouton : il s'écarte devant toi ; on le pousse par la porte de l'enclos
@@ -61,12 +68,12 @@
 //      breachHit (on lui retombe dessus), hitLine ; barkLine (texte quand on aboie dessus), hp + need (une barre de vie : il
 //      faut "need" loups pour l'attaquer ; fights : au lieu de fuir, il se retourne et charge), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
-//      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
-//      ferme), art-dinos.js (dinosaures de profil, pour la fin), art-dessus.js (tous
-//      les animaux des niveaux 2, 3 et 4, et les humains, vus de dessus : look
-//      'vd-trex', 'vd-mammouth', 'vd-humain'…), art-mer.js (reptiles marins,
-//      requins, tortues, ammonites…) ou art-mammiferes.js (titanoboa, oiseau,
-//      et les dessins de profil des intros et du défilé des chiens).
+//      Leur dessin ("look") est dans art.js (océan), art-terre.js (insectes,
+//      scorpions, libellules, ptérosaures), art-dessus.js (tous les animaux des
+//      niveaux 2, 3 et 4, et les humains, vus de dessus : look 'vd-trex',
+//      'vd-mammouth', 'vd-humain'…), art-mer.js et art-requins.js (la mer),
+//      art-mammiferes.js (titanoboa, oiseau) ou art-loup.js (l'os lancé).
+//      (art-profil.js : les dessins de profil des intros et des fins seulement.)
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
 //      dry = on sèche moins vite, cones = voir les regards, radar ; et pour le

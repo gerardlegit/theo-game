@@ -174,9 +174,12 @@ export function drawLand(ctx, c, t, S, col, o = {}) {
       const lift = Math.max(0, Math.cos(phase)) * k;
       const w = widths[i];
       const len = (L.len ?? 0.22) * r * 1.45 * (o.legK || 1);
-      const ax = pts[i].x + nx * s * w * 0.4, ay = pts[i].y + ny * s * w * 0.4;
-      const out = w * 0.85 + len * 0.8;      // (le pied dépasse bien sur le côté du corps)
-      const fwd = (L.fwd || 0) * r + swing;
+      // les reptiles (sprawl) écartent les pattes sur le côté ; les autres les gardent sous le corps :
+      // on ne voit que le bout de la patte, qui avance et recule le long du ventre
+      const tuck = !L.sprawl;
+      const ax = pts[i].x + nx * s * w * (tuck ? 0.55 : 0.4), ay = pts[i].y + ny * s * w * (tuck ? 0.55 : 0.4);
+      const out = tuck ? w * 1.02 + len * 0.12 - lift * w * 0.1 : w * 0.85 + len * 0.8;
+      const fwd = (L.fwd || 0) * r + swing * (tuck ? 1.35 : 1) + (tuck ? (L.ph ? -1 : 1) * len * 0.2 : 0);
       const fx = pts[i].x + nx * s * out + d.x * fwd, fy = pts[i].y + ny * s * out + d.y * fwd;
       legs.push({ ax, ay, fx, fy, d, s, nx, ny, lift, L, w, len });
     }
@@ -194,7 +197,7 @@ export function drawLand(ctx, c, t, S, col, o = {}) {
   if (fine) {
     ctx.save();
     ctx.clip();
-    const back = spineShape(pts, widths.map((w) => w * (S.backW ?? 0.8)), nose);
+    const back = spineShape(pts, widths.map((w) => w * 0.8), nose);
     const g = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[n - 1].x, pts[n - 1].y);
     g.addColorStop(0, shade(col, 0.06));
     g.addColorStop(1, shade(col, -0.06));
@@ -328,7 +331,7 @@ function tailUnder(ctx, c, t, S, pts, widths, r, col, dark, lw) {
 
 /* ---------- Les motifs du pelage, de la peau (dans le corps) ---------- */
 function bodyMarks(ctx, c, S, pts, widths, n, full, r, col, dark, lw, o) {
-  const stripe = o.stripe || S.stripeCol || shade(col, -0.4);
+  const stripe = o.stripe || shade(col, -0.4);
   const idx = (f) => Math.min(n - 1, Math.round(f * (full - 1)));
   if (S.saddle) {
     // une « selle » plus sombre sur le dos (loups, chiens)
@@ -348,7 +351,7 @@ function bodyMarks(ctx, c, S, pts, widths, n, full, r, col, dark, lw, o) {
   }
   if (S.stripes) {
     ctx.fillStyle = stripe;
-    const i1 = idx(S.stripesTo ?? 0.95);
+    const i1 = idx(0.95);
     for (let i = 1; i <= i1; i++) {
       const d = segDir(pts, i), w = widths[i];
       for (const f of S.stripes === 2 ? [-0.25, 0.25] : [0]) {
@@ -444,14 +447,14 @@ function backThings(ctx, c, t, S, pts, widths, n, full, r, col, dark, lw, o) {
     const i0 = idx(S.sail[0]), i1 = idx(S.sail[1]);
     const P = pts.slice(i0, i1 + 1);
     const W = P.map((_, k) => r * 0.14 * Math.sin(((k + 0.5) / P.length) * Math.PI) + r * 0.02);
-    ctx.fillStyle = S.sailCol || '#C8553D';
+    ctx.fillStyle = '#C8553D';
     ctx.strokeStyle = dark;
     ctx.lineWidth = lw;
     smoothClosed(ctx, spineShape(P, W, 0.4));
     ctx.fill();
     ctx.stroke();
     if (fine) {
-      ctx.strokeStyle = shade(S.sailCol || '#C8553D', -0.4);
+      ctx.strokeStyle = shade('#C8553D', -0.4);
       ctx.lineWidth = lw * 0.7;
       for (let k = 0; k < P.length; k++) {
         const d = segDir(P, k);
@@ -607,7 +610,7 @@ function drawHead(ctx, c, t, S, h, a, r, col, dark, lw, o, belly) {
       const Lh = W * (H.horns === 'chevre' ? 1.5 : 1.9);
       const tip = { x: b.x - fx * Lh + nx * s * Lh * 0.25, y: b.y - fy * Lh + ny * s * Lh * 0.25 };
       const mid = { x: b.x - fx * Lh * 0.5 + nx * s * Lh * (H.horns === 'chevre' ? 0.35 : 0.08), y: b.y - fy * Lh * 0.5 + ny * s * Lh * (H.horns === 'chevre' ? 0.35 : 0.08) };
-      limb(ctx, [b, mid, tip], W * 0.14, H.hornCol || '#5A4A3A', dark, lw * 0.8);
+      limb(ctx, [b, mid, tip], W * 0.14, '#5A4A3A', dark, lw * 0.8);
     }
   }
   // les grandes oreilles d'éléphant, sur les côtés (elles s'éventent doucement)
@@ -680,7 +683,7 @@ function drawHead(ctx, c, t, S, h, a, r, col, dark, lw, o, belly) {
     const g = P(-0.15, 0);
     ellipse(ctx, g.x - nx * W * 0.25, g.y - ny * W * 0.25, L * 0.3, W * 0.28, a, 'rgba(255, 255, 255, 0.16)', null);
     if (S.stripes && H.type === 'mam') {
-      ctx.strokeStyle = o.stripe || S.stripeCol || shade(col, -0.4);
+      ctx.strokeStyle = o.stripe || shade(col, -0.4);
       ctx.lineWidth = r * 0.04;
       ctx.lineCap = 'round';
       for (const v of [-0.35, 0, 0.35]) {
@@ -839,7 +842,7 @@ function earOf(ctx, type, P, a, s, W, col, dark, lw, ea, o) {
 
 /** Les cornes, vues de dessus */
 function hornsOf(ctx, H, P, fx, fy, nx, ny, W, L, r, dark, lw, o) {
-  const hc = H.hornCol || HORN;
+  const hc = HORN;
   const type = H.horns || (o.horns ? 'allo' : null);
   if (type === 'bison' || type === 'aurochs') {
     // elles partent sur les côtés, puis se recourbent vers l'avant
@@ -1503,11 +1506,8 @@ const CURLS = new Map();
 for (const [id, make] of Object.entries(FORM_PARTS)) {
   const form = `vd-${id}`;
   const S0 = ANIMAUX[id];
-  register(form, S0);
+  // (le look « vd-… » de l'espèce sert aussi aux rivaux : le même corps, sans les évolutions)
   FORM_SPINE[form] = form;
-  SNOUT[form] = REACH[id] ?? 0.55;
-  // (un rival, de ton espèce : le même corps, sans les évolutions)
-  LOOKS[form] = (ctx, c, t) => drawLand(ctx, { ...c, look: form }, t, S0, c.sp.color, { belly: c.sp.belly, stripe: c.sp.stripe });
   FORMS[form] = (ctx, p, parts, t, mood) => {
     const o = make(parts || {});
     let S = S0;

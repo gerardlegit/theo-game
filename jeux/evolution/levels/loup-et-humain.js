@@ -48,7 +48,10 @@ const species = {
   /* ---- Ta meute : les loups seuls te rejoignent, et elle te suit partout ---- */
   'loup-solitaire': {
     name: 'Loup solitaire', plural: 'loups solitaires', kind: 'stray', look: 'vd-loup', color: '#A09C96', belly: '#EFEAE0', joins: 'loup-de-la-meute',
-    size: 34, speed: 90, sense: 0, adn: 12,
+    size: 34, speed: 90, sense: 0, adn: 12, shy: true,
+    // chacun se cache dans sa tanière, très loin des autres ; des hyènes ou un lion montent la garde
+    lair: { far: 2300, gap: 2300, scent: 850, whiff: 35, call: 650,
+      guards: ['hyene-des-cavernes', 'hyene-des-cavernes', 'lion-des-cavernes', 'hyene-des-cavernes', 'lion-des-cavernes'] },
     fact: "Un jeune loup quitte parfois sa famille pour trouver une autre meute. Tout seul, il a du mal à se nourrir : il a besoin des autres !",
   },
   'loup-de-la-meute': {
@@ -250,19 +253,22 @@ const chapters = [
     vision: 1.2,
     fog: 0.55,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#DCE6EC', motes: 'rgba(255, 255, 255, 0.9)' },
-    species: { 'loup-solitaire': 4, campagnol: 6, lievre: 6, marmotte: 4, renne: 3, bison: 1, 'cerf-geant': 1, 'rhino-laineux': 1, mammouth: 1, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1 },
+    species: { 'loup-solitaire': 5, campagnol: 6, lievre: 6, marmotte: 4, renne: 3, bison: 1, 'cerf-geant': 1, 'rhino-laineux': 1, mammouth: 1, 'hyene-des-cavernes': 4, 'lion-des-cavernes': 2 },
     unlock: ['flair', 'hurlement'],
-    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, tout seul dans la steppe. Va toucher les loups solitaires (ils ont un anneau doré) : ils te suivront. Avec 3 loups, ta meute peut attaquer un renne. Avec 5, le maximum, même un mammouth ! Tous ensemble, vous viderez sa barre de vie.",
+    intro: "Brrr ! C'est l'âge de glace. Tu es un louveteau, tout seul dans la steppe. Cinq loups solitaires se cachent très loin d'ici, chacun dans les hautes herbes… et des hyènes ou des lions montent la garde ! Faufile-toi jusqu'à eux sans te faire voir, et sans courir : ils sont timides. Touche-les, ils te suivront. Avec 3 loups, ta meute peut attaquer un renne. Avec 5, même un mammouth !",
     missions: [
       { type: 'pack', species: 'loup-solitaire', n: 3 },
-      { type: 'eat', species: 'renne', n: 2, text: 'Attaque 2 rennes avec ta meute' },
+      { type: 'eat', species: 'renne', n: 3, text: 'Attaque 3 rennes avec ta meute' },
       { type: 'evolve', part: 'hurlement' },
       { type: 'pack', species: 'loup-solitaire', n: 5 },
       { type: 'eat', species: 'rhino-laineux', n: 1, text: 'Attaque un rhinocéros laineux' },
       { type: 'eat', species: 'mammouth', n: 1, text: 'Attaque un mammouth laineux' },
     ],
     tips: [
-      "Chaque loup solitaire rejoint ta meute dès que tu le touches. Suis la flèche !",
+      "Les loups solitaires sont cachés loin, dans les hautes herbes. Tu ne les sens que de près… ou quand le vent porte leur odeur : suis vite la flèche !",
+      "Évolue le Flair : tu sentiras les loups de plus loin, et plus souvent.",
+      "Les gardiens ne voient que devant eux : passe derrière, ou cache-toi dans les herbes. Ne cours pas, ça s'entend !",
+      "Un loup solitaire a peur si tu fonces, ou si on te poursuit. Approche-le doucement.",
       "Avec 3 loups, les hyènes te laissent tranquille. Avec 5, même le lion s'enfuit !",
       "Au-dessus de chaque grosse bête, tu vois combien de loups il faut : 3 pour le renne, 4 pour le bison et le cerf géant, 5 pour le rhinocéros et le mammouth.",
       "Le rhinocéros et le mammouth se défendent ! Quand tu vois le « ! », écarte-toi : ta meute continue de mordre pendant ce temps.",
@@ -279,17 +285,18 @@ const chapters = [
     vision: 1.2,
     fog: 0.55,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#D6E0E6', motes: 'rgba(255, 255, 255, 0.9)' },
-    species: { humain: 4, chasseur: 3, lievre: 8, marmotte: 6, renne: 2, bison: 2, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1, 'rhino-laineux': 1 },
+    species: { humain: 4, chasseur: 3, lievre: 8, marmotte: 6, renne: 2, bison: 2, 'hyene-des-cavernes': 4, 'lion-des-cavernes': 2, 'rhino-laineux': 1 },
     unlock: ['pelage-epais', 'calme'],
     intro: "Tu as grandi, et tu pars seul explorer. Une drôle d'odeur flotte dans l'air : de la fumée, et de la viande grillée ! Ce sont les humains, autour de leur feu. Ils ne te connaissent pas : si tu marches vers eux, ils te chasseront. Reste près du camp sans bouger, sans foncer… et laisse-les s'habituer à toi.",
     missions: [
       { type: 'evolve', part: 'pelage-epais' },
-      { type: 'trust', species: 'humain', n: 60, text: 'Approche les humains : confiance 60 %' },
+      { type: 'trust', species: 'humain', n: 70, text: 'Approche les humains : confiance 70 %' },
       { type: 'evolve', part: 'calme' },
-      { type: 'eat', species: 'os', n: 6, text: 'Mange 6 os lancés par les humains' },
+      { type: 'eat', species: 'os', n: 10, text: 'Mange 10 os lancés par les humains' },
     ],
     tips: [
-      "Tu vois la jauge 🤝 ? C'est la confiance des humains. Elle monte quand tu restes près d'eux sans bouger.",
+      "Tu vois la jauge 🤝 ? C'est la confiance des humains. Elle monte quand tu restes près d'eux sans bouger : si tu marches, elle monte à peine.",
+      "Loin du camp, les hyènes et les lions rôdent : ils sont plus nombreux, ouvre l'œil !",
       "Quand ils te connaissent un peu, les humains te lancent des os : miam !",
       "Près du feu des humains, les chasseurs n'osent pas venir… quand les humains te font confiance.",
     ],
@@ -305,13 +312,13 @@ const chapters = [
     vision: 1.25,
     fog: 0.5,
     palette: { water: ['#C9D6DE', '#7D8E9A'], floor: '#D2DCDF', motes: 'rgba(255, 255, 255, 0.85)' },
-    species: { humain: 4, chasseur: 3, enfant: 2, lievre: 10, marmotte: 6, saiga: 8, renne: 5, 'lion-des-cavernes': 3, 'hyene-des-cavernes': 1, mammouth: 1 },
+    species: { humain: 4, chasseur: 3, enfant: 2, lievre: 10, marmotte: 6, saiga: 8, renne: 5, 'lion-des-cavernes': 4, 'hyene-des-cavernes': 4, mammouth: 1 },
     unlock: ['aboiement', 'endurance'],
     intro: "Désormais, tu vis près des humains. Ils ont besoin de toi ! Avec ton flair, tu trouves les rennes pour les chasseurs. Et la nuit, les lions des cavernes rôdent autour du camp… Apprends à aboyer pour les faire fuir !",
     missions: [
       { type: 'evolve', part: 'aboiement' },
-      { type: 'bark', species: 'renne', n: 4, text: 'Aboie pour montrer 4 rennes aux chasseurs' },
-      { type: 'bark', species: 'lion-des-cavernes', n: 3, text: 'Fais fuir 3 lions des cavernes' },
+      { type: 'bark', species: 'renne', n: 6, text: 'Aboie pour montrer 6 rennes aux chasseurs' },
+      { type: 'bark', species: 'lion-des-cavernes', n: 5, text: 'Fais fuir 5 lions des cavernes' },
       { type: 'trust', species: 'humain', n: 100, text: 'Deviens l’ami des humains : 100 %' },
     ],
     tips: [
@@ -331,14 +338,14 @@ const chapters = [
     vision: 1.3,
     fog: 0.45,
     palette: { water: ['#B9CCC8', '#6E8A86'], floor: '#C9CFB8', motes: 'rgba(255, 255, 255, 0.7)' },
-    species: { humain: 4, chasseur: 2, enfant: 4, lievre: 10, marmotte: 8, bouquetin: 8, renne: 3, 'hyene-des-cavernes': 2, 'lion-des-cavernes': 1 },
+    species: { humain: 4, chasseur: 2, enfant: 7, lievre: 10, marmotte: 8, bouquetin: 8, renne: 3, 'hyene-des-cavernes': 4, 'lion-des-cavernes': 2 },
     unlock: ['oreilles-tombantes', 'queue-tire-bouchon'],
     intro: "Des milliers d'années ont passé. Tes descendants vivent avec les humains, génération après génération… et leur corps change : tu n'es plus tout à fait un loup. Tu es devenu un chien ! Les enfants veulent jouer avec toi.",
     missions: [
       { type: 'evolve', part: 'oreilles-tombantes' },
-      { type: 'play', species: 'enfant', n: 4 },
+      { type: 'play', species: 'enfant', n: 6 },
       { type: 'evolve', part: 'queue-tire-bouchon' },
-      { type: 'eat', species: 'os', n: 8, text: 'Mange 8 friandises des humains' },
+      { type: 'eat', species: 'os', n: 12, text: 'Mange 12 friandises des humains' },
     ],
     tips: [
       "Va toucher un enfant du bout du museau : il va jouer avec toi !",
@@ -359,15 +366,15 @@ const chapters = [
     vision: 1.35,
     fog: 0.4,
     palette: { water: ['#7FB0A0', '#3A6A5A'], floor: '#8FB25E', motes: 'rgba(255, 250, 200, 0.5)' },
-    species: { humain: 3, chasseur: 2, enfant: 2, mouton: 12, chevre: 6, lievre: 6, chevreuil: 7, 'loup-sauvage': 4, aurochs: 1 },
+    species: { humain: 3, chasseur: 2, enfant: 2, mouton: 12, chevre: 6, lievre: 6, chevreuil: 7, 'loup-sauvage': 6, aurochs: 1 },
     unlock: ['pelage-tachete', 'instinct-berger'],
     intro: "La glace a fondu : partout, l'herbe et les forêts repoussent. Les humains construisent des villages, ils sèment des graines… et ils élèvent des moutons et des chèvres ! Ton travail : pousser le troupeau jusqu'à la porte du grand enclos, où le berger l'attend, et éloigner les loups sauvages.",
     missions: [
       { type: 'evolve', part: 'pelage-tachete' },
-      { type: 'herd', species: 'mouton', n: 8, text: 'Fais entrer 8 moutons par la porte' },
+      { type: 'herd', species: 'mouton', n: 12, text: 'Fais entrer 12 moutons par la porte' },
       { type: 'evolve', part: 'instinct-berger' },
-      { type: 'bark', species: 'loup-sauvage', n: 4, text: 'Éloigne 4 loups sauvages en aboyant' },
-      { type: 'herd', species: 'chevre', n: 4, text: 'Fais entrer 4 chèvres par la porte' },
+      { type: 'bark', species: 'loup-sauvage', n: 6, text: 'Éloigne 6 loups sauvages en aboyant' },
+      { type: 'herd', species: 'chevre', n: 6, text: 'Fais entrer 6 chèvres par la porte' },
     ],
     tips: [
       "Les moutons s'écartent devant toi : place-toi derrière eux pour les pousser vers la porte 🚪",
@@ -380,7 +387,7 @@ const chapters = [
 
 /* Ce que dit Ammo, ton guide, dans ce niveau */
 const lines = {
-  start: "Bloub ! Tu es tout seul, petit louveteau… Va toucher les loups à l'anneau doré : ta meute va grandir !",
+  start: "Bloub ! Tu es tout seul, petit louveteau… Les loups solitaires se cachent très loin, gardés par des hyènes et des lions. Faufile-toi jusqu'à eux, tout doucement !",
 };
 
 /* La fin : le chien est devenu le meilleur ami de l'humain… puis le défilé des chiens d'aujourd'hui */

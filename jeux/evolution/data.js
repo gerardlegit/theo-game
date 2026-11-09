@@ -32,11 +32,9 @@ export const LINES = {
   shield: "Clang ! Ta carapace t'a protégé !",
   stung: "Aïe, aïe, aïe ! Les méduses, ça pique !",
   tooHard: "Trop dur ! Il te faudrait des mâchoires…",
-  tooBig: "Trop gros pour toi… pour l'instant !",
   maxSize: "Tu as atteint ta taille maximale pour cette époque. Termine les missions pour avancer dans le temps !",
   canEvolve: "Tu as assez d'ADN pour évoluer ! Appuie sur 🧬 Évoluer.",
   revenge: "Avant, c'est lui qui te croquait… Maintenant, c'est ton tour !",
-  bigger: "Tu as grandi ! Ce qui te faisait peur devient… ton repas.",
   /* sur la terre ferme (niveau 2) */
   mud: "Beurk, de la boue ! Ça colle, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",
   snow: "Brrr, de la neige profonde ! On s'enfonce, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",
@@ -87,7 +85,10 @@ export const LINES = {
   combo: ["Quelle frénésie ! Tu ne t'arrêtes plus !", "Miam miam miam miam ! Quel combo !"],
   // le loup et l'humain
   packTitle: "Ta meute : va toucher les loups entourés d'un anneau doré pour qu'ils te rejoignent",
-  packJoin: "Un loup de plus dans ta meute ! Cherche les autres : ils ont un anneau doré.",
+  packJoin: "Un loup de plus dans ta meute ! Les autres se cachent loin d'ici : cherche dans les hautes herbes, et suis ton flair.",
+  whiff: "Snif snif… Le vent porte une odeur de loup ! Suis vite la flèche : l'odeur ne dure pas.",
+  strayShy: "Tu as foncé : il a eu peur ! Un loup solitaire est timide : approche-le tout doucement.",
+  strayChased: "Il a peur des chasseurs qui te poursuivent ! Sème-les d'abord, puis reviens doucement.",
   packSmall: "Cette bête est trop forte pour vous ! Regarde au-dessus d'elle : il te faut plus de loups.",
   huntGo: "Hou-hou-hou ! Toute la meute attaque : regarde sa barre de vie descendre !",
   packLost: "Oh non, un loup de ta meute s'est enfui ! Va vite le rechercher.",

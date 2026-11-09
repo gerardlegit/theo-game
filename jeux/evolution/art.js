@@ -10,7 +10,6 @@ const TAU = Math.PI * 2;
 export const INK = '#1E2A3A';
 
 /* ---------- Registres : d'autres fichiers (art-terre.js…) y ajoutent leurs dessins ---------- */
-export const BODIES = {};          // (art-vues.js) look ou forme → { family, P } : les mesures, pour le dessin en volume
 export const LOOKS = {};           // look d'une espèce → fonction (ctx, c, t)
 export const FORMS = {};           // forme du joueur → fonction (ctx, p, parts, t, mood)
 export const DECORS = {};          // type de décor posé au sol → fonction (ctx, d, t)
