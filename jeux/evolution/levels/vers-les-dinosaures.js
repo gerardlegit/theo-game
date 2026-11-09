@@ -2,8 +2,8 @@
 // NIVEAU 2 — VERS LES DINOSAURES
 //
 // De la sortie de l'eau (il y a 375 millions d'années) jusqu'au T. rex… et à
-// la météorite. Les animaux sont vus de trois quarts (art-trois-quarts.js) :
-// ils vont dans toutes les directions, comme les requins.
+// la météorite. Les animaux sont vus de dessus (art-dessus.js), comme les
+// requins : leur corps souple suit la tête dans toutes les directions.
 // À chaque chapitre, le joueur devient un autre animal, avec son pouvoir à lui
 // (touche F ou le bouton orange) :
 //   le tétrapode aspire ses proies, le lézard laisse sa queue en leurre,
@@ -43,7 +43,7 @@ const world = {
   ],
 };
 
-/* Les êtres vivants. look 'tq-…' = dessiné de trois quarts (art-trois-quarts.js).
+/* Les êtres vivants. look 'vd-…' = vu de dessus (art-dessus.js).
    hits = les coups qu'encaisse un géant (sa barre de vie) ; tailBite = on le touche
    en lui mordant la queue ; breachHit = le pouvoir du chapitre le touche (le
    rugissement) ; buried = caché dans les fougères ; fierce = il attaque même plus
@@ -90,7 +90,7 @@ const species = {
     fact: "Meganeura, une libellule de 70 centimètres d'envergure ! C'est le plus grand insecte volant de tous les temps.",
   },
   'lezard-rival': {
-    name: 'Lézard rival', plural: 'lézards rivaux', kind: 'rival', look: 'tq-reptile', color: '#7E9A3A', ownColor: true,
+    name: 'Lézard rival', plural: 'lézards rivaux', kind: 'rival', look: 'vd-reptile', color: '#7E9A3A', ownColor: true,
     size: 33, speed: 270, sense: 330, adn: 0,
     fact: "Les premiers reptiles se disputaient les mêmes insectes. Celui qui attrape la blatte le premier a gagné… alors fonce !",
   },
@@ -105,34 +105,34 @@ const species = {
     fact: "Pulmonoscorpius, un scorpion de la forêt de charbon, mesurait 70 centimètres. Son dard était gros comme une prune !",
   },
   dimetrodon: {
-    name: 'Dimetrodon', plural: 'Dimetrodon', proper: true, kind: 'hunter', look: 'tq-dimetrodon', color: '#94633A', noEat: true, roar: true,
+    name: 'Dimetrodon', plural: 'Dimetrodon', proper: true, kind: 'hunter', look: 'vd-dimetrodon', color: '#94633A', noEat: true, roar: true,
     size: 72, speed: 265, sense: 290, cone: 2.2, adn: 0, hitLine: 'Beurk, ça gigote !',
     fact: "Avec sa grande voile sur le dos, Dimetrodon ressemble à un dinosaure. Pourtant, il a vécu bien avant eux… et il est plus proche de toi que du T. rex !",
   },
 
   /* ---- Chapitre 3 : les premiers dinosaures ---- */
   cynodonte: {
-    name: 'Cynodonte', plural: 'cynodontes', kind: 'prey', look: 'tq-cynodonte', color: '#8A7458', pack: 3,
+    name: 'Cynodonte', plural: 'cynodontes', kind: 'prey', look: 'vd-cynodonte', color: '#8A7458', pack: 3,
     size: 24, speed: 290, sense: 280, adn: 5,
     fact: "Les cynodontes sont les ancêtres des mammifères. Ils se cachaient des dinosaures… et un jour, ce sont leurs descendants qui ont dominé la Terre !",
   },
   coelophysis: {
-    name: 'Coelophysis', plural: 'Coelophysis', proper: true, kind: 'hunter', look: 'tq-coelophysis', color: '#B58A3C', noEat: true, pack: 2,
+    name: 'Coelophysis', plural: 'Coelophysis', proper: true, kind: 'hunter', look: 'vd-coelophysis', color: '#B58A3C', noEat: true, pack: 2,
     size: 68, speed: 390, sense: 440, cone: 3, adn: 0,
     fact: "Coelophysis, un des premiers dinosaures, était fin et très rapide. On a retrouvé des centaines de squelettes ensemble : ils vivaient sans doute en groupe.",
   },
   postosuchus: {
-    name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'tq-postosuchus', color: '#6E6A44', noEat: true, roar: true, maxTurn: 2.4, stomp: true,
+    name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'vd-postosuchus', color: '#6E6A44', noEat: true, roar: true, maxTurn: 2.4, stomp: true,
     size: 115, speed: 385, sense: 480, cone: 2.8, adn: 0, hitLine: 'Ouille !',
     fact: "Postosuchus n'était pas un dinosaure, mais un cousin des crocodiles. Au Trias, c'était lui le grand chasseur, et les premiers dinosaures en avaient peur !",
   },
   'dino-rival': {
-    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'tq-premier-dino', color: '#8E6A3A', ownColor: true,
+    name: 'Dinosaure rival', plural: 'dinosaures rivaux', kind: 'rival', look: 'vd-premier-dino', color: '#8E6A3A', ownColor: true,
     size: 58, speed: 330, sense: 380, adn: 0,
     fact: "Les premiers dinosaures étaient nombreux à chasser les mêmes proies. Et les grands crocodiles du Trias, eux, les croquaient tous sans distinction !",
   },
   plateosaure: {
-    name: 'Plateosaurus', plural: 'Plateosaurus', proper: true, kind: 'neutral', look: 'tq-plateosaure', color: '#7FA84F', noEat: true, pack: 2,
+    name: 'Plateosaurus', plural: 'Plateosaurus', proper: true, kind: 'neutral', look: 'vd-plateosaure', color: '#7FA84F', noEat: true, pack: 2,
     size: 120, speed: 150, sense: 0, adn: 0,
     fact: "Plateosaurus, long comme une camionnette, a été un des premiers grands dinosaures herbivores. Son long cou lui servait à atteindre les hautes branches.",
   },
@@ -144,12 +144,12 @@ const species = {
 
   /* ---- Chapitre 4 : le Jurassique ---- */
   compsognathus: {
-    name: 'Compsognathus', plural: 'Compsognathus', proper: true, kind: 'prey', look: 'tq-compsognathus', color: '#8EA442', buried: true,
+    name: 'Compsognathus', plural: 'Compsognathus', proper: true, kind: 'prey', look: 'vd-compsognathus', color: '#8EA442', buried: true,
     size: 34, speed: 380, sense: 300, adn: 10,
     fact: "Compsognathus était un dinosaure grand comme une poule. Il se cachait dans les fougères… mais pas assez bien pour échapper au flair d'un Allosaurus !",
   },
   dryosaure: {
-    name: 'Dryosaurus', plural: 'Dryosaurus', proper: true, kind: 'prey', look: 'tq-dryosaure', color: '#A0A04A', pack: 3,
+    name: 'Dryosaurus', plural: 'Dryosaurus', proper: true, kind: 'prey', look: 'vd-dryosaure', color: '#A0A04A', pack: 3,
     size: 62, speed: 430, sense: 380, adn: 16,
     fact: "Dryosaurus, un petit herbivore, comptait sur ses longues pattes pour échapper aux chasseurs : il courait très vite !",
   },
@@ -159,35 +159,35 @@ const species = {
     fact: "Rhamphorhynchus n'était pas un dinosaure, mais un ptérosaure, un reptile volant. Sa longue queue se terminait par une petite palette en forme de losange.",
   },
   stegosaure: {
-    name: 'Stegosaurus', plural: 'Stegosaurus', proper: true, kind: 'defender', look: 'tq-stegosaure', color: '#7D9440', noEat: true, stomp: true, hurt: 'Aïe, les piquants !',
+    name: 'Stegosaurus', plural: 'Stegosaurus', proper: true, kind: 'defender', look: 'vd-stegosaure', color: '#7D9440', noEat: true, stomp: true, hurt: 'Aïe, les piquants !',
     size: 160, speed: 250, sense: 380, adn: 0,
     fact: "Les pointes de la queue de Stegosaurus étaient redoutables : on a retrouvé un os d'Allosaurus percé par l'une d'elles !",
   },
   brachiosaure: {
-    name: 'Brachiosaurus', plural: 'Brachiosaurus', proper: true, kind: 'giant', look: 'tq-brachiosaure', color: '#8A8A6E', stomp: true, maxTurn: 0.6,
+    name: 'Brachiosaurus', plural: 'Brachiosaurus', proper: true, kind: 'giant', look: 'vd-brachiosaure', color: '#8A8A6E', stomp: true, maxTurn: 0.6,
     size: 330, speed: 130, sense: 0, adn: 0,
     fact: "Brachiosaurus pesait autant que 10 éléphants, et sa tête montait à la hauteur d'un immeuble de 4 étages. Rien ne pouvait l'attaquer…",
   },
   diplodocus: {
-    name: 'Diplodocus', plural: 'Diplodocus', proper: true, kind: 'giant', look: 'tq-diplodocus', color: '#8A7A62', stomp: true, maxTurn: 0.6,
+    name: 'Diplodocus', plural: 'Diplodocus', proper: true, kind: 'giant', look: 'vd-diplodocus', color: '#8A7A62', stomp: true, maxTurn: 0.6,
     tailBite: true, hits: 3, hitLine: 'FLAAAC !',
     size: 300, speed: 140, sense: 0, adn: 0,
     fact: "Diplodocus mesurait plus de 25 mètres, dont une queue immense. Elle claquait peut-être comme un fouet… assez fort pour faire un bang !",
   },
   'allosaure-rival': {
-    name: 'Allosaurus rival', plural: 'Allosaurus rivaux', proper: true, kind: 'rival', look: 'tq-allosaure', color: '#7A5E8E', ownColor: true,
+    name: 'Allosaurus rival', plural: 'Allosaurus rivaux', proper: true, kind: 'rival', look: 'vd-allosaure', color: '#7A5E8E', ownColor: true,
     size: 106, speed: 450, sense: 460, adn: 0,
     fact: "On a trouvé des os d'Allosaurus avec des morsures… d'Allosaurus ! Entre grands chasseurs, on se disputait les proies, et parfois on se mangeait.",
   },
   ceratosaure: {
-    name: 'Ceratosaurus', plural: 'Ceratosaurus', proper: true, kind: 'hunter', look: 'tq-ceratosaure', color: '#8C5A3C', noEat: true, roar: true, maxTurn: 2.6,
+    name: 'Ceratosaurus', plural: 'Ceratosaurus', proper: true, kind: 'hunter', look: 'vd-ceratosaure', color: '#8C5A3C', noEat: true, roar: true, maxTurn: 2.6,
     size: 135, speed: 490, sense: 540, cone: 2.8, adn: 0,
     fact: "Ceratosaurus portait une corne sur le nez et une rangée de petites plaques sur le dos. Personne ne sait vraiment à quoi servait sa corne !",
   },
 
   /* ---- Chapitre 5 : le Crétacé ---- */
   edmontosaure: {
-    name: 'Edmontosaurus', plural: 'Edmontosaurus', proper: true, kind: 'prey', look: 'tq-edmontosaure', color: '#7A8E5A', pack: 3,
+    name: 'Edmontosaurus', plural: 'Edmontosaurus', proper: true, kind: 'prey', look: 'vd-edmontosaure', color: '#7A8E5A', pack: 3,
     size: 135, speed: 470, sense: 480, adn: 30,
     eatLine: "Un Edmontosaurus ! On a retrouvé des traces de dents de T. rex sur leurs os : tu es bien dans l'histoire !",
     fact: "Edmontosaurus avait un bec de canard et des centaines de dents pour broyer les plantes. C'était le repas préféré du T. rex.",
@@ -198,27 +198,27 @@ const species = {
     fact: "Pteranodon planait au-dessus de la mer, avec 7 mètres d'envergure… et pas une seule dent dans son long bec !",
   },
   dakotaraptor: {
-    name: 'Dakotaraptor', plural: 'Dakotaraptor', proper: true, kind: 'hunter', look: 'tq-dakotaraptor', color: '#5A5288', noEat: true, fierce: true, pack: 2,
+    name: 'Dakotaraptor', plural: 'Dakotaraptor', proper: true, kind: 'hunter', look: 'vd-dakotaraptor', color: '#5A5288', noEat: true, fierce: true, pack: 2,
     size: 112, speed: 620, sense: 560, cone: 3, adn: 0,
     fact: "Dakotaraptor, un raptor géant de 5 mètres, avait des plumes et une griffe en forme de faux à chaque pied. En meute, même un T. rex devait se méfier !",
   },
   ankylosaure: {
-    name: 'Ankylosaurus', plural: 'Ankylosaurus', proper: true, kind: 'defender', look: 'tq-ankylosaure', color: '#7A7050', noEat: true, stomp: true, hurt: 'Aïe, la massue !',
+    name: 'Ankylosaurus', plural: 'Ankylosaurus', proper: true, kind: 'defender', look: 'vd-ankylosaure', color: '#7A7050', noEat: true, stomp: true, hurt: 'Aïe, la massue !',
     size: 160, speed: 230, sense: 340, adn: 0,
     fact: "Ankylosaurus était un vrai char d'assaut : blindé de plaques d'os, jusqu'aux paupières ! Un coup de sa queue-massue pouvait briser une patte de T. rex.",
   },
   triceratops: {
-    name: 'Triceratops', plural: 'Triceratops', proper: true, kind: 'defender', look: 'tq-triceratops', color: '#A58A52', noEat: true, stomp: true, hurt: 'Aïe, les cornes !',
+    name: 'Triceratops', plural: 'Triceratops', proper: true, kind: 'defender', look: 'vd-triceratops', color: '#A58A52', noEat: true, stomp: true, hurt: 'Aïe, les cornes !',
     size: 190, speed: 320, sense: 420, adn: 0,
     fact: "Le crâne de Triceratops mesurait plus de 2 mètres. On a trouvé ses os marqués par les dents du T. rex… et des T. rex blessés par ses cornes !",
   },
   'jeune-trex': {
-    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'tq-trex', color: '#8A7A44', ownColor: true,
+    name: 'Jeune T. rex', plural: 'jeunes T. rex', kind: 'rival', look: 'vd-trex', color: '#8A7A44', ownColor: true,
     size: 160, speed: 560, sense: 560, adn: 0,
     fact: "Les jeunes T. rex étaient fins et rapides : ils chassaient de plus petites proies que les adultes. Mais un vieux T. rex n'aurait pas hésité à en croquer un !",
   },
   'trex-rival': {
-    name: 'Le T. rex rival', plural: 'T. rex', proper: true, kind: 'hunter', look: 'tq-trex-rival', color: '#6A5234', noEat: true, roar: true, stomp: true, maxTurn: 1.6,
+    name: 'Le T. rex rival', plural: 'T. rex', proper: true, kind: 'hunter', look: 'vd-trex-rival', color: '#6A5234', noEat: true, roar: true, stomp: true, maxTurn: 1.6,
     breachHit: true, hits: 4, hitLine: 'GRRRR… !',
     size: 205, speed: 620, sense: 760, cone: 2.8, adn: 0,
     fact: "La morsure du T. rex est la plus forte de tous les animaux terrestres connus : assez pour broyer les os. Deux T. rex ne se laissaient pas le territoire sans se battre !",
@@ -284,7 +284,7 @@ const chapters = [
   {
     title: "La sortie de l'eau",
     ago: [375, 360],
-    form: 'tq-tetrapode',
+    form: 'vd-tetrapode',
     skin: { body: '#4FAE9C', belly: '#F1E3A0', dark: '#1D5A4E', stripe: '#2E7A6C' },
     size: [24, 24],
     dry: 1 / 22,                     // sur la terre, la réserve d'air et d'eau baisse : il faut retourner dans une mare
@@ -315,7 +315,7 @@ const chapters = [
   {
     title: 'La forêt de charbon',
     ago: [305, 295],
-    form: 'tq-reptile',
+    form: 'vd-reptile',
     skin: { body: '#D98E3A', belly: '#F7E0A8', dark: '#6B3A12', stripe: '#8A4A16' },
     size: [34, 34],
     vision: 0.9,
@@ -344,7 +344,7 @@ const chapters = [
   {
     title: 'Les premiers dinosaures',
     ago: [230, 220],
-    form: 'tq-premier-dino',
+    form: 'vd-premier-dino',
     rivalHunt: { rival: 'dino-rival', by: ['postosuchus', 'coelophysis'], every: [20, 32] },   // sous tes yeux, un chasseur croque un rival
     skin: { body: '#C8553D', belly: '#F6CFA8', dark: '#5E1F14', stripe: '#7A2A1C' },
     size: [62, 62],
@@ -374,7 +374,7 @@ const chapters = [
   {
     title: 'Le Jurassique',
     ago: [150, 145],
-    form: 'tq-allosaure',
+    form: 'vd-allosaure',
     rivalHunt: { rival: 'allosaure-rival', by: ['ceratosaure'], every: [20, 32] },
     skin: { body: '#3E7CB8', belly: '#DCEAF5', dark: '#1B3A5C', stripe: '#F2C14E' },
     size: [112, 112],
@@ -404,7 +404,7 @@ const chapters = [
   {
     title: 'Le Crétacé',
     ago: [68, 66],
-    form: 'tq-trex',
+    form: 'vd-trex',
     rivalHunt: { rival: 'jeune-trex', by: ['trex-rival'], every: [22, 34] },
     skin: { body: '#2F6E73', belly: '#F2D7A6', dark: '#123336', stripe: '#E9822B' },
     size: [180, 180],

@@ -62,11 +62,9 @@
 //      faut "need" loups pour l'attaquer ; fights : au lieu de fuir, il se retourne et charge), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (terre
-//      ferme), art-dinos.js (dinosaures de profil, pour la fin), art-trois-quarts.js (les
-//      animaux du niveau 2 vus de trois quarts : look 'tq-trex', 'tq-stegosaure'…),
-//      art-decoupe.js + art-decoupe-animaux.js (les animaux des niveaux 3 et 4
-//      en papier découpé, de profil, de face et de dos : look 'dc-loup',
-//      'dc-mammouth'…), art-poils.js (les humains : 'tq-humain'…), art-mer.js (reptiles marins,
+//      ferme), art-dinos.js (dinosaures de profil, pour la fin), art-dessus.js (tous
+//      les animaux des niveaux 2, 3 et 4, et les humains, vus de dessus : look
+//      'vd-trex', 'vd-mammouth', 'vd-humain'…), art-mer.js (reptiles marins,
 //      requins, tortues, ammonites…) ou art-mammiferes.js (titanoboa, oiseau,
 //      et les dessins de profil des intros et du défilé des chiens).
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
