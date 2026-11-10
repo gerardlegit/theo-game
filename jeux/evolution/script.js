@@ -2800,9 +2800,10 @@ function updateContacts() {
     if (side() && c.sp.raider && p.dash > 0 && !(c.scaredT > 0) && d < c.size + p.size * 1.4) shooRaider(c);
     // 5. un enfant qui joue avec toi
     if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
-    // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
+    // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute ;
+    //    et jamais vu de côté : les animaux passent les uns devant les autres)
     const touch = c.size * 0.75 + p.size * 0.75;
-    if (d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
+    if (!side() && d < touch && !canEat(c) && c.sp.kind !== 'food' && !c.sp.flying && !['giant', 'ally', 'flock', 'shepherd'].includes(c.sp.kind)) {
       const push = (touch - d) / 2;
       const nx = (c.x - p.x) / (d || 1), ny = (c.y - p.y) / (d || 1);
       const heavy = c.size / (c.size + p.size);
