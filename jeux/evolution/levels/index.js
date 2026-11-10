@@ -111,6 +111,42 @@
 //      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur
 //      la carte des niveaux de l'écran de départ (elle se construit toute
 //      seule à partir des choix de fin).
+//   LA VUE DE CÔTÉ (voie-des-airs.js, voie-des-reptiles.js ; moteur : cote.js,
+//   dessins : art-cote.js, animations : intro-cote.js)
+//      world.view = 'cote' (et ground 'cote') : le monde est vu de profil. Chaque
+//      chapitre a son paysage, "land" : w, h, base (le niveau du sol, en part de
+//      h), hills, start (où l'on part, en part de la largeur), cliffs + cliffH
+//      (des falaises avec leurs corniches), mountains + mountainH (des sommets ;
+//      summit = à partir de quelle hauteur on est « au sommet »), lakes + lakeW +
+//      lakeD, sea ('right' / 'left') + seaW + seaCliff (+ seaCliffH), thermals +
+//      thermalLift (les colonnes d'air chaud), camps (les humains), trees
+//      ({ kapokier, feuillu, palmier, fougere, mort, pin, acacia, cypres : nombre }),
+//      deco ({ fougere, buisson, herbe, roseau, fleur, rocher, os, souche,
+//      champignon, cactus : par 1000 px } ; buissons, herbes et roseaux cachent),
+//      pal (les couleurs : sky, sun, layers = le lointain [{ kind 'mont' / 'foret'
+//      / 'palmiers', A, p, col, snow, haze }], ground, grass, rock, snow, sand,
+//      water…, weather 'cendre' / 'pluie' / 'lucioles' / 'pollen' / 'neige', mist).
+//      Chapitre : moves = ce que sait faire le joueur ({ fly, float, dive, climb,
+//      swim, jump, flyK, walkK, swimK, climbK, agile, flapRate }) ; wings = la jauge
+//      💨 des ailes (en secondes de battements) ; camo = immobile dans un arbre,
+//      on est invisible ; ambush = immobile sous l'eau, on est invisible ; bark =
+//      le nom du cri ({ icon, name }) ; zoom ; nestK, eggCol.
+//      Espèces : lives ('air' vole, 'eau' nage, 'arbre' sur les branches, 'sol'
+//      par défaut), swims, climbs, dives, floats, alt = son étage dans le ciel
+//      [min, max] au-dessus du sol, depth = sous l'eau [min, max], near 'eau' = il
+//      vit au bord de l'eau, raider = il vient voler la becquée dans ton nid (on
+//      fonce dessus pour le chasser : mission bark), glide = il plane, leap = il
+//      saute hors de l'eau (toutes les N s), flapRate, agile, shell (tortues).
+//      Looks « vc-<nom> » (art-cote.js) ; les mammifères et les humains de profil
+//      viennent d'art-profil.js.
+//      Missions : nest (construire son nid ; place 'corniche' / 'cime' / 'sommet'
+//      / 'sol' / 'cache' = dans les hautes herbes / 'haut' / 'arbre' ; eggs ;
+//      hint = ce que dit Ammo au mauvais endroit), feed (n becquées rapportées au
+//      nid ; species = ce qui compte), visit (atteindre n lieux : place 'cime' /
+//      'thermique' + alt / 'sommet' ; icon, cry), escape (échapper n fois à un
+//      chasseur). Intro 'airs' / 'reptiles' ; fin scene 'oiseaux' / 'reptiles'
+//      avec "parade" = le défilé des espèces d'aujourd'hui ([{ look, name, color,
+//      belly, k (la taille), fly }]).
 //   7. Ajouter le niveau à la liste ci-dessous. C'est tout : le moteur
 //      (script.js) ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -121,5 +157,7 @@ import monstresMarins from './monstres-marins.js';
 import voieDesMammiferes from './voie-des-mammiferes.js';
 import loupEtHumain from './loup-et-humain.js';
 import voieDesRequins from './voie-des-requins.js';
+import voieDesAirs from './voie-des-airs.js';
+import voieDesReptiles from './voie-des-reptiles.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins, voieDesAirs, voieDesReptiles];

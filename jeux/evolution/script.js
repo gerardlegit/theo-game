@@ -21,6 +21,9 @@ import { campFire } from './art-loup.js';
 import { BREED_PARADE } from './art-profil.js';
 import './art-requins.js';
 import { drawDecoyTail } from './art-dessus.js';
+import { STAND, sideMouth, drawNest, drawCarry } from './art-cote.js';
+import { createCote } from './cote.js';
+import { createSideIntro, drawSideEnding } from './intro-cote.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES } from './data.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
@@ -276,7 +279,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {} };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {}, nest: null, fed: 0, visited: [], escaped: 0 };
 }
 
 function newGame() {
@@ -349,7 +352,7 @@ function markDone(id, choice) {
 function recalc() {
   const s = {
     speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false,
-    howl: false, trust: 1, bark: false, treats: 1, herd: 1, power: 1,
+    howl: false, trust: 1, bark: false, treats: 1, herd: 1, power: 1, wings: 1,
   };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
@@ -370,6 +373,7 @@ function recalc() {
     if (e.bark) s.bark = true;
     if (e.treats) s.treats = Math.max(s.treats, e.treats);
     if (e.herd) s.herd = Math.max(s.herd, e.herd);
+    if (e.wings) s.wings = Math.max(s.wings, e.wings);
   }
   stats = s;
 }
@@ -379,6 +383,7 @@ const growthK = () => (LV.world.noGrow ? 0 : clamp(game.earned / CH.growth, 0, 1
 const targetSize = () => CH.size[0] + (CH.size[1] - CH.size[0]) * growthK();
 const maxSpeed = () => {
   const v = (BASE_SPEED + SPEED_PER_SIZE * player.size) * stats.speed * (CH.speed || 1);
+  if (LV.world.view === 'cote') return Math.min(LAND_MAX, v * (LV.world.speed || 1.6));
   return LV.world.ground === 'land' ? Math.min(LAND_MAX, v * LAND_SPEED) : v * (LV.world.speed || 1);
 };
 const visionR = () => (140 + player.size * 9) * stats.vision * (CH.vision || 1) * (player.litT > 0 ? 2.6 : 1);
@@ -413,6 +418,10 @@ function isThreat(c) {
 
 /** Où est la gueule d'un animal (ou du joueur) */
 function mouthPoint(e, k = 0.8) {
+  if (side()) {
+    const m = sideMouth(e, e === player ? CH.form : e.sp.look);
+    if (m) return m;
+  }
   k = SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
@@ -435,6 +444,7 @@ function angleDiff(a, b) {
 
 /** Dans quelle zone est ce point : 'water' (mare), 'mud' (boue) ou null ? */
 function zoneAt(x, y) {
+  if (side()) return cote.zoneAt(x, y);
   for (const z of zones) {
     const dx = x - z.x, dy = y - z.y;
     if (dx * dx + dy * dy < z.r * z.r * 0.72) return z.zone;
@@ -444,7 +454,9 @@ function zoneAt(x, y) {
 
 function nearestZone(x, y, kind) {
   let best = null, bd = Infinity;
-  for (const z of zones) {
+  // (vue de côté) les camps des humains sont dans le paysage du chapitre
+  const list = side() && kind === 'camp' ? cote.G.camps.map((c) => ({ x: c.x, y: c.y - 60, r: c.r, zone: 'camp' })) : zones;
+  for (const z of list) {
     if (z.zone !== kind) continue;
     const d = Math.hypot(z.x - x, z.y - y);
     if (d < bd) { bd = d; best = z; }
@@ -456,6 +468,7 @@ function nearestZone(x, y, kind) {
 function baseZoom() { return clamp(cssW / 950, 0.58, 1.1); }
 /** Plus on est gros, plus la caméra recule (on voit plus loin) */
 function targetZoom() {
+  if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
 }
 
@@ -492,6 +505,13 @@ function freeCanvas(c) {
 /* ---------- Construction du monde (décor) ---------- */
 function buildWorld() {
   const W = LV.world;
+  if (W.view === 'cote') {
+    // (vue de côté) chaque chapitre a son propre paysage : il est construit dans chapterDecor()
+    decor = []; hides = []; covers = []; zones = []; clouds = [];
+    levelDecor = { zones: [], hides: [], covers: [] };
+    motes = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 1), p: rand(0, TAU) }));
+    return;
+  }
   const rnd = mulberry32(1234 + game.level * 77);
   decor = [];
   hides = [];
@@ -537,6 +557,19 @@ function buildWorld() {
 /* ---------- La terre ferme : la course et la poussière (voir terre.js) ---------- */
 const terre = createTerre({ level: () => LV, chapter: () => CH, particles: () => particles, shade });
 
+/* ---------- Le monde vu de côté (la voie des airs, la voie des reptiles) : voir cote.js ---------- */
+const cote = createCote({
+  level: () => LV, chapter: () => CH, player: () => player,
+  splash: (e) => {
+    if (!onScreen(e, 60)) return;
+    sfx.splash();
+    for (let i = 0; i < 10; i++) particles.push({ x: e.x + rand(-1, 1) * e.size, y: e.y - e.size * 0.2, vx: rand(-1, 1) * 120, vy: rand(-320, -120), life: 0, max: rand(0.4, 0.7), size: rand(3, 6) + e.size * 0.06, color: '#DDF2FF' });
+  },
+  land: (e) => { if (e === player) terre.dust(e.x, e.y + cote.standOf(e), 6, 80, Math.max(4, e.size * 0.2)); },
+  takeoff: (e) => { if (e === player) sfx.dash(); },
+});
+const side = () => cote.on();
+
 /* ---------- Le joueur ---------- */
 function formLook() {
   return FORM_SPINE[CH.form] || null;
@@ -551,6 +584,8 @@ function placePlayer(x, y) {
     invul: 1.5, hidden: false, dead: false, deadT: 0, squash: 0,
     walk: 0, wet: 1, dryT: 0, zone: null,
   };
+  // (vue de côté) il tombe doucement sur le sol, tourné vers la droite
+  if (side()) Object.assign(player, { loco: 'chute', face: 1, look: CH.form, energy: 1, pitch: 0, carry: 0 });
   resetSpine(player, formLook());
   zoom = targetZoom();
   viewW = cssW / zoom;
@@ -587,8 +622,14 @@ function spawnCreature(id, initial = false) {
   const hunter = sp.kind === 'hunter' || sp.kind === 'stinger';
   const minD = initial ? (hunter ? half * 1.05 : sp.size + 120) : half + sp.size * 2;
   for (let tries = 0; tries < 14; tries++) {
-    let x, y, home = null;
-    if (sp.habitat) {
+    let x, y, home = null, spot = null;
+    if (side()) {
+      // (vue de côté) dans le ciel, par terre, dans l'eau, sur une branche…
+      spot = cote.spawnPoint(sp, player, minD, far, initial);
+      if (!spot) return null;
+      x = spot.x;
+      y = spot.y;
+    } else if (sp.habitat) {
       // les poissons et les crocodiles ne vivent que dans les mares (les humains, dans leur camp)
       const ponds = zones.filter((z) => z.zone === sp.habitat && z.r > sp.size * 1.6 && dist(z, player) < far + z.r);
       if (!ponds.length) return null;
@@ -624,7 +665,8 @@ function spawnCreature(id, initial = false) {
       // une meute : les autres apparaissent juste à côté
       const px = k ? x + rand(-1, 1) * sp.size * 2.5 : x, py = k ? y + rand(-1, 1) * sp.size * 2.5 : y;
       const vary = sp.kind === 'hunter' ? 1 : rand(0.9, 1.1);
-      const c = makeCreature(id, px, py, home, sp.size * vary);
+      const c = makeCreature(id, px, side() && k ? y : py, home, sp.size * vary);
+      if (side()) sideInit(c, spot);
       creatures.push(c);
       if (!leader) leader = c;
     }
@@ -1123,7 +1165,9 @@ function updatePlayer(dt) {
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
   let want = dir;
   if (dashing && !want) want = { x: Math.cos(p.angle), y: Math.sin(p.angle) };
-  if (onLand) {
+  if (side()) {
+    sideMove(p, dir, ms, dt, dashing);
+  } else if (onLand) {
     terre.run(p, want, ms * boost, dt, dashing);
   } else {
     if (want && !(p.airT > 0)) {
@@ -1135,20 +1179,22 @@ function updatePlayer(dt) {
     p.vx *= k;
     p.vy *= k;
   }
-  const ox = p.x, oy = p.y;
-  p.x += p.vx * dt;
-  p.y += p.vy * dt;
-  fence(p, ox, oy, true, p.size * 0.5);
-  const W = LV.world;
-  const m = p.size + 20;
-  if (p.x < m) { p.x = m; p.vx = Math.abs(p.vx) * 0.3; }
-  if (p.y < m) { p.y = m; p.vy = Math.abs(p.vy) * 0.3; }
-  if (p.x > W.w - m) { p.x = W.w - m; p.vx = -Math.abs(p.vx) * 0.3; }
-  if (p.y > W.h - m) { p.y = W.h - m; p.vy = -Math.abs(p.vy) * 0.3; }
+  if (!side()) {
+    const ox = p.x, oy = p.y;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    fence(p, ox, oy, true, p.size * 0.5);
+    const W = LV.world;
+    const m = p.size + 20;
+    if (p.x < m) { p.x = m; p.vx = Math.abs(p.vx) * 0.3; }
+    if (p.y < m) { p.y = m; p.vy = Math.abs(p.vy) * 0.3; }
+    if (p.x > W.w - m) { p.x = W.w - m; p.vx = -Math.abs(p.vx) * 0.3; }
+    if (p.y > W.h - m) { p.y = W.h - m; p.vy = -Math.abs(p.vy) * 0.3; }
+  }
   const sp = Math.hypot(p.vx, p.vy);
   p.speed = clamp(sp / ms, 0, 1.5);
   p.walk += sp * dt / Math.max(10, p.size) * 1.3;
-  if (sp > 8) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (onLand ? TURN_LAND : stats.dash ? 10 : TURN) * dt);
+  if (sp > 8 && !side()) p.angle = turnToward(p.angle, Math.atan2(p.vy, p.vx), (onLand ? TURN_LAND : stats.dash ? 10 : TURN) * dt);
   if (dashing) {
     p.dash -= dt;
     if (!onLand && Math.random() < dt * 30) bubbleAt(p.x - Math.cos(p.angle) * p.size, p.y - Math.sin(p.angle) * p.size, p.size * 0.22);
@@ -1171,6 +1217,11 @@ function updatePlayer(dt) {
   // caché dans les algues (ou les fougères) ?
   const wasHidden = p.hidden;
   p.hidden = hides.some((a) => dist(a, p) < a.r * 0.85 - p.size * 0.5);
+  if (side()) {
+    p.stillT = p.speed < 0.12 ? (p.stillT || 0) + dt : 0;
+    p.hidden = p.hidden || sideHidden(p);
+    updateNest(dt);
+  }
   // près du feu des humains qui te font confiance, aucun chasseur n'ose venir
   p.safe = zone === 'camp' && (game.trust || 0) >= SAFE_TRUST;
   p.barkT = Math.max(0, (p.barkT || 0) - dt);
@@ -1253,14 +1304,20 @@ function respawn() {
   const p = player;
   // on renaît dans la cachette la plus proche (mais pas sous le nez du chasseur) ;
   // tant que la jauge baisse, on renaît là où on la remplit (une mare, la surface)
-  const spots = drying() ? zones.filter((z) => z.zone === meter().zone) : hides;
-  let best = spots[0] || { x: LV.world.start.x, y: LV.world.start.y }, bd = Infinity;
-  for (const a of spots) {
-    const d = dist(a, p);
-    if (d > 500 && d < bd && a.r > p.size * 1.5) { bd = d; best = a; }
+  if (side()) {
+    // (vue de côté) on repart du nid, ou pas loin, sur la terre ferme
+    const pt = cote.respawnPoint(p, game.nest, (STAND[CH.form] ?? 0.6) * targetSize());
+    Object.assign(p, { x: pt.x, y: pt.y, plat: pt.plat || null, loco: pt.plat ? 'sol' : 'chute', tree: null, energy: 1, carry: 0 });
+  } else {
+    const spots = drying() ? zones.filter((z) => z.zone === meter().zone) : hides;
+    let best = spots[0] || { x: LV.world.start.x, y: LV.world.start.y }, bd = Infinity;
+    for (const a of spots) {
+      const d = dist(a, p);
+      if (d > 500 && d < bd && a.r > p.size * 1.5) { bd = d; best = a; }
+    }
+    p.x = best.x;
+    p.y = best.y;
   }
-  p.x = best.x;
-  p.y = best.y;
   p.vx = p.vy = 0;
   p.dead = false;
   p.wet = 1;
@@ -1277,6 +1334,289 @@ function respawn() {
   flash = { a: 0.6, color: '255,255,255' };
   for (let i = 0; i < 16; i++) bubbleAt(p.x, p.y, p.size * 0.5);
   sfx.pickup();
+}
+
+/* ============================================================================
+   LA VUE DE CÔTÉ (la voie des airs, la voie des reptiles) : voir cote.js
+   ============================================================================ */
+
+/** Le joueur marche, vole, grimpe ou nage, selon ce que sait faire son animal (chapters[].moves) */
+function sideMove(p, dir, ms, dt, dashing) {
+  const M = CH.moves || {};
+  const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
+  let want = dir;
+  if (dashing && !want) want = { x: p.face || 1, y: p.loco === 'vol' ? 0.2 : 0 };
+  const can = {
+    fly: !!M.fly, climb: !!M.climb, swim: !!M.swim, float: !!M.float, dive: !!M.dive, jump: M.jump || 0,
+    flap: !CH.wings || (p.energy ?? 1) > 0.02, agile: M.agile || 3, swimK: M.swimK || 0.9, climbK: M.climbK || 0.75,
+  };
+  // (moves.walkK) les gros reptiles sont lents sur la terre ferme : c'est dans l'eau qu'ils chassent
+  const k = p.loco === 'vol' ? (M.flyK || 1) : p.loco === 'sol' || p.loco === 'grimpe' ? (M.walkK || 1) : 1;
+  cote.move(p, want, ms * boost * k, dt, can, dashing);
+  // (CH.wings) battre des ailes fatigue ; posé, ou en planant dans l'air chaud, on se repose
+  if (CH.wings) {
+    const e = p.energy ?? 1;
+    if (p.loco === 'vol' && p.flapping) p.energy = Math.max(0, e - dt / (CH.wings * (stats.wings || 1)) * (dashing ? 2 : 1));
+    else if (p.loco === 'vol') p.energy = Math.min(1, e + dt * (p.inThermal ? 0.6 : 0.05));
+    else p.energy = Math.min(1, e + dt * 0.5);
+    if (p.energy < 0.2 && p.loco === 'vol') sayOnce('tired', LINES.tired, 30, 2);
+  }
+  p.flapPh = (p.flapPh || 0) + dt * (M.flapRate || 9) * (p.flapping ? 1 : 0);
+  if (p.loco === 'sol' && p.speed > 0.6 && Math.random() < dt * 8) terre.dust(p.x - p.vx * 0.03, p.y + cote.standOf(p), 1, 40, Math.max(3, p.size * 0.16));
+}
+
+/** (CH.camo) le caméléon immobile dans un arbre ; (CH.ambush) le crocodile immobile sous l'eau : invisibles ! */
+function sideHidden(p) {
+  if (CH.camo && p.stillT > 0.6 && (p.loco === 'grimpe' || (p.plat && p.plat.tree))) return true;
+  if (CH.ambush && p.stillT > 0.4 && p.loco === 'eau') return true;
+  return false;
+}
+
+/** Un animal qui apparaît : dans quel sens il regarde, et comment il se déplace */
+function sideInit(c, spot) {
+  const sp = c.sp;
+  c.face = Math.random() < 0.5 ? -1 : 1;
+  c.angle = c.face > 0 ? 0 : Math.PI;
+  c.look = sp.look;
+  c.plat = (spot && spot.plat) || null;
+  c.water = (spot && spot.water) || null;
+  c.loco = sp.lives === 'air' ? 'vol' : sp.lives === 'eau' ? 'eau' : c.plat ? 'sol' : 'chute';
+  if (sp.lives === 'eau' && !c.water) c.water = cote.G.wetAt(c.x);
+}
+
+/* ---------- Le nid : on le construit, les œufs éclosent, on nourrit les petits ---------- */
+const nestImgs = {};
+function nestThumb(chicks) {
+  const key = chicks ? 'c' : 'e';
+  if (nestImgs[key]) return nestImgs[key];
+  const c = document.createElement('canvas');
+  c.width = c.height = 192;
+  const g = c.getContext('2d');
+  g.scale(2, 2);
+  drawNest(g, { x: 48, y: 64, r: 34, eggs: chicks ? 0 : 3, chicks: chicks ? 2 : 0, hunger: 1, col: '#E8D8B0' }, 0.3);
+  nestImgs[key] = c.toDataURL();
+  return nestImgs[key];
+}
+
+function nestView() {
+  const n = game.nest;
+  const r = Math.max(26, player.size * 0.85) * (CH.nestK || 1);
+  return { x: n.x, y: n.y - r * 0.28, r, eggs: n.eggs, chicks: n.chicks, hunger: n.hunger || 0, col: PLAYER.belly, eggCol: CH.eggCol, glow: player.carry > 0 };
+}
+
+/** La proie qu'on vient d'attraper devient une becquée (quand les petits ont faim) */
+function carryFood(c) {
+  const m = CH.missions.find((mm) => mm.type === 'feed');
+  const n = game.nest;
+  if (!m || !n || !n.chicks || (game.fed || 0) >= m.n) return;
+  if (m.species && !m.species.includes(c.id)) return;
+  const p = player;
+  if ((p.carry || 0) >= 3) return;
+  p.carry = (p.carry || 0) + 1;
+  addFloater('Pour les petits !', p.x, p.y - p.size * 2.2, '#FFE58A', 1);
+  sayOnce('carry', LINES.carry, 60, 1);
+}
+
+/** Un voleur de nid chassé d'un coup d'aile (quand on fonce dessus) */
+function shooRaider(c) {
+  c.scaredT = 4;
+  c.barkX = player.x;
+  c.barkY = player.y;
+  c.stoleT = 10;
+  c.mark = '!';
+  c.markT = 1;
+  addFloater('Ouste !', c.x, c.y - c.size * 1.8, '#FFFFFF', 1.3);
+  sfx.whip();
+  shake = Math.max(shake, 0.2);
+  if (!c.barked) {
+    c.barked = true;
+    game.barked = game.barked || {};
+    game.barked[c.id] = (game.barked[c.id] || 0) + 1;
+    deed(10, c.x, c.y - c.size * 2.4);
+    checkMissions();
+  }
+}
+
+/** Le nid, les lieux à atteindre (missions nest, feed, visit) */
+function updateNest(dt) {
+  const p = player;
+  const m = CH.missions.find((mm) => mm.type === 'nest');
+  if (m && !game.nest && !p.dead) {
+    const place = cote.placeOf(p);
+    const ok = !!place && (m.place === place || (m.place === 'haut' && (place === 'cime' || place === 'corniche')) || (m.place === 'arbre' && (place === 'cime' || place === 'branche'))
+      || (m.place === 'cache' && place === 'sol' && p.hidden));
+    if (ok && p.speed < 0.25) {
+      p.buildT = (p.buildT || 0) + dt;
+      if (Math.random() < dt * 10) particles.push({ x: p.x + rand(-1, 1) * p.size, y: p.y + cote.standOf(p) - 4, vx: rand(-70, 70), vy: rand(-160, -60), life: 0, max: 0.5, size: rand(3, 6), color: '#A8804E' });
+      if (p.buildT > 1.6) {
+        game.nest = { x: Math.round(p.x), y: Math.round(p.y + cote.standOf(p)), kind: place, eggs: m.eggs ?? 3, chicks: 0, born: clock, hunger: 0 };
+        p.buildT = 0;
+        sfx.pickup();
+        confetti(30);
+        addFloater('Ton nid !', p.x, p.y - p.size * 2.4, '#FFE58A', 1.4);
+        say(LINES.nestBuilt, 2, 6000);
+        checkMissions();
+      } else if (p.buildT > 0.2) sayOnce('nestBuilding', LINES.nestBuilding, 60, 1);
+    } else {
+      p.buildT = 0;
+      if (place && !ok && p.speed < 0.05 && p.stillT > 1.5) sayOnce('nestWrong', m.hint || LINES.nestWrong, 40, 1);
+    }
+  }
+  // les lieux à atteindre : une cime, une colonne d'air chaud, un sommet…
+  for (const mm of CH.missions) {
+    if (mm.type !== 'visit' || p.dead) continue;
+    let key = null;
+    if (mm.place === 'thermique') {
+      const th = cote.thermalAt(p.x, p.y);
+      if (th && cote.groundY(p.x) - p.y > (mm.alt || 1300)) key = 'thermique' + cote.G.thermals.indexOf(th);
+    } else if (mm.place === 'sommet') {
+      if (cote.placeOf(p) === 'sommet') key = 'sommet' + Math.round(p.x / 900);
+    } else if (p.plat && p.plat.kind === mm.place) {
+      key = mm.place + (p.plat.tree ? cote.G.trees.indexOf(p.plat.tree) : Math.round(p.plat.x0));
+    }
+    if (key && !game.visited.includes(key)) {
+      game.visited.push(key);
+      sfx.pickup();
+      addFloater(mm.cry || 'Bravo !', p.x, p.y - p.size * 2.4, '#7CF0A0', 1.3);
+      deed(mm.adn || 10, p.x, p.y - p.size * 3);
+      checkMissions();
+    }
+  }
+  for (const c of creatures) if (c.stoleT > 0) c.stoleT -= dt;
+  const n = game.nest;
+  if (!n) return;
+  const feed = CH.missions.find((mm) => mm.type === 'feed');
+  if (n.eggs && feed && clock - (n.born ?? clock) > 5) {
+    // les œufs éclosent
+    n.chicks = n.eggs;
+    n.eggs = 0;
+    n.hunger = 0.6;
+    sfx.pickup();
+    addFloater('Cui cui !', n.x, n.y - 80, '#FFFFFF', 1.3);
+    say(LINES.hatched, 2, 6000);
+  }
+  if (n.chicks) n.hunger = Math.min(1, (n.hunger || 0) + dt / 25);
+  // la becquée arrive au nid
+  if (p.carry && !p.dead && Math.hypot(p.x - n.x, p.y - n.y) < p.size * 2.5 + 70) {
+    game.fed = (game.fed || 0) + p.carry;
+    deed(p.carry * 6, n.x, n.y - 70);
+    for (let i = 0; i < 3; i++) addFloater('❤', n.x + rand(-40, 40), n.y - 60 - i * 22, '#FF8FA8', 0.9);
+    p.carry = 0;
+    n.hunger = 0;
+    sfx.eat(0.3);
+    sayOnce('fed', LINES.fed, 40, 1);
+    checkMissions();
+  }
+  // un voleur arrive au nid : il chipe une becquée
+  const fi = CH.missions.indexOf(feed);
+  for (const c of creatures) {
+    if (!c.sp.raider || c.stoleT > 0 || c.scaredT > 0) continue;
+    if (Math.hypot(c.x - n.x, c.y - (n.y - 30)) > c.size + 70) continue;
+    c.stoleT = 12;
+    c.scaredT = 3;
+    c.barkX = n.x;
+    c.barkY = n.y;
+    if (feed && !game.done.includes(fi) && game.fed > 0) game.fed--;
+    n.hunger = 1;
+    addFloater('Il vole la becquée !', n.x, n.y - 90, '#FF8A8A', 1.2);
+    sfx.snap();
+    sayOnce('raided', LINES.raided, 20, 3);
+    missionsShown = '';
+    renderMissions();
+  }
+}
+
+/** La flèche, pour les missions de la vue de côté (le nid, la becquée, les lieux à atteindre) */
+function sideTarget(todo) {
+  const p = player;
+  for (const m of todo) {
+    if (m.type === 'nest') {
+      let best = null, bd = Infinity;
+      for (const s of cote.nestSpots(m.place)) {
+        const d = Math.hypot(s.x - p.x, s.y - p.y);
+        if (d < bd) { bd = d; best = s; }
+      }
+      return best ? { x: best.x, y: best.y - 30, size: 40, img: nestThumb(false) } : null;
+    }
+    if (m.type === 'feed') {
+      if (!game.nest) return null;
+      if (p.carry && (p.carry >= 3 || p.carry + (game.fed || 0) >= m.n)) return { x: game.nest.x, y: game.nest.y - 30, size: 40, img: nestThumb(true) };
+      const t = nearestCreature((c) => canEat(c) && (!m.species || m.species.includes(c.id)));
+      if (t) return { x: t.x, y: t.y, size: t.size, img: speciesThumb(t.id, t.sp) };
+      if (p.carry) return { x: game.nest.x, y: game.nest.y - 30, size: 40, img: nestThumb(true) };
+      return null;
+    }
+    if (m.type === 'visit') {
+      const G = cote.G;
+      const pts = m.place === 'thermique' ? G.thermals.map((th, i) => ({ x: th.x, y: G.at(th.x) - (m.alt || 1300) - 100, key: 'thermique' + i }))
+        : m.place === 'cime' ? G.trees.map((tr, i) => ({ x: tr.x, y: tr.cime.y, key: 'cime' + i }))
+          : m.place === 'sommet' ? G.peaks.map((pk) => ({ x: pk.x, y: G.at(pk.x), key: 'sommet' + Math.round(pk.x / 900) })) : [];
+      let best = null, bd = Infinity;
+      for (const q of pts) {
+        if (game.visited.includes(q.key)) continue;
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d < bd) { bd = d; best = q; }
+      }
+      return best ? { x: best.x, y: best.y, size: 50, icon: m.icon || '⭐' } : null;
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Le dessin, vu de côté : le ciel et le lointain, le monde, les animaux, le devant, la météo */
+function drawSideView() {
+  const sx = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
+  const sy = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cote.drawBack(ctx, cssW, cssH, cam, zoom, worldT);
+  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (cssW / 2 - cam.x * zoom + sx), dpr * (cssH / 2 - cam.y * zoom + sy));
+  const x0 = cam.x - viewW / 2 - 200, x1 = cam.x + viewW / 2 + 200;
+  const y0 = cam.y - viewH / 2 - 200, y1 = cam.y + viewH / 2 + 200;
+  const inView = (o, r) => o.x + r > x0 && o.x - r < x1 && o.y + r > y0 && o.y - r < y1;
+  cote.drawWorld(ctx, x0, x1, y0, y1, worldT, zoom);
+  if (game.nest && inView(game.nest, 300)) drawNest(ctx, nestView(), worldT);
+  if (stats.cones) drawCones(inView);
+  for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
+  for (const d of decoys) if (inView(d, d.size * 3)) drawDecoyTail(ctx, d, worldT);
+  // les animaux, des plus petits aux plus gros ; le joueur à sa place
+  const list = creatures.filter((c) => inView(c, c.size * 4)).sort((a, b) => a.size - b.size);
+  let playerDrawn = false;
+  for (const c of list) {
+    if (!playerDrawn && c.size > player.size) { drawThePlayer(); playerDrawn = true; }
+    drawCreature(ctx, c, worldT + c.seed);
+  }
+  if (!playerDrawn) drawThePlayer();
+  cote.drawFront(ctx, x0, x1, y0, y1, worldT, player);
+  for (const c of list) {
+    if (c.stunT > 0) drawStars(c);
+    if (c.sp.hits) drawBossBar(c);
+    if (c.mark) {
+      const pop = clamp((1.1 - c.markT) * 6 + 0.3, 0.05, 1);
+      drawAlert(ctx, c.x, c.y - c.size * 1.5 - 14 / zoom, 15 / zoom, c.mark, pop);
+    } else if (c.fleeing && c.sp.kind !== 'food') {
+      drawSweat(ctx, c.x + c.size * 0.8, c.y - c.size * 0.9, Math.max(4, c.size * 0.28), worldT);
+    }
+  }
+  // la construction du nid : un cercle qui se remplit
+  if (player.buildT > 0.05) {
+    ctx.strokeStyle = '#FFE58A';
+    ctx.lineWidth = 6 / zoom;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y - player.size * 2, player.size * 0.7, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, player.buildT / 1.6));
+    ctx.stroke();
+  }
+  drawFx();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cote.drawWeather(ctx, cssW, cssH, cam, zoom, worldT, motes);
+  drawDanger();
+  drawTargetArrow();
+  if (flash.a > 0) {
+    ctx.fillStyle = `rgba(${flash.color},${flash.a})`;
+    ctx.fillRect(0, 0, cssW, cssH);
+  }
+  drawMinimap();
 }
 
 /* ---------- Mise à jour des créatures ---------- */
@@ -1306,7 +1646,7 @@ function updateCreatures(dt) {
     const edible = !p.dead && (canEat(c) || fearsPack(c));
     const danger = !p.dead && isDanger(c);
     // un poisson (ou un crocodile) ne te suit pas hors de sa mare
-    const reachable = !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
+    const reachable = side() ? cote.reach(c, p) : !c.home || dist(p, c.home) < c.home.r * (sp.reach || 0.85) + p.size * 0.5;
     let mouthTarget = 0;
 
     c.hitT = Math.max(0, (c.hitT || 0) - dt);
@@ -1469,7 +1809,7 @@ function updateCreatures(dt) {
           // un gros chasseur croque aussi les rivaux (plus petits que lui) ; un rival, jamais un autre rival
           const rivalSnack = o.sp.kind === 'rival' && sp.kind === 'hunter' && o.size < c.size * 1.05;
           if (o.sp.kind === 'rival' ? !rivalSnack : o.size > c.size * most) continue;
-          if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35) {
+          if (mouthDist(c, o.x, o.y) < o.size + c.size * 0.35 || (side() && o.sp.kind === 'food' && dist(c, o) < o.size + c.size * 0.9)) {
             o.dead = true;
             c.chomp = 0.35;
             if (o === c.prey) c.prey = null;
@@ -1511,19 +1851,25 @@ function updateCreatures(dt) {
         c.vy = Math.sin(c.heading) * vv;
       }
     }
-    // la boue colle, l'eau ralentit ceux qui marchent
-    const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
-    const zk = terre.on() ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1) : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
-    const ox = c.x, oy = c.y;
-    c.x += c.vx * dt * zk;
-    c.y += c.vy * dt * zk;
-    if (!sp.flying) fence(c, ox, oy, sp.kind === 'flock' && !c.penned, c.size * 0.6);
-    if (c.home) keepInPond(c);
-    const m = c.size + 40;
-    if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
-    if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
+    let zk = 1;
+    if (side()) {
+      // (vue de côté) il marche, vole, grimpe ou nage, selon son espèce
+      cote.creature(c, dt);
+    } else {
+      // la boue colle, l'eau ralentit ceux qui marchent
+      const zone = sp.flying || c.home ? null : zoneAt(c.x, c.y);
+      zk = terre.on() ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1) : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? 0.6 : 1;
+      const ox = c.x, oy = c.y;
+      c.x += c.vx * dt * zk;
+      c.y += c.vy * dt * zk;
+      if (!sp.flying) fence(c, ox, oy, sp.kind === 'flock' && !c.penned, c.size * 0.6);
+      if (c.home) keepInPond(c);
+      const m = c.size + 40;
+      if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
+      if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
+    }
     const v = Math.hypot(c.vx, c.vy);
-    if (v > 4 && c.state !== 'alert') c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
+    if (v > 4 && c.state !== 'alert' && !side()) c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
     c.speed = sp.speed ? Math.min(1, v / sp.speed) : 0;
     c.swim = (c.swim || 0) + dt * (0.35 + c.speed * 0.8);
     c.walk += v * zk * dt / Math.max(8, c.size) * 1.3;
@@ -2030,7 +2376,8 @@ function firePower() {
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.35, size: p.size * 1.4, color: '#FFFFFF', slash: 'queue', ang: p.angle });
     addFloater(P.cry || 'FLAC !', p.x, p.y - p.size * 2, '#FFFFFF', 1.3);
     for (const c of near) {
-      if (c.sp.kind === 'hunter') {
+      if (c.sp.kind === 'hunter' || c.sp.kind === 'defender' || c.sp.kind === 'rival') {
+        // (les géants qui chargent et les rivaux reculent aussi, tout étourdis)
         c.stunT = 2;
         noteStun(c);
         addFloater('Aïe !', c.x, c.y - c.size * 1.6, '#FFD24A', 1);
@@ -2042,7 +2389,7 @@ function firePower() {
     sfx.gulp();
     p.gulpT = 2;
     addFloater(P.cry || 'AAAAH…', p.x, p.y - p.size * 2, '#FFE58A', 1.3);
-    later(() => {
+    if (!P.noBurp) later(() => {
       if (state !== 'playing' || !player) return;
       sfx.burp();
       shake = Math.max(shake, 0.2);
@@ -2360,10 +2707,20 @@ function keepInPond(c) {
 function wander(c, speed, dt) {
   const h = c.post;                                     // (une tanière : il ne s'en éloigne pas ; ses gardiens tournent autour, entre in et r)
   const away = h && Math.hypot(c.x - h.x, c.y - h.y) > h.r * 1.6 && Math.hypot(c.wx - h.x, c.wy - h.y) > h.r;
-  if (away || Math.hypot(c.wx - c.x, c.wy - c.y) < c.size * 2 + 30 || Math.random() < dt * 0.15) {
-    const a = Math.random() * TAU, d = h ? (h.in || 0) + Math.sqrt(Math.random()) * (h.r - (h.in || 0)) : rand(150, 600);
-    c.wx = (h ? h.x : c.x) + Math.cos(a) * d;
-    c.wy = (h ? h.y : c.y) + Math.sin(a) * d;
+  if (side() && c.sp.raider && game.nest && dist(c, game.nest) < 2600 && !(c.stoleT > 0)) {
+    // un voleur de nid : il file droit vers tes œufs (ou tes petits)
+    c.wx = game.nest.x;
+    c.wy = game.nest.y - c.size;
+  } else if (away || Math.hypot(c.wx - c.x, c.wy - c.y) < c.size * 2 + 30 || Math.random() < dt * 0.15) {
+    if (side()) {
+      const pt = cote.wanderPoint(c);
+      c.wx = pt.x;
+      c.wy = pt.y;
+    } else {
+      const a = Math.random() * TAU, d = h ? (h.in || 0) + Math.sqrt(Math.random()) * (h.r - (h.in || 0)) : rand(150, 600);
+      c.wx = (h ? h.x : c.x) + Math.cos(a) * d;
+      c.wy = (h ? h.y : c.y) + Math.sin(a) * d;
+    }
   }
   const dx = c.wx - c.x, dy = c.wy - c.y;
   const d = Math.hypot(dx, dy) || 1;
@@ -2380,6 +2737,8 @@ function loseTrack(c, escaped) {
   c.markT = 1.2;
   if (escaped && !player.dead && !creatures.some((o) => o !== c && o.state === 'chase')) {
     game.stats.escapes++;
+    game.escaped = (game.escaped || 0) + 1;
+    later(checkMissions, 50);
     sfx.phew();
     addFloater('Ouf !', player.x, player.y - player.size * 1.8, '#9EE7FF', 1.1);
     sayOnce('escaped', LINES.escaped, 15, 2);
@@ -2403,7 +2762,9 @@ function updateContacts() {
       const tp = c.spine[c.spine.length - 2];
       if (mouthDist(p, tp.x, tp.y) < p.size * 0.6 + c.size * 0.4) hitBoss(c);
     }
-    const dm = mouthDist(p, c.x, c.y);
+    let dm = mouthDist(p, c.x, c.y);
+    // (vue de côté) posé, on picore aussi ce qui est par terre, juste devant ses pieds
+    if (side() && p.loco === 'sol') dm = Math.min(dm, Math.hypot(c.x - (p.x + (p.face || 1) * p.size * 0.7), c.y - (p.y + cote.standOf(p) * 0.75)));
     // 1. le joueur croque
     if (canEat(c)) {
       if (dm < c.size * 0.9 + p.size * 0.38 * stats.reach) { playerEats(c); continue; }
@@ -2435,6 +2796,8 @@ function updateContacts() {
       stung(c);
       continue;
     }
+    // (vue de côté) un voleur de nid : on fonce dessus pour le chasser
+    if (side() && c.sp.raider && p.dash > 0 && !(c.scaredT > 0) && d < c.size + p.size * 1.4) shooRaider(c);
     // 5. un enfant qui joue avec toi
     if (c.sp.play && c.playT <= 0 && d < c.size + p.size * 1.1) playWith(c);
     // 6. on se cogne (sauf contre ce qui vole, très haut, et contre sa meute)
@@ -2480,6 +2843,7 @@ function playerEats(c) {
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (sp.trust) gainTrust(sp.trust);
+  if (side()) carryFood(c);
   if (LV.world.combo || terre.on()) comboUp(c);
   if (big > 0.5) { shake = Math.max(shake, 0.2 + big * 0.2); buzz(30); }
   if (sp.kind === 'hunter') {
@@ -2543,7 +2907,7 @@ function loseLife(by, cause) {
     by.state = 'wander';
     by.rest = FULL_REST;
     by.mark = null;
-    addFloater('GLOUPS !', p.x, p.y - p.size * 1.5, '#FF6F91', 1.8);
+    addFloater(by.sp.hurt || 'GLOUPS !', p.x, p.y - p.size * 1.5, '#FF6F91', 1.8);
     burst(p.x, p.y, 24, ['#6EE0B0', '#FFFFFF', '#B9F5DA'], p.size * 8 + 60, Math.max(2, p.size * 0.18));
   }
   const pen = LV.world.penalty || { adn: EATEN_ADN_LOSS, growth: EATEN_GROWTH_LOSS };
@@ -2646,6 +3010,23 @@ function missionInfo(m) {
     const text = { bark: `Fais fuir ${m.n} ${name}`, herd: `Ramène ${m.n} ${name} dans l’enclos`, play: `Joue avec ${m.n} ${name}` }[m.type];
     return { text: m.text || text, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp) };
   }
+  if (m.type === 'nest') {
+    // (vue de côté) construire son nid à un endroit précis
+    return { text: m.text || 'Construis ton nid', cur: game.nest ? 1 : 0, max: 1, done: !!game.nest, img: nestThumb(false) };
+  }
+  if (m.type === 'feed') {
+    const cur = Math.min(m.n, game.fed || 0);
+    return { text: m.text || `Nourris tes petits : ${m.n} becquées`, cur, max: m.n, done: cur >= m.n, img: nestThumb(true) };
+  }
+  if (m.type === 'visit') {
+    const cur = Math.min(m.n, (game.visited || []).filter((k) => k.startsWith(m.place)).length);
+    return { text: m.text, cur, max: m.n, done: cur >= m.n, img: playerThumb(CH.form, game.owned) };
+  }
+  if (m.type === 'escape') {
+    const cur = Math.min(m.n, game.escaped || 0);
+    const sp = SPECIES[m.species];
+    return { text: m.text || `Échappe ${m.n} fois aux chasseurs`, cur, max: m.n, done: cur >= m.n, img: sp ? speciesThumb(m.species, sp) : playerThumb(CH.form, game.owned) };
+  }
   if (m.type === 'evolve') {
     const e = EVOS[m.part];
     return { text: `Évolue : ${e.name}`, cur: game.owned[m.part] ? 1 : 0, max: 1, done: !!game.owned[m.part], img: playerThumb(CH.form, { ...game.owned, [m.part]: true }), evo: true };
@@ -2743,13 +3124,19 @@ const HOWTO_LAND = HOWTO_SEA.replace('pour nager', 'pour courir');
 function setupLandUi() {
   const land = terre.on();
   const arrows = '<kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd>';
+  if (side()) {
+    const M = CH.moves || {};
+    const can = [M.fly && '<kbd>↑</kbd> voler', M.climb && '<kbd>↑</kbd> grimper aux arbres', M.swim && 'nager'].filter(Boolean).join(' · ');
+    $('deskHelp').innerHTML = `${arrows} avancer${can ? ' · ' + can : ''} · <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer`;
+    return;
+  }
   $('deskHelp').innerHTML = `${arrows} ${land ? 'courir' : 'nager'} · <kbd>Espace</kbd> foncer · <kbd>E</kbd> évoluer`;
 }
 
 /** Les couleurs du joueur changent à chaque chapitre (chapters[].skin) */
 const PLAYER_DEFAULT = { ...PLAYER };
 function applySkin() {
-  Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null }, CH.skin || {});
+  Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null, wing: null, tip: null, beak: null, patch: null }, CH.skin || {});
   // les rivaux sont de ton espèce : ils ont tes couleurs
   for (const sp of Object.values(SPECIES)) {
     if (sp.kind === 'rival' && !sp.ownColor) Object.assign(sp, { color: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe });
@@ -2758,6 +3145,14 @@ function applySkin() {
 
 /** Les mares, la boue, la neige et les cachettes de ce chapitre (un terrier ne sert plus à un tigre) */
 function chapterDecor() {
+  if (side()) {
+    cote.build(9001 + game.level * 131 + game.chapter * 17);
+    zones = [];
+    hides = cote.G.hides;
+    covers = [];
+    pens = [];
+    return;
+  }
   const ch = game.chapter + 1;
   const now = (d) => d.from <= ch && d.to >= ch;
   zones = levelDecor.zones.filter(now);
@@ -2769,12 +3164,15 @@ function chapterDecor() {
 function setupChapter(keepPos) {
   chapterDecor();
   applySkin();
-  $('waterIcon').textContent = CH.trust ? '🤝' : meter().icon;
-  waterItem.title = CH.trust ? LINES.trustTitle : meter().title;
+  $('waterIcon').textContent = CH.trust ? '🤝' : CH.wings ? '💨' : meter().icon;
+  waterItem.title = CH.trust ? LINES.trustTitle : CH.wings ? LINES.wingsTitle : meter().title;
   shownBark = -1;
   shownStrike = -1;
   const pw = CH.power || LV.world.strike;
   if (pw) strikeBtn.innerHTML = `${pw.icon} ${escapeHtml(pw.name)} <kbd class="desktop-only">F</kbd>`;
+  // (chapters[].bark) le cri a son nom : « Aboie » pour le chien, « Croasse » pour le corbeau…
+  const bk = CH.bark || { icon: '🐶', name: 'Aboie' };
+  barkBtn.innerHTML = `${bk.icon} ${escapeHtml(bk.name)} <kbd class="desktop-only">B</kbd>`;
   huntTarget = null;
   whiffT = 0;
   whiffCD = 8;
@@ -2783,8 +3181,14 @@ function setupChapter(keepPos) {
   $('sizeItem').title = CH.pack ? LINES.packTitle : 'Ta taille : mange pour grandir';
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   // (CH.start) ce chapitre commence à un endroit précis (quand on y arrive)
-  const x = keepPos && CH.start ? CH.start.x : keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
-  const y = keepPos && CH.start ? CH.start.y : keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
+  let x = keepPos && CH.start ? CH.start.x : keepPos && player ? player.x : (game.pos ? game.pos.x : LV.world.start.x);
+  let y = keepPos && CH.start ? CH.start.y : keepPos && player ? player.y : (game.pos ? game.pos.y : LV.world.start.y);
+  if (side()) {
+    // (vue de côté) chaque chapitre a son paysage : on part de son point de départ (ou de là où on était)
+    const pt = !keepPos && game.pos ? game.pos : cote.startPoint((STAND[CH.form] ?? 0.6) * targetSize());
+    x = pt.x;
+    y = pt.y;
+  }
   placePlayer(x, y);
   drops = [];
   decoys = [];
@@ -2993,6 +3397,12 @@ function updateCamera(dt) {
   const k = 1 - Math.exp(-5 * dt);
   cam.x += (tx - cam.x) * k;
   cam.y += (ty - cam.y) * k;
+  if (side() && cote.G) {
+    // (vue de côté) on ne voit pas sous la terre, ni au-delà du bord du monde
+    const G = cote.G;
+    cam.x = clamp(cam.x, viewW / 2, Math.max(viewW / 2, G.w - viewW / 2));
+    cam.y = clamp(cam.y, Math.min(viewH / 2, G.h / 2), Math.max(viewH / 2, G.h - viewH / 2));
+  }
 }
 
 function worldToScreen(x, y) {
@@ -3001,6 +3411,7 @@ function worldToScreen(x, y) {
 
 /* ---------- Dessin ---------- */
 function draw() {
+  if (side()) { drawSideView(); return; }
   const W = LV.world;
   const sx = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
   const sy = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
@@ -3069,7 +3480,7 @@ function draw() {
     if (c.stunT > 0) drawStars(c);
     if (c.sp.hits) drawBossBar(c);
     if (c.mark) {
-      const pop = Math.min(1, (1.1 - c.markT) * 6 + 0.3);
+      const pop = clamp((1.1 - c.markT) * 6 + 0.3, 0.05, 1);
       drawAlert(ctx, c.x, c.y - c.size * 1.5 - 14 / zoom, 15 / zoom, c.mark, pop);
     } else if (c.fleeing && c.sp.kind !== 'food') {
       drawSweat(ctx, c.x + c.size * 0.8, c.y - c.size * 0.9, Math.max(4, c.size * 0.28), worldT);
@@ -3204,6 +3615,10 @@ function drawThePlayer() {
     ctx.fill();
   }
   drawPlayer(ctx, p, CH.form, game.owned, worldT);
+  if (side() && p.carry) {
+    const m = mouthPoint(p);
+    drawCarry(ctx, m.x, m.y, p.size * 0.32, p.carry, worldT);
+  }
   if (sq !== 1) ctx.restore();
   if (air > 0) ctx.restore();
   ctx.globalAlpha = 1;
@@ -3377,6 +3792,10 @@ function nearestCreature(ok) {
 /** Où aller pour la prochaine mission : une proie, un troupeau, l'enclos, les humains… */
 function missionTarget() {
   const todo = CH.missions.filter((m) => !missionInfo(m).done);
+  if (side()) {
+    const t = sideTarget(todo);
+    if (t) return t;
+  }
   const eat = todo.filter((m) => m.type === 'eat').map((m) => m.species);
   const at = (c) => c && { x: c.x, y: c.y, size: c.size, img: speciesThumb(c.id, c.sp) };
   const prey = nearestCreature((c) => eat.includes(c.id) && canEat(c));
@@ -3412,8 +3831,8 @@ function missionTarget() {
     if (m.type === 'trust' || m.type === 'play' || (m.type === 'eat' && m.species === CH.treat)) {
       const h = nearestCreature((c) => c.sp.kind === 'human' && (m.type !== 'play' || (c.id === m.species && !c.played)));
       if (h) return at(h);
-      const camp = nearestZone(player.x, player.y, 'camp');
-      if (camp) return { x: camp.x, y: camp.y, size: camp.r * 0.5, icon: '🔥' };
+      const camp = side() ? cote.G.camps.reduce((a, b) => (!a || Math.abs(b.x - player.x) < Math.abs(a.x - player.x) ? b : a), null) : nearestZone(player.x, player.y, 'camp');
+      if (camp) return { x: camp.x, y: camp.y - 60, size: camp.r * 0.5, icon: '🔥' };
     }
   }
   return null;
@@ -3485,6 +3904,7 @@ function drawMinimap() {
   mctx.lineWidth = 2;
   mctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
+  if (side()) cote.minimap(mctx, toM, range, S);
   for (const z of zones) {
     const m = toM(z.x, z.y);
     mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : z.zone === 'air' ? 'rgba(225, 250, 255, 0.7)'
@@ -3494,7 +3914,7 @@ function drawMinimap() {
     mctx.fill();
   }
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
-  for (const a of hides) {
+  for (const a of side() ? [] : hides) {
     const m = toM(a.x, a.y);
     mctx.beginPath();
     mctx.arc(m.x, m.y, Math.max(2, a.r * k), 0, TAU);
@@ -3572,7 +3992,7 @@ function renderHud() {
     era,
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
-    water: drying() ? Math.round(player.wet * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
+    water: drying() ? Math.round(player.wet * 50) : CH.wings ? Math.round((player.energy ?? 1) * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
   };
   if (v.adn !== shown.adn) adnEl.textContent = v.adn;
   if (v.size !== shown.size) {
@@ -3590,7 +4010,7 @@ function renderHud() {
   if (v.water !== shown.water) {
     waterItem.hidden = v.water < 0;
     waterBar.style.width = `${Math.max(0, v.water) * 2}%`;
-    waterItem.classList.toggle('low', drying() && v.water >= 0 && v.water < 15);
+    waterItem.classList.toggle('low', (drying() || !!CH.wings) && v.water >= 0 && v.water < 15);
     waterItem.classList.toggle('trust', !!CH.trust);
   }
   shown = v;
@@ -3819,7 +4239,13 @@ function evoMap() {
   };
   place(root);
   const all = [...nodes.values()];
-  mapCache = { nodes, rows: Math.max(1, leaf), cols: Math.max(...all.map((n) => n.depth)) + 1 };
+  const cols = Math.max(...all.map((n) => n.depth)) + 1;
+  // deux niveaux qui mènent au même niveau suivant tombent au même endroit : on les écarte
+  for (let d = 0; d < cols; d++) {
+    const col = all.filter((n) => n.depth === d).sort((a, b) => a.row - b.row);
+    for (let i = 1; i < col.length; i++) if (col[i].row < col[i - 1].row + 0.9) col[i].row = col[i - 1].row + 0.9;
+  }
+  mapCache = { nodes, rows: Math.max(1, leaf, Math.ceil(Math.max(...all.map((n) => n.row)) + 1)), cols };
   return mapCache;
 }
 
@@ -3965,6 +4391,14 @@ function playIntro() {
       sfx,
       drawHero: (c, x, y, r, t, walk, mood) => drawPlayer(c, { x, y, angle: 0, size: r, mouth: 0, mood, blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, 'louveteau', {}, t),
       drawAnimal: (c, look, color, x, y, r, face, t, walk, mouth) => drawCreature(c, { sp: { look, color, belly: '#E8E4DA' }, x, y, angle: face > 0 ? 0 : Math.PI, face, size: r, seed: x % 7, mood: 'calm', mouth, blink: 0, walk, spine: null }, t),
+    });
+  } else if (LV.intro === 'airs' || LV.intro === 'reptiles') {
+    // (vue de côté) la météorite… et le petit survivant
+    intro = createSideIntro({
+      sfx,
+      kind: LV.intro,
+      drawHero: (c, x, y, r, o) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CHAPTERS[0].form, {}, performance.now() / 1000),
+      drawAnimal: (c, look, color, x, y, r, o) => drawCreature(c, { sp: { look, color }, x, y, size: r, seed: 1, blink: 0, spine: null, mouth: 0, mood: 'calm', ...o }, performance.now() / 1000),
     });
   } else if (LV.intro === 'terre') {
     intro = createLandIntro({
@@ -4119,6 +4553,7 @@ $('endReplay').addEventListener('click', () => {
 });
 
 function drawEnding(dt) {
+  if (LV.ending.scene === 'oiseaux' || LV.ending.scene === 'reptiles') { drawSideEndingScene(dt); return; }
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
   if (LV.ending.scene === 'chien') { drawDogEnding(dt); return; }
@@ -4169,6 +4604,28 @@ function drawEnding(dt) {
   const p = { x: px, y: py, angle: a, size, mouth: 0.3 + Math.abs(Math.sin(endT * 2)) * 0.4, mood: 'happy', blink: 0, speed: 0.5, spine: makeSpine(px, py, a, size, formLook() || 'poisson') };
   drawPlayer(c, p, CH.form, game.owned, endT);
   drawCrown(c, px + Math.cos(a) * size * 0.1, py - size * 1.15 + Math.sin(endT * 3) * 4, size * 0.75);
+}
+
+/* ---------- La fin de la voie des airs et de la voie des reptiles (vue de côté, intro-cote.js) ----------
+   le défilé des oiseaux (ou des reptiles) d'aujourd'hui, puis les humains arrivent sur la colline */
+const SIDE_TEXT_AT = 14.5;
+function drawSideEndingScene(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('parade', 4.6, () => { sfx.victory(); confetti(60); });
+  cueEnd('humans', 9.4, () => sfx.chapter());
+  if (t > SIDE_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawSideEnding(ectx, w, h, t, {
+    kind: LV.ending.scene,
+    parade: (LV.ending.parade || []).map((d) => ({ ...d, stand: STAND[d.look] ?? 0.8 })),
+    captions: LV.ending.captions,
+    textAt: SIDE_TEXT_AT,
+    drawHero: (c, x, y, r, o) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, ...o }, CH.form, game.owned, t),
+    drawAnimal: (c, d, x, y, r, o) => drawCreature(c, { sp: { look: d.look, color: d.color, belly: d.belly, shell: d.shell }, x, y, size: r, seed: 1, blink: 0, spine: null, mouth: 0, ...o }, t),
+    drawHuman: (c, look, x, y, r, o) => drawCreature(c, { sp: { look, color: '#7A5A3A' }, x, y: y - r * 0.98, size: r, seed: Math.floor(x) % 7, blink: 0, spine: null, mood: 'happy', mouth: 0, ...o }, t),
+  });
 }
 
 /* ---------- La fin du niveau 2 : on domine la Terre (ou la mer)… puis la météorite ----------
@@ -5195,6 +5652,8 @@ function botDir() {
   for (const m of CH.missions) if ((m.type === 'stun' || m.type === 'hit') && !missionInfo(m).done) barkAt.push(m.species);
   for (const c of creatures) {
     if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked && !(c.sp.kind === 'hunter' && p.strikeT > 1 && CH.power && !c.sp.tailBite))) continue;
+    // (vue de côté) un chasseur qui ne peut pas nous atteindre là où on est (un loup, quand on vole)
+    if (side() && (!cote.reach(c, p) || (c.sp.lives === 'air' && c.state !== 'chase' && (CH.camo || p.hidden)))) continue;
     // un poisson géant ne peut rien contre nous si on reste au bord de sa mare
     if (c.home && dist(p, c.home) > c.home.r * (c.sp.reach || 0.85) + p.size + 150) continue;
     if (!botCareful && c.state !== 'chase') continue;
@@ -5204,11 +5663,18 @@ function botDir() {
       : botCareful ? c.size * 2.5 + p.size * 3 + (c.state === 'chase' ? 260 : 120) : c.size * 1.6 + p.size * 2;
     if (d < R) { fx += (p.x - c.x) / d * (R - d) / R; fy += (p.y - c.y) / d * (R - d) / R; threat = Math.max(threat, (R - d) / R); }
   }
+  // (vue de côté) les ailes fatiguées : on se pose pour se reposer
+  if (side() && CH.wings && threat <= 0.15) {
+    if (p.loco === 'vol' && (p.energy ?? 1) < 0.18) return { x: 0, y: 1 };
+    if (p.loco !== 'vol' && (p.energy ?? 1) < 0.75) return { x: 0, y: 0 };
+  }
   if (threat > 0.15) {
     if (canStrike() && p.strikeT <= 0 && creatures.some((c) => inStrikeReach(c) && isThreat(c))) activateStrike();
     // (le loup et l'humain) un aboiement fait fuir les chasseurs
     if (stats.bark && p.barkT <= 0 && creatures.some((c) => c.sp.kind === 'hunter' && dist(c, p) < 420 + p.size * 2)) activateBark();
     if (threat > 0.55 && p.charge >= 1) activateDash();
+    // (vue de côté) un oiseau s'échappe vers le ciel
+    if (side() && CH.moves && CH.moves.fly && (p.energy ?? 1) > 0.2) fy -= 0.9;
     const d = Math.hypot(fx, fy) || 1;
     return { x: fx / d, y: fy / d };
   }
@@ -5226,12 +5692,20 @@ function botDir() {
   }
   if (!best) {
     // rien à manger en vue : on explore (en restant près de l'eau si la peau sèche)
+    if (side()) return { x: Math.sin(worldT * 0.04) >= 0 ? 1 : -1, y: CH.moves && CH.moves.fly ? (p.loco === 'vol' ? -0.1 : -0.8) : 0 };
     const a = worldT * 0.3 + p.walk * 0.01;
     return { x: Math.cos(a), y: Math.sin(a * 0.8) };
   }
   // on vise avec la gueule (une proie sous le ventre : on fait demi-tour)
   const mo = mouthPoint(p);
   const dx = best.x - mo.x, dy = best.y - mo.y, d = Math.hypot(dx, dy) || 1;
+  // (vue de côté) une proie sous l'eau : on plonge (posé sur l'eau : ↓ ; en vol : un piqué)
+  if (side() && CH.moves && CH.moves.dive && cote.waterAt(best.x, best.y)) {
+    if (p.loco === 'surface') return { x: dx / d * 0.3, y: 1 };
+    if (p.loco === 'vol' && d < 500) return { x: dx / d * 0.4, y: 1 };
+  }
+  // (vue de côté) posé et bloqué par une paroi : on s'envole par-dessus
+  if (side() && CH.moves && CH.moves.fly && p.loco === 'sol' && Math.abs(p.vx) < 5 && d > p.size * 3) return { x: dx / d * 0.5, y: -0.85 };
   return { x: dx / d, y: dy / d };
 }
 
@@ -5242,6 +5716,27 @@ function botJob() {
     const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1;
     return d <= stop ? { x: 0, y: 0 } : { x: dx / d, y: dy / d };
   };
+  if (side()) {
+    // (vue de côté) le nid, la becquée, les lieux à atteindre
+    const todo = CH.missions.filter((m) => !missionInfo(m).done);
+    const t = sideTarget(todo);
+    if (t) {
+      if (todo[0].type === 'visit' && cote.thermalAt(p.x, p.y)) return { x: 0, y: -0.2 };
+      // (accroché à un tronc) on monte si c'est cet arbre-là, sinon on redescend d'abord
+      if (p.loco === 'grimpe' && p.tree) return Math.abs(t.x - p.tree.x) < p.tree.tw + 90 ? { x: 0, y: t.y < p.y ? -1 : 1 } : { x: 0, y: 1 };
+      // (un grimpeur, par terre) on marche jusqu'au pied du bon arbre avant de monter
+      if (CH.moves && CH.moves.climb && !CH.moves.fly && p.loco === 'sol' && !p.plat && Math.abs(t.x - p.x) > 30 && t.y < p.y - 100) return { x: Math.sign(t.x - p.x), y: 0 };
+      if (CH.moves && CH.moves.climb && !CH.moves.fly && p.loco === 'sol' && !p.plat && t.y < p.y - 100) return { x: 0, y: -1 };
+      // (le nid) on s'arrête juste au-dessus de l'endroit
+      if (todo[0].type === 'nest' && Math.abs(t.x - p.x) < 22 && Math.abs(t.y + 30 - (p.y + cote.standOf(p))) < 140) return { x: 0, y: 0 };
+      const g = go(t.x, t.y, todo[0].type === 'nest' ? 24 : 0);
+      // (un oiseau posé) la cible est plus haut : on s'envole
+      if (CH.moves && CH.moves.fly && p.loco !== 'vol' && t.y < p.y - 40) return { x: g.x * 0.5, y: -0.85 };
+      // (posé, la cible est plus bas) on va au bord, et on se laisse tomber
+      if (p.loco === 'sol' && t.y > p.y + 40) return { x: Math.sign(t.x - p.x) || 1, y: p.plat ? 0.8 : 0 };
+      return g;
+    }
+  }
   for (const m of CH.missions) {
     if (missionInfo(m).done) continue;
     if (m.type === 'stun' || m.type === 'hit') {
@@ -5268,6 +5763,14 @@ function botJob() {
       const t = nearestCreature((c) => c.id === m.species && !c.barked);
       if (t) {
         if (dist(t, p) < 420 + p.size * 2) activateBark();
+        return go(t.x, t.y);
+      }
+    }
+    if (m.type === 'bark' && SPECIES[m.species].raider) {
+      // (vue de côté) un voleur de nid : on fonce dessus
+      const t = nearestCreature((c) => c.id === m.species && !c.barked && !(c.scaredT > 0));
+      if (t) {
+        if (dist(t, p) < p.size * 3 + t.size && p.charge >= 1) activateDash();
         return go(t.x, t.y);
       }
     }
@@ -5350,6 +5853,7 @@ async function init() {
     window.__evo = {
       get game() { return game; }, get player() { return player; }, get creatures() { return creatures; }, get state() { return state; },
       get zones() { return zones; },
+      get cote() { return cote; },
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },
       adn(n) { game.adn += n; },
       grow() { game.earned = CH.growth; },

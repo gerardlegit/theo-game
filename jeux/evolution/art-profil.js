@@ -411,6 +411,19 @@ function drawMamHead(ctx, H, r, c, col, belly, dark, lw, o = {}) {
     ctx.fill();
     ctx.stroke();
   }
+  // (H.saber) les dents de sabre, qui dépassent bien sous le menton
+  if (H.saber) {
+    ctx.fillStyle = '#FBF6E9';
+    ctx.strokeStyle = 'rgba(60, 40, 30, 0.6)';
+    ctx.lineWidth = Math.max(0.5, lw * 0.6);
+    ctx.beginPath();
+    ctx.moveTo(0.5 * L, 0.08 * D);
+    ctx.quadraticCurveTo(0.5 * L, (0.3 + H.saber * 0.5) * D, 0.44 * L, (0.2 + H.saber) * D);
+    ctx.quadraticCurveTo(0.58 * L, (0.3 + H.saber * 0.4) * D, 0.6 * L, 0.08 * D);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
   // l'œil
   const ex = H.eye[0] * L, ey = H.eye[1] * D;
   mamEye(ctx, ex, ey, D * H.eyeR * (o.cute ? 1.45 : 1), c.mood, c.blink, H.iris || '#3B2414', dark, o.cute);
@@ -863,3 +876,6 @@ function drawPerson(ctx, c, t, o) {
 LOOKS.humain = (ctx, c, t) => drawPerson(ctx, c, t, {});
 LOOKS.chasseur = (ctx, c, t) => drawPerson(ctx, c, t, { spear: true });
 LOOKS.enfant = (ctx, c, t) => drawPerson(ctx, c, t, { child: true });
+
+/* (la vue de côté, voie des airs et voie des reptiles : ses mammifères et ses humains) */
+export { drawMammal, drawPerson };
