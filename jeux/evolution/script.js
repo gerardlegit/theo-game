@@ -24,8 +24,11 @@ import { drawDecoyTail } from './art-dessus.js';
 import { STAND, sideMouth, drawNest, drawCarry } from './art-cote.js';
 import { createCote } from './cote.js';
 import { createSideIntro, drawSideEnding } from './intro-cote.js';
+import { createTqv } from './tqv.js';
+import { resIconUrl } from './art-humains.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
-import { LINES } from './data.js';
+import { LINES as BASE_LINES } from './data.js';
+import { createHumanIntro, drawHumanEnding } from './intro-humains.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
@@ -44,7 +47,9 @@ function fixTypo(o) {
   }
 }
 fixTypo(LEVELS);
-fixTypo(LINES);
+fixTypo(BASE_LINES);
+/* Ce que dit Ammo : les phrases de data.js… et celles qu'un niveau remplace (levels/, "lines") */
+let LINES = BASE_LINES;
 
 /* ---------- Réglages de la nage ---------- */
 const DRAG = 3;                    // l'eau freine : sans nager, on s'arrête en ~1 s
@@ -106,6 +111,7 @@ function useLevel(i) {
   SPECIES = LV.species;
   EVOS = LV.evolutions;
   CHAPTERS = LV.chapters;
+  LINES = { ...BASE_LINES, ...LV.lines };
 }
 
 /* ---------- Éléments de la page ---------- */
@@ -279,7 +285,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {}, nest: null, fed: 0, visited: [], escaped: 0 };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {}, nest: null, fed: 0, visited: [], escaped: 0, gathered: {}, delivered: {}, harvested: 0, repelled: 0 };
 }
 
 function newGame() {
@@ -352,7 +358,7 @@ function markDone(id, choice) {
 function recalc() {
   const s = {
     speed: 1, ratio: BASE_RATIO, reach: 1, vision: 1, shield: 0, armored: false, dash: false, dry: 1, cones: false, radar: false,
-    howl: false, trust: 1, bark: false, treats: 1, herd: 1, power: 1, wings: 1,
+    howl: false, trust: 1, bark: false, treats: 1, herd: 1, power: 1, wings: 1, gather: 1,
   };
   for (const id of Object.keys(game.owned)) {
     const e = EVOS[id] && EVOS[id].effect;
@@ -374,6 +380,7 @@ function recalc() {
     if (e.treats) s.treats = Math.max(s.treats, e.treats);
     if (e.herd) s.herd = Math.max(s.herd, e.herd);
     if (e.wings) s.wings = Math.max(s.wings, e.wings);
+    if (e.gather) s.gather = Math.max(s.gather, e.gather);
   }
   stats = s;
 }
@@ -400,6 +407,7 @@ const meter = () => LV.world.meter || METER_WATER;
 
 /* Qui peut manger qui ? (jamais un humain, un mouton ou un ami) */
 function canEat(c) {
+  if (LV.world.noEat) return false;
   const k = c.sp.kind;
   if (c.buried) return false;
   if (k === 'ally' || k === 'stray' || k === 'human' || k === 'flock' || k === 'shepherd' || c.sp.noEat) return false;
@@ -445,6 +453,7 @@ function angleDiff(a, b) {
 /** Dans quelle zone est ce point : 'water' (mare), 'mud' (boue) ou null ? */
 function zoneAt(x, y) {
   if (side()) return cote.zoneAt(x, y);
+  if (trois()) return tqv.zoneAt(x, y);
   for (const z of zones) {
     const dx = x - z.x, dy = y - z.y;
     if (dx * dx + dy * dy < z.r * z.r * 0.72) return z.zone;
@@ -469,6 +478,7 @@ function baseZoom() { return clamp(cssW / 950, 0.58, 1.1); }
 /** Plus on est gros, plus la caméra recule (on voit plus loin) */
 function targetZoom() {
   if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
+  if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
 }
 
@@ -505,6 +515,16 @@ function freeCanvas(c) {
 /* ---------- Construction du monde (décor) ---------- */
 function buildWorld() {
   const W = LV.world;
+  if (W.view === 'tqv') {
+    // (vue de trois quarts) une seule carte pour tout le niveau : le village y grandit (tqv.js)
+    decor = []; hides = []; covers = []; zones = [];
+    levelDecor = { zones: [], hides: [], covers: [] };
+    tqv.build(4242 + game.level * 7);
+    const r2 = mulberry32(99);
+    clouds = Array.from({ length: 16 }, () => ({ x: r2() * W.w - 2000, y: r2() * W.h - 800, r: 300 + r2() * 500 }));
+    motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
+    return;
+  }
   if (W.view === 'cote') {
     // (vue de côté) chaque chapitre a son propre paysage : il est construit dans chapterDecor()
     decor = []; hides = []; covers = []; zones = []; clouds = [];
@@ -570,6 +590,41 @@ const cote = createCote({
 });
 const side = () => cote.on();
 
+/* ---------- La voie des humains (vue de trois quarts) : voir tqv.js ---------- */
+const tqv = createTqv({
+  level: () => LV, chapter: () => CH, game: () => game, player: () => player, creatures: () => creatures, particles: () => particles,
+  floater: (txt, x, y, col, k) => addFloater(txt, x, y, col, k),
+  deed: (n, x, y, quiet) => deed(n, x, y, quiet),
+  sfx, say: (txt, prio, dur) => say(txt, prio, dur), sayOnce: (key, l, cd, prio) => sayOnce(key, l, cd, prio), lines: () => LINES,
+  checkMissions: () => checkMissions(), confetti: (n) => confetti(n), shake: (k) => { shake = Math.max(shake, k); }, stats: () => stats,
+  resName: (id) => resName(id), evoName: (id) => (EVOS[id] ? EVOS[id].name : id),
+  changed: () => { shown.res = null; },
+  rebuilt: () => tqvRebuilt(),
+  steer: (c, x, y, sp, dt) => steer(c, x, y, sp, dt),
+  spawnAt: (id, x, y) => { const c = makeCreature(id, x, y); creatures.push(c); return c; },
+  spearHit: (c, owner) => spearHit(c, owner),
+  horn: () => { sfx.horn(); shake = Math.max(shake, 0.3); },
+  drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
+});
+const trois = () => tqv.on();
+/** Ce qui a été construit change le monde : les enclos, les cachettes */
+function tqvRebuilt() {
+  pens = tqv.pens;
+  zones = pens.slice();
+  hides = tqv.hides;
+}
+/** Le nom d'une ressource (« bois », « silex »…) */
+function resName(id) {
+  const r = (LV.world.res || []).find((x) => x.id === id);
+  return r ? r.name.toLowerCase() : id;
+}
+/** La monnaie du niveau : l'ADN 🧬 (évoluer) ou les idées 💡 (inventer) */
+const CUR_DNA = {
+  icon: '🧬', name: "d'ADN", verb: 'Évoluer', order: 'Évolue', many: 'évolutions', later: "Dans des millions d'années",
+  tag: 'Nouvelle évolution !', sub: 'Choisis comment tes descendants vont changer :', stat: 'évolutions',
+};
+const CUR = () => (LV.world.currency ? { ...CUR_DNA, ...LV.world.currency } : CUR_DNA);
+
 /* ---------- Le joueur ---------- */
 function formLook() {
   return FORM_SPINE[CH.form] || null;
@@ -626,6 +681,12 @@ function spawnCreature(id, initial = false) {
     if (side()) {
       // (vue de côté) dans le ciel, par terre, dans l'eau, sur une branche…
       spot = cote.spawnPoint(sp, player, minD, far, initial);
+      if (!spot) return null;
+      x = spot.x;
+      y = spot.y;
+    } else if (trois()) {
+      // (vue de trois quarts) hors du village (sauf la tribu), pas dans la rivière, pas dans un arbre
+      spot = tqv.spawnPoint(sp, player, minD, far);
       if (!spot) return null;
       x = spot.x;
       y = spot.y;
@@ -709,6 +770,16 @@ function populate() {
       }
     }
   }
+  // (vue de trois quarts, chapters[].penned) les bêtes déjà apprivoisées, dans l'enclos
+  if (trois() && CH.penned && pens.length) {
+    const z = pens[0];
+    for (let i = 0; i < CH.penned.n; i++) {
+      const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * z.r * FENCE * 0.6;
+      const c = makeCreature(CH.penned.species, z.x + Math.cos(a) * d, z.y + Math.sin(a) * d);
+      c.penned = true;
+      creatures.push(c);
+    }
+  }
   // la meute déjà rassemblée est autour de toi
   if (CH.pack) {
     game.packN = Math.min(game.packN || 0, PACK_MAX);   // (une ancienne sauvegarde pouvait en avoir 8)
@@ -761,7 +832,7 @@ function maintainPopulation(dt) {
   spawnT = 0.3;
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
-  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.penned || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
+  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.sp.kind === 'tribu' || c.sp.kind === 'pillard' || c.penned || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
   for (const c of creatures) if (!c.penned && !c.guard) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
@@ -938,15 +1009,18 @@ function activateBark() {
   if (state !== 'playing' || isBlocked() || !p || p.dead || !stats.bark || p.barkT > 0) return;
   p.barkT = BARK_RECHARGE;
   p.mouth = 1;
-  sfx.bark();
+  const bk = CH.bark || {};
+  (sfx[bk.sound] || sfx.bark)();
   shake = Math.max(shake, 0.1);
-  addFloater('WOUF !', p.x, p.y - p.size * 1.8, '#FFFFFF', 1.3);
+  addFloater(bk.cry || 'WOUF !', p.x, p.y - p.size * (trois() ? 3.2 : 1.8), '#FFFFFF', 1.3);
   const R = 480 + p.size * 2;
-  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.55, size: R, color: '#FFFFFF', ring: true });
+  particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0, max: 0.55, size: R, color: bk.ring || '#FFFFFF', ring: true });
+  // (la torche) une gerbe d'étincelles
+  if (bk.sparks) for (let i = 0; i < 22; i++) particles.push({ x: p.x + rand(-1, 1) * p.size, y: p.y - p.size * 2.4, vx: rand(-1, 1) * 260, vy: rand(-360, -60), life: 0, max: rand(0.4, 0.8), size: rand(3, 6), color: pick(['#FFD84A', '#FF9A2A', '#FFF6C8']) });
   let hunters = 0;
   for (const c of creatures) {
     const k = c.sp.kind;
-    if (k === 'ally' || k === 'food' || k === 'human' || k === 'flock' || k === 'shepherd' || dist(c, p) > R + c.size) continue;
+    if (k === 'ally' || k === 'food' || k === 'human' || k === 'flock' || k === 'shepherd' || k === 'tribu' || k === 'stray' || dist(c, p) > R + c.size) continue;
     c.scaredT = BARK_SCARE;
     c.barkX = p.x;
     c.barkY = p.y;
@@ -971,7 +1045,7 @@ function activateBark() {
 }
 
 /* Le coup de queue ou de griffe (world.strike) : les adversaires à portée restent assommés */
-const canStrike = () => !!CH.power || (!!LV.world.strike && game.chapter + 1 >= LV.world.strike.from);
+const canStrike = () => (!!CH.power && (!CH.power.need || !!game.owned[CH.power.need])) || (!!LV.world.strike && game.chapter + 1 >= LV.world.strike.from);
 const strikeMax = () => (CH.power ? CH.power.recharge : STRIKE_RECHARGE);
 const inStrikeReach = (c) => ['hunter', 'rival', 'defender'].includes(c.sp.kind) && dist(c, player) < player.size * 2.6 + c.size * 0.9;
 
@@ -1140,7 +1214,7 @@ factCard.addEventListener('click', hideFact);
 
 function speciesFact(id) {
   const sp = SPECIES[id];
-  const tag = sp.kind === 'hunter' ? '⚠️ Chasseur !' : sp.kind === 'stinger' ? '⚠️ Ça pique !' : '👀 Nouvelle espèce';
+  const tag = sp.tag || (sp.kind === 'hunter' ? '⚠️ Chasseur !' : sp.kind === 'stinger' ? '⚠️ Ça pique !' : '👀 Nouvelle espèce');
   showFact({ img: speciesThumb(id, sp), tag, name: sp.name, where: `il y a ${fmtAgo(CH.ago[0])}`, fact: sp.fact });
 }
 
@@ -1190,6 +1264,11 @@ function updatePlayer(dt) {
     if (p.y < m) { p.y = m; p.vy = Math.abs(p.vy) * 0.3; }
     if (p.x > W.w - m) { p.x = W.w - m; p.vx = -Math.abs(p.vx) * 0.3; }
     if (p.y > W.h - m) { p.y = W.h - m; p.vy = -Math.abs(p.vy) * 0.3; }
+    // (vue de trois quarts) les arbres, les huttes, la palissade… et ce qu'on ramasse, ce qu'on construit
+    if (trois()) {
+      tqv.collide(p, p.size * 0.45, 'ami');
+      tqv.interact(p, dt);
+    }
   }
   const sp = Math.hypot(p.vx, p.vy);
   p.speed = clamp(sp / ms, 0, 1.5);
@@ -1304,7 +1383,13 @@ function respawn() {
   const p = player;
   // on renaît dans la cachette la plus proche (mais pas sous le nez du chasseur) ;
   // tant que la jauge baisse, on renaît là où on la remplit (une mare, la surface)
-  if (side()) {
+  if (trois()) {
+    // (vue de trois quarts) on repart près du feu du village
+    const pt = tqv.respawnPoint();
+    p.x = pt.x;
+    p.y = pt.y;
+    p.carry = null;
+  } else if (side()) {
     // (vue de côté) on repart du nid, ou pas loin, sur la terre ferme
     const pt = cote.respawnPoint(p, game.nest, (STAND[CH.form] ?? 0.6) * targetSize());
     Object.assign(p, { x: pt.x, y: pt.y, plat: pt.plat || null, loco: pt.plat ? 'sol' : 'chute', tree: null, energy: 1, carry: 0 });
@@ -1334,6 +1419,207 @@ function respawn() {
   flash = { a: 0.6, color: '255,255,255' };
   for (let i = 0; i < 16; i++) bubbleAt(p.x, p.y, p.size * 0.5);
   sfx.pickup();
+}
+
+/* ============================================================================
+   LA VOIE DES HUMAINS (vue de trois quarts) : voir tqv.js
+   ============================================================================ */
+
+/** La monnaie et le bouton du magasin : 🧬 Évoluer, ou 💡 Inventer */
+function setupCurrency() {
+  const C = CUR();
+  if (adnItem.firstChild && adnItem.firstChild.nodeType === 3) adnItem.firstChild.nodeValue = `${C.icon} `;
+  adnItem.title = LV.world.currency ? `Tes ${C.name} : elles servent à inventer` : "Ton ADN : il sert à évoluer";
+  evoBtn.innerHTML = `${C.icon} <span class="btn-label">${C.verb}</span>`;
+  evoBtn.setAttribute('aria-label', C.verb);
+  let bar = $('resBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'resBar';
+    bar.className = 'res-bar';
+    adnItem.after(bar);
+  }
+  bar.hidden = !trois();
+  shown.res = null;
+}
+
+/** Le compteur des ressources (bois, silex, ocre, blé, nourriture) */
+function renderRes() {
+  const bar = $('resBar');
+  if (!bar || !trois()) return;
+  const ch = game.chapter + 1;
+  const list = (LV.world.res || []).filter((r) => (r.from || 1) <= ch && (r.to || 99) >= ch);
+  bar.innerHTML = list.map((r) => `<span class="hud-item res-item" title="${escapeHtml(r.name)}"><img src="${resIconUrl(r.id)}" alt="${escapeHtml(r.name)}"> <b>${(game.res || {})[r.id] || 0}</b></span>`).join('');
+}
+
+/** Une lance (la tienne, ou celle d'une tour de guet) touche quelqu'un */
+function spearHit(c, owner) {
+  const k = c.sp.kind;
+  burst(c.x, c.y - c.size, 10, ['#FFFFFF', '#FFD24A', c.sp.color || '#FFFFFF'], c.size * 4 + 60, Math.max(2, c.size * 0.08));
+  sfx.snap();
+  // (les tours de guet tirent depuis le village : on s'enfuit loin du village)
+  const from = owner === 'joueur' ? player : tqv.M.V;
+  if (k === 'pillard' || c.sp.fieldRaider) {
+    // (sp.tough) le chef des pillards ne recule qu'au deuxième coup
+    c.hits = (c.hits || 0) + 1;
+    if (c.sp.tough && c.hits < c.sp.tough) {
+      c.stunT = 0.8;
+      addFloater('Il résiste !', c.x, c.y - c.size * 3, '#FFB36B', 1.2);
+      return;
+    }
+    tqv.repel(c, from, 'Aïe !');
+    return;
+  }
+  if (c.sp.hp) {
+    // une grosse bête : seul, on ne lui fait rien ; avec la troupe, chaque lance lui enlève de la vie
+    if (c !== huntTarget && packNear < c.sp.need) {
+      addFloater(`Toc ! Il faut ${c.sp.need} ${PT().word || 'loups'} !`, c.x, c.y - c.size * 2.6, '#FFD24A', 1.2);
+      sayOnce('packSmall', LINES.packSmall, 25, 2);
+      return;
+    }
+    c.hp -= c.sp.spear || 30;
+    c.mark = '!';
+    c.markT = 0.8;
+    addFloater('Touché !', c.x, c.y - c.size * 2.4, '#FFD24A', 1.3);
+    if (c.hp <= 0) huntWon(c);
+    return;
+  }
+  if (k === 'hunter' || k === 'defender') {
+    c.stunT = 2.5;
+    c.scaredT = 3;
+    c.barkX = from.x;
+    c.barkY = from.y;
+    if (!c.stunNoted) deed(8, c.x, c.y - c.size * 3);
+    noteStun(c);
+    addFloater('Touché !', c.x, c.y - c.size * 2.4, '#FFD24A', 1.3);
+    sayOnce('spearHit', LINES.spearHit, 40, 2);
+    checkMissions();
+    return;
+  }
+  if (k === 'prey') {
+    // un renne, un cerf : la chasse est réussie (huntWon compte la prise et donne les idées)
+    huntWon(c, 'Bien visé !');
+  }
+}
+
+/** La flèche, pour les missions de la voie des humains */
+function tqvTarget(todo) {
+  const p = player;
+  if (!tqv.M) return null;
+  for (const m of todo) {
+    if (m.type === 'gather') {
+      const it = tqv.nearestRes(p, m.res);
+      return it ? { x: it.x, y: it.y - 40, size: 40, img: resIconUrl(m.res) } : null;
+    }
+    if (m.type === 'build') {
+      const sites = tqv.sitesOf(m.what).filter((st) => (st.ch || 1) <= game.chapter + 1 && game.built[st.id] !== true);
+      if (!sites.length) return null;
+      const st = sites.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a));
+      // il manque quelque chose : la flèche montre où le trouver
+      const miss = tqv.missing(st, p);
+      if (miss && !(st.need && !game.owned[st.need])) {
+        if (st.cost.feu && p.carry !== 'feu' && !game.owned.feu) {
+          const tree = tqv.M.items.find((it) => it.type === 'arbre-feu');
+          if (tree) return { x: tree.x, y: tree.y - 120, size: 50, img: resIconUrl('feu') };
+        }
+        for (const [res, n] of Object.entries(st.cost)) {
+          if (res === 'feu' || (game.res[res] || 0) >= n) continue;
+          const it = tqv.nearestRes(p, res);
+          if (it) return { x: it.x, y: it.y - 40, size: 40, img: resIconUrl(res) };
+        }
+      }
+      return { x: st.x, y: st.y - 60, size: 60, icon: '🔨' };
+    }
+    if (m.type === 'deliver') {
+      const fields = tqv.sitesOf('champ').filter((st) => game.built[st.id] === true && game.fields[st.id] && game.fields[st.id].stage === 'seme' && !game.fields[st.id].watered);
+      if (!fields.length) return null;
+      if (p.carry === 'eau') {
+        const f = fields.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a));
+        return { x: f.x, y: f.y, size: 60, img: resIconUrl('eau') };
+      }
+      // la rivière la plus proche
+      let best = null, bd = Infinity;
+      for (const q of tqv.M.river) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = q; } }
+      return best ? { x: best.x, y: best.y, size: 60, img: resIconUrl('eau') } : null;
+    }
+    if (m.type === 'harvest') {
+      const ripe = tqv.sitesOf('champ').filter((st) => game.fields && game.fields[st.id] && game.fields[st.id].stage === 'mur');
+      if (ripe.length) {
+        const f = ripe.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a));
+        return { x: f.x, y: f.y, size: 60, img: resIconUrl('ble') };
+      }
+      continue;
+    }
+    if (m.type === 'defend') {
+      const t = nearestCreature((c) => c.sp.kind === 'pillard' && !(c.fleeT > 0));
+      return t ? { x: t.x, y: t.y - 60, size: t.size, img: speciesThumb(t.id, t.sp) } : null;
+    }
+    if (m.type === 'evolve') {
+      // pas assez d'idées pour inventer : la flèche montre de quoi ramasser (chaque chose ramassée en donne une)
+      if (game.owned[m.part] || game.adn >= EVOS[m.part].cost) return null;
+      const it = tqv.nearestRes(p, 'bois');
+      return it ? { x: it.x, y: it.y - 40, size: 40, img: resIconUrl('bois') } : null;
+    }
+    if (m.type === 'herd' && pens.length) continue;
+    return null;
+  }
+  return null;
+}
+
+/** Le dessin, vu de trois quarts : le sol, puis tout ce qui est debout, du fond vers le devant */
+function drawTqvView() {
+  const W = LV.world;
+  const sx = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
+  const sy = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = CH.palette.floor;
+  ctx.fillRect(0, 0, cssW, cssH);
+  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (cssW / 2 - cam.x * zoom + sx), dpr * (cssH / 2 - cam.y * zoom + sy));
+  const x0 = cam.x - viewW / 2 - 200, x1 = cam.x + viewW / 2 + 200;
+  const y0 = cam.y - viewH / 2 - 200, y1 = cam.y + viewH / 2 + 400;
+  const inView = (o, r) => o.x + r > x0 && o.x - r < x1 && o.y + r > y0 && o.y - r < y1;
+  const T = 820;
+  for (let tx = Math.floor(x0 / T) * T; tx < x1; tx += T) {
+    for (let ty = Math.floor(y0 / T) * T; ty < y1; ty += T) ctx.drawImage(floorTile, tx, ty, T + 1, T + 1);
+  }
+  tqv.drawGround(ctx, x0, x1, y0, y1, worldT);
+  for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
+  // tout ce qui est debout, rangé du fond (en haut) vers le devant (en bas)
+  const list = tqv.uprights(x0, x1, y0, y1);
+  for (const c of creatures) if (inView(c, c.size * 4)) list.push({ y: c.y, c });
+  if (!player.dead) list.push({ y: player.y, me: true });
+  list.sort((a, b) => a.y - b.y);
+  for (const u of list) {
+    if (u.c) drawCreature(ctx, u.c, worldT + u.c.seed);
+    else if (u.me) drawThePlayer();
+    else tqv.drawUpright(ctx, u, worldT);
+  }
+  tqv.drawTop(ctx, worldT, zoom);
+  if (!CH.night) drawCloudShadows(ctx, clouds, worldT, x0, y0, x1, y1);
+  // au-dessus des têtes : la barre de vie, les étoiles, les « ! »
+  for (const c of creatures) {
+    if (!inView(c, c.size * 4)) continue;
+    const top = { ...c, y: c.y - c.size * (c.sp.hp ? 1.0 : 0.9) };
+    if (CH.pack) drawPackMark(top);
+    if (c.stunT > 0) drawStars(top);
+    if (c.mark) {
+      const pop = clamp((1.1 - c.markT) * 6 + 0.3, 0.05, 1);
+      drawAlert(ctx, c.x, c.y - c.size * 2.6 - 14 / zoom, 15 / zoom, c.mark, pop);
+    } else if (c.fleeing && c.sp.kind !== 'food') {
+      drawSweat(ctx, c.x + c.size * 0.6, c.y - c.size * 2.2, Math.max(4, c.size * 0.28), worldT);
+    }
+  }
+  drawFx();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (CH.night) tqv.drawNight(ctx, cssW, cssH, worldToScreen, zoom, worldT, dpr, creatures);
+  drawMotes();
+  drawDanger();
+  drawTargetArrow();
+  if (flash.a > 0) {
+    ctx.fillStyle = `rgba(${flash.color},${flash.a})`;
+    ctx.fillRect(0, 0, cssW, cssH);
+  }
+  drawMinimap();
 }
 
 /* ============================================================================
@@ -1668,6 +1954,8 @@ function updateCreatures(dt) {
       c.mood = 'scared';
       c.fleeing = false;
       if (c === huntTarget) huntBites(c, dt);
+    } else if (trois() && tqv.steer(c, dt, p)) {
+      // (vue de trois quarts) la tribu au village, les pillards, les sangliers des champs, la peur du feu
     } else if (c.scaredT > 0) {
       // un aboiement : il file sans demander son reste
       c.scaredT -= dt;
@@ -1805,7 +2093,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd', 'tribu', 'pillard'].includes(o.sp.kind)) continue;
           // un gros chasseur croque aussi les rivaux (plus petits que lui) ; un rival, jamais un autre rival
           const rivalSnack = o.sp.kind === 'rival' && sp.kind === 'hunter' && o.size < c.size * 1.05;
           if (o.sp.kind === 'rival' ? !rivalSnack : o.size > c.size * most) continue;
@@ -1867,6 +2155,7 @@ function updateCreatures(dt) {
       const m = c.size + 40;
       if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
       if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
+      if (trois()) tqv.collide(c, c.size * 0.4, ['tribu', 'ally', 'stray', 'flock'].includes(sp.kind) ? 'ami' : 'sauvage');
     }
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert' && !side()) c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);
@@ -2021,9 +2310,9 @@ function updateAlly(c, dt) {
 }
 
 /** Une bonne action rapporte de l'ADN (dans ce niveau, manger n'est pas le seul moyen d'évoluer) */
-function deed(n, x, y) {
+function deed(n, x, y, quiet) {
   game.adn += n;
-  addFloater(`+${n} 🧬`, x, y, '#FFE58A', 0.9);
+  if (!quiet) addFloater(`+${n} ${CUR().icon}`, x, y, '#FFE58A', 0.9);
   bump(adnItem);
 }
 
@@ -2051,13 +2340,16 @@ function updateStray(c, d, dx, dy, dt) {
   c.sp = SPECIES[c.id];
   game.packN++;
   game.packMax = Math.max(game.packMax || 0, game.packN);
-  sfx.howl();
-  addFloater(game.packN >= PACK_MAX ? 'Ta meute est au complet !' : 'Un loup de plus !', c.x, c.y - c.size * 2, '#7CF0A0', 1.2);
+  (sfx[PT().sound] || sfx.howl)();
+  addFloater(game.packN >= PACK_MAX ? PT().full || 'Ta meute est au complet !' : PT().join || 'Un loup de plus !', c.x, c.y - c.size * 2, '#7CF0A0', 1.2);
   deed(12, c.x, c.y - c.size * 2.8);
   sayOnce('packJoin', LINES.packJoin, 60, 1);
   shown.size = null;
   checkMissions();
 }
+
+/** (chapters[].packText) les mots de la meute : { icon, name, word, join, full, lost, sound } */
+const PT = () => CH.packText || {};
 
 /** Tu t'es fait croquer : un loup de ta meute s'enfuit (il redevient solitaire, pas loin) */
 function loseWolf() {
@@ -2069,7 +2361,7 @@ function loseWolf() {
   if (c) {
     c.id = stray;
     c.sp = SPECIES[stray];
-    addFloater('Un loup s’enfuit !', c.x, c.y - c.size * 2, '#FFB36B', 1.1);
+    addFloater(PT().lost || 'Un loup s’enfuit !', c.x, c.y - c.size * 2, '#FFB36B', 1.1);
   }
   later(() => say(LINES.packLost, 2, 5000), 1500);
 }
@@ -2105,11 +2397,11 @@ function updateHunt() {
   for (const c of creatures) {
     if (!c.sp.hp || dist(c, p) > c.size + p.size + 220) continue;
     if (packNear < c.sp.need) {
-      if (sayOnce('packSmall', LINES.packSmall, 25, 2)) addFloater(`Il faut ${c.sp.need} loups !`, c.x, c.y - c.size * 2.6, '#FFD24A', 1.2);
+      if (sayOnce('packSmall', LINES.packSmall, 25, 2)) addFloater(`Il faut ${c.sp.need} ${PT().word || 'loups'} !`, c.x, c.y - c.size * 2.6, '#FFD24A', 1.2);
       continue;
     }
     huntTarget = c;
-    sfx.howl();
+    (sfx[PT().sound] || sfx.howl)();
     sayOnce('huntGo', LINES.huntGo, 40, 2);
     return;
   }
@@ -2166,16 +2458,27 @@ function huntBites(c, dt) {
     burst(c.x + rand(-1, 1) * c.size * 0.6, c.y + rand(-1, 1) * c.size * 0.5, 3, ['#FFFFFF', '#E8D9A0'], c.size * 2, Math.max(2, c.size * 0.06));
   }
   if (c.hp > 0) return;
-  // la meute a gagné !
+  huntWon(c);
+}
+
+/** La grosse bête est vaincue : tous ensemble (la meute, la troupe de chasseurs, la lance) */
+function huntWon(c, cry = 'Tous ensemble !') {
   c.dead = true;
-  huntTarget = null;
+  if (c === huntTarget) huntTarget = null;
+  // (vue de trois quarts) de la nourriture pour toute la tribu
+  if (trois() && c.sp.food) {
+    game.res = game.res || {};
+    game.res.viande = (game.res.viande || 0) + c.sp.food;
+    addFloater(`+${c.sp.food} ${resName('viande')}`, c.x, c.y - c.size * 3, '#FFB36B', 1.2);
+    shown.res = null;
+  }
   game.eaten[c.id] = (game.eaten[c.id] || 0) + 1;
   game.stats.eaten++;
   sfx.victory();
   shake = Math.max(shake, 0.4);
   confetti(30);
   burst(c.x, c.y, 24, [c.sp.color, '#FFFFFF', '#FFE58A'], c.size * 5, Math.max(3, c.size * 0.1));
-  addFloater('Tous ensemble !', c.x, c.y - c.size * 2, '#7CF0A0', 1.5);
+  addFloater(cry, c.x, c.y - c.size * 2, '#7CF0A0', 1.5);
   deed(c.sp.adn, c.x, c.y - c.size * 1.2);
   if (c.sp.eatLine) say(c.sp.eatLine, 2, 5000);
   checkMissions();
@@ -2454,6 +2757,10 @@ function firePower() {
       if (c.stunT > 0) burst(c.x, c.y - c.size * 0.5, 6, ['#FFD24A', '#FFFFFF'], c.size * 3 + 40, Math.max(2, c.size * 0.06));
     }
     if (scared) sayOnce('roared', LINES.roared, 40, 1);
+  } else if (P.type === 'lance') {
+    // (vue de trois quarts) on lance la lance droit devant
+    tqv.throwSpear(p);
+    addFloater(P.cry || 'HOP !', p.x, p.y - p.size * 3, '#FFFFFF', 1.2);
   } else if (P.type === 'breach') {
     // il jaillit hors de l'eau : plus rien ne peut le toucher tant qu'il vole
     sfx.dash();
@@ -2820,7 +3127,7 @@ function updateContacts() {
       dr.got = true;
       game.adn += dr.adn;
       sfx.pickup();
-      addFloater(`+${dr.adn} 🧬`, dr.x, dr.y, '#FFE58A', 0.9);
+      addFloater(`+${dr.adn} ${CUR().icon}`, dr.x, dr.y, '#FFE58A', 0.9);
       bump(adnItem);
     }
   }
@@ -2840,7 +3147,7 @@ function playerEats(c) {
   p.squash = 1;
   p.mouth = 1;
   burst(c.x, c.y, 8 + Math.round(big * 12), [sp.color || '#FFE58A', '#FFFFFF'], c.size * 5 + 40, Math.max(2, c.size * 0.2));
-  addFloater(`+${sp.adn} 🧬`, c.x, c.y - c.size, '#FFE58A', 0.8 + big * 0.5);
+  addFloater(`+${sp.adn} ${CUR().icon}`, c.x, c.y - c.size, '#FFE58A', 0.8 + big * 0.5);
   bump(adnItem);
   if (sp.eatLine) sayOnce(`eat-${c.id}`, LINES[sp.eatLine] || sp.eatLine, 300, 2);
   if (sp.trust) gainTrust(sp.trust);
@@ -3011,6 +3318,29 @@ function missionInfo(m) {
     const text = { bark: `Fais fuir ${m.n} ${name}`, herd: `Ramène ${m.n} ${name} dans l’enclos`, play: `Joue avec ${m.n} ${name}` }[m.type];
     return { text: m.text || text, cur, max: m.n, done: cur >= m.n, img: speciesThumb(m.species, sp) };
   }
+  if (m.type === 'gather') {
+    // (vue de trois quarts) ramasser du bois, du silex…
+    const cur = Math.min(m.n, (game.gathered || {})[m.res] || 0);
+    return { text: m.text || `Ramasse ${m.n} ${resName(m.res)}`, cur, max: m.n, done: cur >= m.n, img: resIconUrl(m.res) };
+  }
+  if (m.type === 'build') {
+    const sites = tqv.M ? tqv.sitesOf(m.what) : [];
+    const cur = Math.min(m.n, sites.filter((st) => game.built && game.built[st.id] === true).length);
+    return { text: m.text || `Construis ${m.n} ${m.what}`, cur, max: m.n, done: cur >= m.n, img: m.img ? resIconUrl(m.img) : playerThumb(CH.form, game.owned) };
+  }
+  if (m.type === 'deliver') {
+    const cur = Math.min(m.n, (game.delivered || {})[m.item] || 0);
+    return { text: m.text, cur, max: m.n, done: cur >= m.n, img: resIconUrl(m.item) };
+  }
+  if (m.type === 'harvest') {
+    const cur = Math.min(m.n, game.harvested || 0);
+    return { text: m.text || `Récolte ${m.n} gerbes de blé`, cur, max: m.n, done: cur >= m.n, img: resIconUrl('ble') };
+  }
+  if (m.type === 'defend') {
+    const cur = Math.min(m.n, game.repelled || 0);
+    const sp = SPECIES[m.species];
+    return { text: m.text || `Repousse ${m.n} attaques`, cur, max: m.n, done: cur >= m.n, img: sp ? speciesThumb(m.species, sp) : playerThumb(CH.form, game.owned) };
+  }
   if (m.type === 'nest') {
     // (vue de côté) construire son nid à un endroit précis
     return { text: m.text || 'Construis ton nid', cur: game.nest ? 1 : 0, max: 1, done: !!game.nest, img: nestThumb(false) };
@@ -3030,7 +3360,7 @@ function missionInfo(m) {
   }
   if (m.type === 'evolve') {
     const e = EVOS[m.part];
-    return { text: `Évolue : ${e.name}`, cur: game.owned[m.part] ? 1 : 0, max: 1, done: !!game.owned[m.part], img: playerThumb(CH.form, { ...game.owned, [m.part]: true }), evo: true };
+    return { text: `${CUR().order} : ${e.name}`, cur: game.owned[m.part] ? 1 : 0, max: 1, done: !!game.owned[m.part], img: playerThumb(CH.form, { ...game.owned, [m.part]: true }), evo: true };
   }
   const pct = Math.floor(growthK() * 100);
   return { text: 'Grandis au maximum', cur: pct, max: 100, done: pct >= 100, img: playerThumb(CH.form, game.owned), pct: true };
@@ -3075,7 +3405,7 @@ function chapterComplete() {
       <div class="dlg-face ammo-face">${AMMO_SVG}</div>
       <div><p class="dlg-chapter">Chapitre ${game.chapter + 1} terminé !</p><p class="dlg-name">Bravo ! 🎉</p></div>
     </div>
-    <p class="dlg-say">Tu as survécu à « ${escapeHtml(CH.title)} ». Mais l'évolution ne s'arrête jamais… Tes descendants vont continuer à changer, génération après génération.</p>
+    <p class="dlg-say">${escapeHtml(LINES.chapterDone.replace('{t}', CH.title))}</p>
     <p class="dlg-mission">⏳ Prochaine époque : <b>il y a ${fmtAgo(next.ago[0])}</b> — ${escapeHtml(next.title)}</p>
     <div class="dlg-actions"><button class="royal" data-act="go">⏩ Avancer dans le temps</button></div>`, {
     go: () => { closeDialog(); timeTravel(); },
@@ -3125,6 +3455,11 @@ const HOWTO_LAND = HOWTO_SEA.replace('pour nager', 'pour courir');
 function setupLandUi() {
   const land = terre.on();
   const arrows = '<kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd>';
+  setupCurrency();
+  if (trois()) {
+    $('deskHelp').innerHTML = `${arrows} marcher · touche les ressources pour les ramasser · arrête-toi sur un plan pour construire · <kbd>Espace</kbd> foncer · <kbd>E</kbd> inventer`;
+    return;
+  }
   if (side()) {
     const M = CH.moves || {};
     const can = [M.fly && '<kbd>↑</kbd> voler', M.climb && '<kbd>↑</kbd> grimper aux arbres', M.swim && 'nager'].filter(Boolean).join(' · ');
@@ -3137,7 +3472,7 @@ function setupLandUi() {
 /** Les couleurs du joueur changent à chaque chapitre (chapters[].skin) */
 const PLAYER_DEFAULT = { ...PLAYER };
 function applySkin() {
-  Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null, wing: null, tip: null, beak: null, patch: null }, CH.skin || {});
+  Object.assign(PLAYER, PLAYER_DEFAULT, { stripe: null, wing: null, tip: null, beak: null, patch: null, tone: null, hair: null }, CH.skin || {});
   // les rivaux sont de ton espèce : ils ont tes couleurs
   for (const sp of Object.values(SPECIES)) {
     if (sp.kind === 'rival' && !sp.ownColor) Object.assign(sp, { color: PLAYER.body, belly: PLAYER.belly, stripe: PLAYER.stripe });
@@ -3146,6 +3481,13 @@ function applySkin() {
 
 /** Les mares, la boue, la neige et les cachettes de ce chapitre (un terrier ne sert plus à un tigre) */
 function chapterDecor() {
+  if (trois()) {
+    tqv.refresh();
+    tqv.resetRaid();
+    tqvRebuilt();
+    covers = [];
+    return;
+  }
   if (side()) {
     cote.build(9001 + game.level * 131 + game.chapter * 17);
     zones = [];
@@ -3177,8 +3519,8 @@ function setupChapter(keepPos) {
   huntTarget = null;
   whiffT = 0;
   whiffCD = 8;
-  $('sizeIcon').textContent = CH.pack ? '🐺' : '📏';
-  $('sizeLabel').textContent = CH.pack ? 'Meute' : 'Taille';
+  $('sizeIcon').textContent = CH.pack ? PT().icon || '🐺' : '📏';
+  $('sizeLabel').textContent = CH.pack ? PT().name || 'Meute' : 'Taille';
   $('sizeItem').title = CH.pack ? LINES.packTitle : 'Ta taille : mange pour grandir';
   floorTile = buildFloorTile(CH.palette.floor, game.chapter + 3);
   // (CH.start) ce chapitre commence à un endroit précis (quand on y arrive)
@@ -3207,7 +3549,7 @@ function openChapterIntro() {
     const info = missionInfo(m);
     return `<li><img src="${info.img}" alt=""><span>${escapeHtml(info.text)}${info.revenge ? ' <small>(ta revanche !)</small>' : ''}</span></li>`;
   }).join('');
-  const unlocks = CH.unlock.map((id) => `<span class="chip">🧬 ${escapeHtml(EVOS[id].name)}</span>`).join(' ');
+  const unlocks = CH.unlock.map((id) => `<span class="chip">${CUR().icon} ${escapeHtml(EVOS[id].name)}</span>`).join(' ');
   openDialog(`
     <div class="dlg-head">
       <div class="dlg-face ammo-face">${AMMO_SVG}</div>
@@ -3216,7 +3558,7 @@ function openChapterIntro() {
     <p class="dlg-say">${escapeHtml(CH.intro)}</p>
     <p class="dlg-sub">🎯 Tes missions :</p>
     <ul class="mission-rows">${rows}</ul>
-    <p class="dlg-unlocks">Nouvelles évolutions possibles : ${unlocks}</p>
+    <p class="dlg-unlocks">Nouvelles ${CUR().many} possibles : ${unlocks}</p>
     ${CH.power ? `<p class="dlg-say">🆕 ${escapeHtml(CH.power.intro)}</p>` : LV.world.strike && LV.world.strike.from === game.chapter + 1 ? `<p class="dlg-say">🆕 ${escapeHtml(LV.world.strike.intro)}</p>` : ''}
     <div class="dlg-actions"><button class="primary" data-act="close">C'est parti !</button></div>`, {
     close: closeDialog,
@@ -3236,19 +3578,19 @@ function openEvolutions() {
     const open = e.ch <= game.chapter + 1;
     const img = playerThumb(CH.form, { ...game.owned, [id]: true });
     if (!open) {
-      return `<li class="evo-row locked"><img src="${img}" alt=""><span class="sr-text"><b>${escapeHtml(e.name)}</b><small>🔒 Dans des millions d'années (chapitre ${e.ch})</small></span></li>`;
+      return `<li class="evo-row locked"><img src="${img}" alt=""><span class="sr-text"><b>${escapeHtml(e.name)}</b><small>🔒 ${CUR().later} (chapitre ${e.ch})</small></span></li>`;
     }
     const btn = owned ? '<span class="shop-max">✓ Acquis</span>'
-      : `<button class="buy" data-act="buy:${id}" ${game.adn < e.cost ? 'disabled' : ''}>${e.cost} 🧬</button>`;
-    return `<li class="evo-row${owned ? ' owned' : ''}"><img src="${img}" alt=""><span class="sr-text"><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.short)}</small>${!owned && game.adn < e.cost ? `<small class="sr-poor">Il te manque ${e.cost - game.adn} 🧬</small>` : ''}</span>${btn}</li>`;
+      : `<button class="buy" data-act="buy:${id}" ${game.adn < e.cost ? 'disabled' : ''}>${e.cost} ${CUR().icon}</button>`;
+    return `<li class="evo-row${owned ? ' owned' : ''}"><img src="${img}" alt=""><span class="sr-text"><b>${escapeHtml(e.name)}</b><small>${escapeHtml(e.short)}</small>${!owned && game.adn < e.cost ? `<small class="sr-poor">Il te manque ${e.cost - game.adn} ${CUR().icon}</small>` : ''}</span>${btn}</li>`;
   }).join('');
   const actions = { close: closeDialog };
   for (const id of Object.keys(EVOS)) actions[`buy:${id}`] = () => { closeDialog(); evolve(id); };
   openDialog(`
-    <p class="dlg-title">🧬 Évoluer</p>
-    <p class="dlg-sub">Tu as <b>${game.adn} 🧬</b> d'ADN. Choisis comment tes descendants vont changer :</p>
+    <p class="dlg-title">${CUR().icon} ${CUR().verb}</p>
+    <p class="dlg-sub">Tu as <b>${game.adn} ${CUR().icon}</b> ${CUR().name}. ${CUR().sub}</p>
     <ul class="shop-rows">${rows}</ul>
-    <div class="dlg-actions"><button class="primary" data-act="close">${LV.world.ground === 'land' ? 'Retour à la terre ferme' : "Retour à l'océan"}</button></div>`, actions, true);
+    <div class="dlg-actions"><button class="primary" data-act="close">${LV.world.currency ? 'Retour au village' : LV.world.ground === 'land' ? 'Retour à la terre ferme' : "Retour à l'océan"}</button></div>`, actions, true);
 }
 
 function evolve(id) {
@@ -3276,7 +3618,7 @@ function updateEvolving(dt) {
     const e = EVOS[evolving.id];
     flash = { a: 0.8, color: '255,255,255' };
     addFloater(`✨ ${e.name} !`, player.x, player.y - player.size * 2, '#FFE58A', 1.5);
-    showFact({ img: playerThumb(CH.form, game.owned), tag: '🧬 Nouvelle évolution !', name: e.name, where: e.short, fact: e.fact });
+    showFact({ img: playerThumb(CH.form, game.owned), tag: `${CUR().icon} ${CUR().tag}`, name: e.name, where: e.short, fact: e.fact });
     evolving = null;
     checkMissions();
     renderAll();
@@ -3321,6 +3663,7 @@ function update(dt) {
   }
   updatePlayer(dt);
   updateCreatures(dt);
+  if (trois()) tqv.update(dt);
   updateContacts();
   updateTrust(dt);
   maintainPopulation(dt);
@@ -3413,6 +3756,7 @@ function worldToScreen(x, y) {
 /* ---------- Dessin ---------- */
 function draw() {
   if (side()) { drawSideView(); return; }
+  if (trois()) { drawTqvView(); return; }
   const W = LV.world;
   const sx = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
   const sy = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
@@ -3552,7 +3896,7 @@ function drawPackMark(c) {
   ctx.textBaseline = 'bottom';
   ctx.lineWidth = 4 / zoom;
   ctx.strokeStyle = 'rgba(8, 30, 45, 0.85)';
-  const label = `🐺 ${Math.min(packNear, c.sp.need)}/${c.sp.need}`;
+  const label = `${PT().icon || '🐺'} ${Math.min(packNear, c.sp.need)}/${c.sp.need}`;
   ctx.strokeText(label, c.x, y - 4 / zoom);
   ctx.fillStyle = packNear >= c.sp.need ? '#7CF0A0' : '#FFD24A';
   ctx.fillText(label, c.x, y - 4 / zoom);
@@ -3793,6 +4137,10 @@ function nearestCreature(ok) {
 /** Où aller pour la prochaine mission : une proie, un troupeau, l'enclos, les humains… */
 function missionTarget() {
   const todo = CH.missions.filter((m) => !missionInfo(m).done);
+  if (trois()) {
+    const t = tqvTarget(todo);
+    if (t) return t;
+  }
   if (side()) {
     const t = sideTarget(todo);
     if (t) return t;
@@ -3906,7 +4254,8 @@ function drawMinimap() {
   mctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
   if (side()) cote.minimap(mctx, toM, range, S);
-  for (const z of zones) {
+  if (trois()) tqv.minimap(mctx, toM, k, CH.missions.filter((mm) => (mm.type === 'gather' || mm.type === 'build') && !missionInfo(mm).done).flatMap((mm) => (mm.res ? [mm.res] : ['bois', 'silex', 'ocre', 'ble'])));
+  for (const z of trois() ? [] : zones) {
     const m = toM(z.x, z.y);
     mctx.fillStyle = z.zone === 'water' ? 'rgba(90, 180, 220, 0.6)' : z.zone === 'air' ? 'rgba(225, 250, 255, 0.7)'
       : z.zone === 'camp' ? 'rgba(255, 150, 60, 0.85)' : z.zone === 'pen' ? 'rgba(240, 215, 120, 0.85)' : 'rgba(140, 100, 60, 0.6)';
@@ -3915,7 +4264,7 @@ function drawMinimap() {
     mctx.fill();
   }
   mctx.fillStyle = 'rgba(80, 200, 110, 0.45)';
-  for (const a of side() ? [] : hides) {
+  for (const a of side() || trois() ? [] : hides) {
     const m = toM(a.x, a.y);
     mctx.beginPath();
     mctx.arc(m.x, m.y, Math.max(2, a.r * k), 0, TAU);
@@ -3994,7 +4343,9 @@ function renderHud() {
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
     water: drying() ? Math.round(player.wet * 50) : CH.wings ? Math.round((player.energy ?? 1) * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
+    res: trois() ? JSON.stringify(game.res || {}) : '',
   };
+  if (v.res !== shown.res) renderRes();
   if (v.adn !== shown.adn) adnEl.textContent = v.adn;
   if (v.size !== shown.size) {
     $('sizeItem').hidden = v.size < 0;
@@ -4401,6 +4752,13 @@ function playIntro() {
       drawHero: (c, x, y, r, o) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CHAPTERS[0].form, {}, performance.now() / 1000),
       drawAnimal: (c, look, color, x, y, r, o) => drawCreature(c, { sp: { look, color }, x, y, size: r, seed: 1, blink: 0, spine: null, mouth: 0, mood: 'calm', ...o }, performance.now() / 1000),
     });
+  } else if (LV.intro === 'humains') {
+    // (vue de trois quarts) la nuit, l'éclair… et le premier feu
+    intro = createHumanIntro({
+      sfx,
+      drawHero: (c, x, y, r, o = {}) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CHAPTERS[0].form, o.owned || {}, performance.now() / 1000),
+      drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'calm', ...o }, performance.now() / 1000),
+    });
   } else if (LV.intro === 'terre') {
     intro = createLandIntro({
       sfx,
@@ -4466,7 +4824,9 @@ function startEnding() {
   sizeCanvas(endCanvas, endOverlay);
   $('endTitle').textContent = LV.ending.title;
   $('endSub').textContent = LV.ending.sub;
-  $('endStats').textContent = `🍽️ ${game.stats.eaten} repas · 💨 ${game.stats.escapes} fuites réussies · 😱 croqué ${game.stats.deaths} fois · 🧬 ${game.stats.evolutions} évolutions`;
+  $('endStats').textContent = LV.world.currency
+    ? `💡 ${game.stats.evolutions} inventions · 🏠 ${game.builtCount || 0} constructions · 💨 ${game.stats.escapes} fuites réussies`
+    : `🍽️ ${game.stats.eaten} repas · 💨 ${game.stats.escapes} fuites réussies · 😱 croqué ${game.stats.deaths} fois · 🧬 ${game.stats.evolutions} évolutions`;
   $('endChoices').classList.toggle('three', LV.ending.choices.length > 2);
   $('endChoices').innerHTML = LV.ending.choices.map((c) => `
     <button class="choice-card" data-choice="${c.id}">
@@ -4526,6 +4886,10 @@ function goToLevel(i) {
   endOverlay.hidden = true;
   freeCanvas(endCanvas);
   game.adn = 0;                      // un nouveau niveau : on repart de zéro
+  game.res = {};                     // (vue de trois quarts) les ressources, ce qui est construit, les champs
+  game.built = {};
+  game.fields = {};
+  game.builtCount = 0;
   game.trust = 0;
   game.trustBest = 0;
   startOverlay.hidden = true;
@@ -4555,6 +4919,7 @@ $('endReplay').addEventListener('click', () => {
 
 function drawEnding(dt) {
   if (LV.ending.scene === 'oiseaux' || LV.ending.scene === 'reptiles') { drawSideEndingScene(dt); return; }
+  if (LV.ending.scene === 'civilisation') { drawHumanEndingScene(dt); return; }
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
   if (LV.ending.scene === 'chien') { drawDogEnding(dt); return; }
@@ -4605,6 +4970,26 @@ function drawEnding(dt) {
   const p = { x: px, y: py, angle: a, size, mouth: 0.3 + Math.abs(Math.sin(endT * 2)) * 0.4, mood: 'happy', blink: 0, speed: 0.5, spine: makeSpine(px, py, a, size, formLook() || 'poisson') };
   drawPlayer(c, p, CH.form, game.owned, endT);
   drawCrown(c, px + Math.cos(a) * size * 0.1, py - size * 1.15 + Math.sin(endT * 3) * 4, size * 0.75);
+}
+
+/* ---------- La fin de la voie des humains (intro-humains.js) ----------
+   le village fortifié… qui devient une ville ; puis le défilé des inventions */
+const HUMAN_TEXT_AT = 15.5;
+function drawHumanEndingScene(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('town', 5.2, () => sfx.time());
+  cueEnd('parade', 10.2, () => { sfx.victory(); confetti(70); });
+  if (t > HUMAN_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawHumanEnding(ectx, w, h, t, {
+    captions: LV.ending.captions,
+    parade: LV.ending.parade || [],
+    textAt: HUMAN_TEXT_AT,
+    drawHero: (c, x, y, r, o = {}) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CH.form, game.owned, t),
+    drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, t),
+  });
 }
 
 /* ---------- La fin de la voie des airs et de la voie des reptiles (vue de côté, intro-cote.js) ----------
@@ -5651,6 +6036,7 @@ function botDir() {
   const barkAt = stats.bark && p.barkT <= 0 ? CH.missions.filter((m) => m.type === 'bark' && !missionInfo(m).done).map((m) => m.species) : [];
   // (les requins) la cible d'une mission : on y va
   for (const m of CH.missions) if ((m.type === 'stun' || m.type === 'hit') && !missionInfo(m).done) barkAt.push(m.species);
+  for (const m of CH.missions) if (m.type === 'eat' && SPECIES[m.species].hp && !missionInfo(m).done && packNear >= SPECIES[m.species].need) barkAt.push(m.species);
   for (const c of creatures) {
     if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked && !(c.sp.kind === 'hunter' && p.strikeT > 1 && CH.power && !c.sp.tailBite))) continue;
     // (vue de côté) un chasseur qui ne peut pas nous atteindre là où on est (un loup, quand on vole)
@@ -5717,6 +6103,11 @@ function botJob() {
     const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1;
     return d <= stop ? { x: 0, y: 0 } : { x: dx / d, y: dy / d };
   };
+  if (trois()) {
+    // (vue de trois quarts) ramasser, construire, arroser, récolter, repousser les pillards
+    const j = tqvBot(go);
+    if (j) return j;
+  }
   if (side()) {
     // (vue de côté) le nid, la becquée, les lieux à atteindre
     const todo = CH.missions.filter((m) => !missionInfo(m).done);
@@ -5801,6 +6192,114 @@ function botJob() {
   return null;
 }
 
+/** (?debug) Le pilote automatique de la voie des humains (les autres missions : botJob) */
+function tqvBot(go0) {
+  const p = player;
+  // (la palissade) pour sortir du village ou y entrer, on passe par la porte
+  const M = tqv.M, V = M.V;
+  const walled = M.sites.some((s) => s.arc && game.built[s.id]);
+  // (dehors) si le chemin tout droit traverse le village, on longe la palissade
+  const around = (x, y) => {
+    const a0 = Math.atan2(p.y - V.y, p.x - V.x), da = angleDiff(a0, Math.atan2(y - V.y, x - V.x));
+    const ex = x - p.x, ey = y - p.y, L2 = ex * ex + ey * ey || 1;
+    const k = clamp(((V.x - p.x) * ex + (V.y - p.y) * ey) / L2, 0, 1);
+    if (Math.abs(da) < 0.3 || Math.hypot(p.x + ex * k - V.x, p.y + ey * k - V.y) > M.VR + 80) return null;
+    const a = a0 + Math.sign(da) * 0.45;
+    return go0(V.x + Math.cos(a) * (M.VR + 240), V.y + Math.sin(a) * (M.VR + 240));
+  };
+  const go = (x, y, stop = 0, ring = false) => {
+    // (dans l'enclos) on ressort par sa porte
+    const pen = pens.find((z) => dist(p, z) < z.r * FENCE);
+    if (pen && Math.hypot(x - pen.x, y - pen.y) > pen.r * FENCE) {
+      return go0(pen.x + Math.cos(pen.gate) * (pen.r * FENCE + 70), pen.y + Math.sin(pen.gate) * (pen.r * FENCE + 70));
+    }
+    const gate = M.sites.find((s) => s.type === 'porte');
+    const inside = tqv.inVillage(p.x, p.y);
+    // (un plan sur la palissade elle-même : on y va du côté où l'on est)
+    if (ring) return (!inside && walled && around(x, y)) || go0(x, y, stop);
+    if (walled && gate && inside !== tqv.inVillage(x, y)) {
+      const nx = (gate.x - V.x) / M.VR, ny = (gate.y - V.y) / M.VR, k = inside ? 1 : -1;
+      // (devant la porte, de notre côté : on la traverse ; sinon, on va devant)
+      const dx = p.x - gate.x, dy = p.y - gate.y;
+      const along = -(dx * nx + dy * ny) * k, across = Math.abs(dx * ny - dy * nx);
+      if (along < 170 && across < 70) return go0(gate.x + nx * 220 * k, gate.y + ny * 220 * k);
+      const ax = gate.x - nx * 150 * k, ay = gate.y - ny * 150 * k;
+      return (!inside && around(ax, ay)) || go0(ax, ay);
+    }
+    if (walled && !inside) return around(x, y) || go0(x, y, stop);
+    return go0(x, y, stop);
+  };
+  const res = (id) => {
+    const it = tqv.nearestRes(p, id);
+    return it ? go(it.x, it.y, it.r * 0.4) : null;
+  };
+  const fields = tqv.sitesOf('champ').filter((s) => game.built[s.id] === true);
+  for (const m of CH.missions) {
+    if (missionInfo(m).done) continue;
+    if (m.type === 'evolve') {
+      if (game.adn >= EVOS[m.part].cost) continue;
+      // pas assez d'idées : on ramasse (chaque chose ramassée en donne une)
+      return res('bois') || res('silex');
+    }
+    if (m.type === 'gather') return res(m.res);
+    if (m.type === 'build') {
+      const t = tqvTarget([m]);
+      if (!t) continue;
+      if (t.icon === '🔨') {
+        // sur le plan : on ne bouge plus, on construit
+        if (p.site && p.site.type === m.what) return { x: 0, y: 0 };
+        return go(t.x, t.y + 60, 0, m.what === 'palissade' || m.what === 'porte');
+      }
+      return go(t.x, t.y + 40, 20);
+    }
+    if (m.type === 'eat' && !SPECIES[m.species].hp) {
+      // (la lance) on file vers le gibier : la lance part droit devant
+      const c = nearestCreature((o) => o.id === m.species);
+      if (c) return go(c.x, c.y);
+      continue;
+    }
+    if (m.type === 'deliver') {
+      const t = tqvTarget([m]);
+      if (t) return go(t.x, t.y, 10);
+      continue;
+    }
+    if (m.type === 'harvest') {
+      const ripe = tqvTarget([m]);
+      if (ripe) return go(ripe.x, ripe.y, 10);
+      // rien de mûr : on arrose ce qui a soif ; sinon, on garde les champs contre les sangliers
+      const water = tqvTarget([{ type: 'deliver' }]);
+      if (water) return go(water.x, water.y, 10);
+      const f = fields[0];
+      const boar = nearestCreature((c) => c.sp.fieldRaider && !(c.fleeT > 0) && f && dist(c, f) < 1100);
+      if (boar) {
+        if (dist(boar, p) < p.size * 3 + boar.size && p.charge >= 1) activateDash();
+        if (stats.bark && p.barkT <= 0 && dist(boar, p) < 400) activateBark();
+        return go(boar.x, boar.y);
+      }
+      return f ? go(f.x + 200, f.y, 80) : null;
+    }
+    if (m.type === 'defend') {
+      const t = nearestCreature((c) => c.sp.kind === 'pillard' && !(c.fleeT > 0) && !c.routed);
+      if (t) {
+        const d = dist(t, p);
+        if (d < p.size * 3 + t.size && p.charge >= 1) activateDash();
+        // assez près : on vise (la lance passe par-dessus la palissade)
+        if (d < 360) return { x: (t.x - p.x) / d * 0.05, y: (t.y - p.y) / d * 0.05 };
+        return go(t.x, t.y, 0, true);
+      }
+      // pas d'attaque : on répare la palissade cassée (s'il y a du bois), sinon on attend au milieu
+      const broken = tqv.sitesOf('palissade').find((s) => game.built[s.id] === 'casse');
+      if (broken) {
+        if ((game.res.bois || 0) < (broken.cost.bois || 0)) return res('bois');
+        return p.site === broken ? { x: 0, y: 0 } : go(broken.x, broken.y, 20, true);
+      }
+      return go(tqv.M.V.x, tqv.M.V.y + 250, 80);
+    }
+    return null;
+  }
+  return null;
+}
+
 function simulate(seconds, careful = true, log = []) {
   botInput = botDir;
   botCareful = careful;
@@ -5855,6 +6354,7 @@ async function init() {
       get game() { return game; }, get player() { return player; }, get creatures() { return creatures; }, get state() { return state; },
       get zones() { return zones; },
       get cote() { return cote; },
+      get tqv() { return tqv; },
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },
       adn(n) { game.adn += n; },
       grow() { game.earned = CH.growth; },

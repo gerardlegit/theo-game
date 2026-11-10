@@ -107,7 +107,7 @@
 //      chaque choix nomme le niveau suivant ("level"). Tant qu'il n'existe
 //      pas, la fin annonce « bientôt » (texte "soon").
 //      Le niveau a aussi une icône ("icon"), une intro ('ocean' / 'terre' /
-//      'mer' / 'mammiferes' / 'loup' / 'requins') et, si besoin, le numéro affiché ("num" : deux
+//      'mer' / 'mammiferes' / 'loup' / 'requins' / 'airs' / 'reptiles' / 'humains') et, si besoin, le numéro affiché ("num" : deux
 //      niveaux 2 qui partent du même choix). "mapIcon" remplace l'icône sur
 //      la carte des niveaux de l'écran de départ (elle se construit toute
 //      seule à partir des choix de fin).
@@ -147,6 +147,39 @@
 //      chasseur). Intro 'airs' / 'reptiles' ; fin scene 'oiseaux' / 'reptiles'
 //      avec "parade" = le défilé des espèces d'aujourd'hui ([{ look, name, color,
 //      belly, k (la taille), fly }]).
+//   LA VUE DE TROIS QUARTS (voie-des-humains.js ; moteur : tqv.js, dessins :
+//   art-humains.js, animations : intro-humains.js)
+//      world.view = 'tqv' : le sol est vu d'en haut, mais tout ce qui est debout
+//      (humains, animaux, arbres, huttes) se dessine debout et se range du fond
+//      vers le devant. Une seule carte pour tout le niveau : ce qu'on construit
+//      reste d'un chapitre à l'autre. world.village + villageR (le centre et le
+//      rayon de la palissade) ; world.land (riverX, riverW, caveDx/caveDy = la
+//      grotte, fireTree = l'arbre en feu du chapitre 1, forests, woodNear, rocks,
+//      flint, ochre, wheat + meadow = le blé sauvage, bushes) ; world.res = les
+//      ressources du compteur ([{ id, name, from, to }] : bois, silex, ocre, blé) ;
+//      world.sites = ce qu'on construit ({ id, type 'foyer' / 'feu' / 'peinture' /
+//      'hutte' / 'enclos' / 'champ' / 'grenier' / 'palissade' / 'porte' / 'tour',
+//      name, ch, at = [dx, dy] depuis le village ou 'grotte', cost = { bois: 3,
+//      feu: 1… }, need = l'invention qu'il faut, planR, adn = les idées gagnées ;
+//      la palissade : ring = le nombre de morceaux, gate = l'angle de la porte) ;
+//      world.currency = la monnaie (💡 « idées » au lieu de 🧬 : icon, name,
+//      verb, order, many, later, tag, sub, stat) ; world.noEat = on ne mange
+//      rien. "lines" peut remplacer toutes les phrases d'Ammo de data.js.
+//      Espèces : kind 'tribu' (les gens du village), 'pillard' (ils viennent
+//      voler le blé et cassent la palissade ; breaker = leur force, tough = il
+//      faut deux coups de lance), fieldRaider (il mange le blé des champs),
+//      tag = l'étiquette de sa fiche. Looks « th-<nom> » (art-humains.js).
+//      Chapitre : night (on ne voit que près des feux), dry + world.meter (le
+//      froid), bark = la torche ({ icon, name, cry, sound, ring, sparks }), power
+//      type 'lance' (+ need = l'invention qui la donne), packText = les mots de
+//      la troupe ({ icon, name, word, join, full, lost, sound }), penned = les
+//      bêtes déjà dans l'enclos, raids = les attaques ({ after = la mission après
+//      laquelle elles commencent, species, chief, waves, gap, first }), zoom.
+//      Missions : gather (res, n), build (what = un type de site, n), deliver
+//      (item 'eau' : arroser les champs), harvest (n gerbes), defend (n attaques
+//      repoussées sans qu'ils volent de blé). Intro 'humains' ; fin scene
+//      'civilisation' avec "parade" = le défilé des inventions ([{ icon ou draw
+//      'biface' / 'roue', name }]).
 //   7. Ajouter le niveau à la liste ci-dessous. C'est tout : le moteur
 //      (script.js) ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -159,5 +192,6 @@ import loupEtHumain from './loup-et-humain.js';
 import voieDesRequins from './voie-des-requins.js';
 import voieDesAirs from './voie-des-airs.js';
 import voieDesReptiles from './voie-des-reptiles.js';
+import voieDesHumains from './voie-des-humains.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins, voieDesAirs, voieDesReptiles];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins, voieDesAirs, voieDesReptiles, voieDesHumains];

@@ -715,3 +715,11 @@ body.phone .end-text { padding-top: calc(var(--top) + var(--hud-h) + 4px); }
 body.phone .choice-card { width: min(240px, 44vw); padding: .5rem; }
 body.phone .choice-icon { font-size: 2rem; }
 body.phone .choice-text { font-size: .78rem; }
+
+/* La voie des humains : le compteur des ressources (bois, silex, ocre, blé, nourriture) */
+.res-bar { display: contents; }
+.res-bar[hidden] { display: none; }
+.res-item { gap: .3rem; }
+.res-item img { width: 22px; height: 22px; vertical-align: middle; }
+.res-item b { min-width: 1.2em; text-align: right; }
+body.phone .res-item img { width: 16px; height: 16px; }

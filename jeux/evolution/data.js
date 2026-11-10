@@ -1,6 +1,7 @@
 // ============================================================================
 // Ce que dit Ammo, l'ammonite qui guide le joueur, dans tous les niveaux.
-// (Les phrases propres à un niveau sont dans levels/.)
+// (Les phrases propres à un niveau sont dans levels/ : son objet "lines" peut
+// aussi remplacer n'importe laquelle de celles-ci.)
 // ============================================================================
 
 export const LINES = {
@@ -34,6 +35,7 @@ export const LINES = {
   tooHard: "Trop dur ! Il te faudrait des mâchoires…",
   maxSize: "Tu as atteint ta taille maximale pour cette époque. Termine les missions pour avancer dans le temps !",
   canEvolve: "Tu as assez d'ADN pour évoluer ! Appuie sur 🧬 Évoluer.",
+  chapterDone: "Tu as survécu à « {t} ». Mais l'évolution ne s'arrête jamais… Tes descendants vont continuer à changer, génération après génération.",
   revenge: "Avant, c'est lui qui te croquait… Maintenant, c'est ton tour !",
   /* sur la terre ferme (niveau 2) */
   mud: "Beurk, de la boue ! Ça colle, on avance tout doucement… Un chasseur qui te suit là-dedans sera ralenti, lui aussi !",

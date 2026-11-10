@@ -411,6 +411,8 @@ function drawMamHead(ctx, H, r, c, col, belly, dark, lw, o = {}) {
     ctx.fill();
     ctx.stroke();
   }
+  // (H.extra) ce qu'une espèce ajoute à sa tête : trompe, défenses, cornes, bois… (repère de la tête)
+  if (H.extra) H.extra(ctx, L, D, c, col, dark, lw, isFine());
   // (H.saber) les dents de sabre, qui dépassent bien sous le menton
   if (H.saber) {
     ctx.fillStyle = '#FBF6E9';
@@ -511,9 +513,36 @@ function mamLegs(ctx, P, r, gy, ph, col, dark, lw, far) {
   const sh = { x: (P.shoulder[0] - 0.02) * r, y: (P.shoulder[1] + P.depth * 0.3) * r };
   const wH = P.legW * r, wF = P.legW * r * (P.foreW || 0.9);
   const a = far ? Math.PI : 0;
+  if (P.pillar) {
+    // (P.pillar) de grosses pattes droites, comme des colonnes (le mammouth)
+    pillarLeg(ctx, hip, gy * r, wH, ph + a, stride, col, dark, lw);
+    pillarLeg(ctx, sh, gy * r, wF, ph + Math.PI + a, stride, col, dark, lw);
+    return { hip, sh, wH, wF };
+  }
   hindLeg(ctx, hip, gy * r, wH, ph + a, stride, col, dark, lw);
   foreLeg(ctx, sh, gy * r, wF, ph + Math.PI + a, stride, col, dark, lw);
   return { hip, sh, wH, wF };
+}
+
+function pillarLeg(ctx, top, gy, w, ph, stride, col, dark, lw) {
+  const sw = Math.sin(ph) * stride;
+  const lift = Math.max(0, Math.cos(ph)) * w * 0.6;
+  const foot = { x: top.x + sw * 0.8, y: gy - lift };
+  limb(ctx, [[top.x, top.y, w * 1.25], [foot.x - sw * 0.2, (top.y + foot.y) / 2, w * 1.05], [foot.x, foot.y - w * 0.5, w * 1.0]], col, dark, lw);
+  // le pied rond, et ses ongles
+  ctx.fillStyle = shade(col, -0.12);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y - w * 0.2, w * 1.1, w * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#E8DCC4';
+  for (const k of [-0.5, 0, 0.5]) {
+    ctx.beginPath();
+    ctx.ellipse(foot.x + k * w * 0.8, foot.y - w * 0.12, w * 0.18, w * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function mamTail(ctx, P, r, t, c, col, dark, lw) {
@@ -621,6 +650,8 @@ function drawMammal(ctx, c, t, P, col, o = {}) {
   if (P.wool) wool(ctx, pts, r, P, dark, lw);
   if (fine && !P.wool) muscles(ctx, near.hip, near.sh, r, near.wH * 0.75, near.wF * 0.75, dark);
   if (fine) furTicks(ctx, pts, r, lw, o.fluffy);
+  // (P.extra) ce qu'une espèce ajoute à son corps : la longue toison du mammouth, la crinière…
+  if (P.extra) P.extra(ctx, r, pts, col, dark, lw, fine, c, t);
   drawMamHead(ctx, H, r, c, col, belly, dark, lw, o);
   ctx.restore();
 }

@@ -4,6 +4,8 @@
 // poursuite, sprint, « gloups » quand on se fait manger, évolution, fanfares.
 // Sur la terre : pas lourds des dinosaures, rugissements, plouf, boue,
 // grondement et explosion de la météorite, petite musique triste.
+// La voie des humains : la torche, l'appel des chasseurs, le maillet qui
+// construit, la corne des pillards.
 // ============================================================================
 
 const STORAGE_KEY = 'evolution-sound';
@@ -189,5 +191,29 @@ export const sfx = {
   /* une petite musique triste, puis pleine d'espoir */
   sad: () => play(() => {
     [[69, 0], [67, 0.4], [64, 0.8], [62, 1.2], [64, 1.8], [67, 2.2], [72, 2.8]].forEach(([n, t]) => tone(NOTE(n), t, 0.5, { type: 'triangle', vol: 0.09 }));
+  }),
+
+  /* ---- la voie des humains ---- */
+  /* la torche qu'on agite : « fwouf ! », et le feu qui crépite */
+  torch: () => play(() => {
+    noise(0, 0.45, { vol: 0.26, freq: 380, to: 1700, q: 0.7 });
+    for (let i = 0; i < 6; i++) noise(0.06 + i * 0.07, 0.03, { vol: 0.1, freq: 3200 + i * 300, q: 4 });
+  }),
+  /* l'appel des chasseurs : « ouh-ouh ! » */
+  call: () => play(() => {
+    tone(NOTE(62), 0, 0.24, { type: 'triangle', vol: 0.13, to: NOTE(67) });
+    tone(NOTE(64), 0.3, 0.34, { type: 'triangle', vol: 0.13, to: NOTE(71) });
+  }),
+  /* toc, toc : on construit avec un maillet de pierre */
+  build: () => play(() => {
+    for (const st of [0, 0.13]) {
+      tone(230, st, 0.08, { type: 'triangle', vol: 0.15, to: 120 });
+      noise(st, 0.05, { vol: 0.12, freq: 1500, q: 2 });
+    }
+  }),
+  /* la corne des pillards : « booouuu ! » */
+  horn: () => play(() => {
+    tone(NOTE(45), 0, 1.4, { type: 'sawtooth', vol: 0.09, to: NOTE(47) });
+    tone(NOTE(57), 0.05, 1.3, { type: 'triangle', vol: 0.08, to: NOTE(59) });
   }),
 };
