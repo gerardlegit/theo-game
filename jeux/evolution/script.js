@@ -5734,7 +5734,7 @@ function botJob() {
       // (un oiseau posé) la cible est plus haut : on s'envole
       if (CH.moves && CH.moves.fly && p.loco !== 'vol' && t.y < p.y - 40) return { x: g.x * 0.5, y: -0.85 };
       // (posé, la cible est plus bas) on va au bord, et on se laisse tomber
-      if (p.loco === 'sol' && t.y > p.y + 40) return { x: Math.sign(t.x - p.x) || 1, y: p.plat ? 0.8 : 0 };
+      if (p.loco === 'sol' && t.y > p.y + 40) return CH.moves && CH.moves.fly ? { x: (Math.sign(t.x - p.x) || 1) * 0.6, y: -0.8 } : { x: Math.sign(t.x - p.x) || 1, y: p.plat ? 0.8 : 0 };
       return g;
     }
   }

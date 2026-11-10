@@ -135,15 +135,16 @@ export function createCote(api) {
     // les falaises : des plateaux de roche aux parois raides
     const cliffs = [];
     const addCliff = (x0, x1, H) => {
-      const e = 70;
+      const e = 95;
       const i0 = idx(x0 - e), i1 = idx(x1 + e);
       const seed = Math.floor(rnd() * 1e6);
       const base = gy.slice(i0, i1 + 1);
       for (let i = i0; i <= i1; i++) {
         const x = i * STEP;
-        let k = Math.min(smooth((x - (x0 - e)) / (e * 2)), smooth(((x1 + e) - x) / (e * 2)));
-        // une paroi rocheuse n'est jamais lisse : des bosses, des creux
-        if (k > 0.04 && k < 0.97) k = clamp(k + Math.sin(i * 1.7 + seed) * 0.07 + Math.sin(i * 0.61 + seed * 0.3) * 0.06 + Math.sin(i * 3.1 + seed * 0.7) * 0.03, 0, 1);
+        // (deux fois adouci : le pied se creuse doucement, le haut s'arrondit, la paroi est raide)
+        let k = Math.min(smooth(smooth((x - (x0 - e)) / (e * 2))), smooth(smooth(((x1 + e) - x) / (e * 2))));
+        // une paroi rocheuse n'est jamais lisse : des bosses, des creux (pas au pied, ni au bord du haut)
+        if (k > 0.22 && k < 0.92) k = clamp(k + Math.sin(i * 1.7 + seed) * 0.07 + Math.sin(i * 0.61 + seed * 0.3) * 0.06 + Math.sin(i * 3.1 + seed * 0.7) * 0.03, 0, 1);
         gy[i] -= H * k + (k > 0.97 ? Math.sin(i * 0.45 + seed) * 9 + Math.sin(i * 1.3 + seed) * 4 : 0);
       }
       cliffs.push({ x0, x1, H, i0, base, seed });
@@ -157,16 +158,20 @@ export function createCote(api) {
     // les lacs et les rivières, creusés dans le sol
     for (let k = 0; k < (L.lakes || 0); k++) {
       const wd = R(...(L.lakeW || [450, 800]));
-      const x = find(wd);
+      const span = wd * 1.4;
+      const x = find(span);
       if (x === null) continue;
-      const level = Math.max(gy[idx(x - wd)], gy[idx(x + wd)]) + 14;
+      const level = Math.max(gy[idx(x - span * 0.8)], gy[idx(x + span * 0.8)]) + 8;
       const D = R(...(L.lakeD || [260, 460]));
-      for (let i = idx(x - wd); i <= idx(x + wd); i++) {
-        const u = (i * STEP - x) / wd;
-        const bowl = level - 16 + (D + 16) * Math.pow((Math.cos(Math.PI * u) + 1) / 2, 0.55);
-        gy[i] = Math.max(gy[i], bowl);
+      for (let i = idx(x - span); i <= idx(x + span); i++) {
+        // le fond se creuse doucement depuis les bords : une plage, puis le fond du lac
+        const u = Math.abs(i * STEP - x) / span;
+        const f = smooth((1 - u) / 0.55);
+        const wgt = smooth((1 - u) / 0.3);
+        const target = level - 30 + (D + 30) * f;
+        gy[i] = Math.max(gy[i], lerp(gy[i], target, wgt));
       }
-      waters.push({ x0: x - wd, x1: x + wd, y: level, lake: true });
+      waters.push({ x0: x - span, x1: x + span, y: level, lake: true });
     }
     // la mer : le sol plonge vers le fond
     if (sea) {
@@ -350,6 +355,7 @@ export function createCote(api) {
     return null;
   }
   const standOf = (e) => (STAND[e.look || e.sp?.look] ?? 0.6) * e.size;
+  const inCamp = (x) => G.camps.some((c) => Math.abs(x - c.x) < c.r + 120);
   const onRock = (x) => G.cliffs.some((c) => x > c.x0 - 140 && x < c.x1 + 140) || G.peaks.some((p) => Math.abs(x - p.x) < p.hw * 0.75);
   /** Un animal peut-il aller jusqu'au nid ? (une corniche ou un sommet : seulement en volant ; une cime : en grimpant) */
   function nestReachable(c, n) {
@@ -521,7 +527,8 @@ export function createCote(api) {
       // (can.turn : les animaux) une paroi de roche devant, ou un grand vide : demi-tour !
       if (can.turn && Math.abs(e.vx) > 1) {
         const dir = Math.sign(e.vx), ahead = G.at(e.x + dir * 40);
-        if (g0 - ahead > 40 * can.turn || ahead - g0 > 70) {
+        const camp = can.noCamp && inCamp(e.x + dir * 60) && !inCamp(e.x);
+        if (g0 - ahead > 40 * can.turn || ahead - g0 > 70 || camp) {
           e.vx = 0;
           e.bumpT = 2.5;
           e.bumpDir = -dir;
@@ -690,7 +697,15 @@ export function createCote(api) {
       c.angle = c.face > 0 ? c.pitch : Math.PI - c.pitch;
       return;
     }
-    const can = { fly: lives === 'air', swim: !!sp.swims, climb: !!sp.climbs, float: !!sp.floats, dive: !!sp.dives, climbK: 0.6, agile: sp.agile || 2.5, turn: lives === 'air' ? 0 : 0.9 };
+    // (noCamp) les bêtes sauvages n'entrent pas dans le village des humains
+    const wild = sp.kind !== 'human' && sp.habitat !== 'camp';
+    const can = { fly: lives === 'air', swim: !!sp.swims, climb: !!sp.climbs, float: !!sp.floats, dive: !!sp.dives, climbK: 0.6, agile: sp.agile || 2.5, turn: lives === 'air' ? 0 : 0.9, noCamp: wild };
+    if (wild && lives !== 'air' && inCamp(c.x) && !(c.bumpT > 0)) {
+      // (déjà dedans : il en ressort)
+      const cp = G.camps.reduce((a, b) => (Math.abs(b.x - c.x) < Math.abs(a.x - c.x) ? b : a));
+      c.bumpT = 2.5;
+      c.bumpDir = c.x < cp.x ? -1 : 1;
+    }
     let want = v > 6 ? { x: c.vx / v, y: c.vy / v } : null;
     let top = Math.max(v, 1);
     if (c.bumpT > 0) {
@@ -714,6 +729,8 @@ export function createCote(api) {
         if (h > alt[1] && want.y < 0.3) want = { x: want.x, y: 0.4 };
       }
       if (!want) want = { x: c.face || 1, y: h < alt[0] ? -0.4 : 0.05 };
+      // (au-dessus du village des humains, il reste tout là-haut)
+      if (wild && inCamp(c.x) && h < 500) want = { x: want.x, y: -0.7 };
       const s = Math.hypot(want.x, want.y);
       want = { x: want.x / s, y: want.y / s };
       top = Math.max(top, sp.speed * 0.5);
@@ -814,6 +831,8 @@ export function createCote(api) {
       if (Math.abs(G.at(x + 30) - G.at(x - 30)) > 70) continue;
       // (ceux qui marchent) jamais en haut d'une falaise ou d'une montagne : ils n'y montent pas
       if (onRock(x)) continue;
+      // (les bêtes sauvages) jamais dans le village des humains
+      if (sp.kind !== 'human' && sp.habitat !== 'camp' && inCamp(x)) continue;
       if (wt && sp.swims) return { x, y: wt.y + sp.size * 0.5 };
       return { x, y: G.at(x) - st };
     }
@@ -858,7 +877,9 @@ export function createCote(api) {
       const t = G.trees.find((tr) => Math.abs(tr.x - c.x) < 600);
       if (t) return { x: t.x, y: t.top + 40 };
     }
-    const x = clamp(c.x + d, 200, G.w - 200);
+    let x = clamp(c.x + d, 200, G.w - 200);
+    // (les bêtes sauvages) on ne se promène pas dans le village des humains
+    if (sp.kind !== 'human' && sp.habitat !== 'camp' && inCamp(x)) x = clamp(c.x - d, 200, G.w - 200);
     return { x, y: G.at(x) };
   }
 
@@ -1197,16 +1218,16 @@ export function createCote(api) {
     const pal = P();
     for (const wt of G.waters) {
       if (wt.x1 < x0 || wt.x0 > x1) continue;
-      const xa = Math.max(x0 - 20, wt.x0 - 20), xb = Math.min(x1 + 20, wt.x1 + 20);
+      const xa = Math.max(x0 - 20, wt.x0 - STEP), xb = Math.min(x1 + 20, wt.x1 + STEP);
       const g = ctx.createLinearGradient(0, wt.y, 0, wt.y + 260);
       g.addColorStop(0, pal.waterFront || 'rgba(70, 150, 190, 0.45)');
       g.addColorStop(1, pal.waterFront2 || 'rgba(20, 70, 100, 0.55)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(xa, wt.y);
-      for (let x = xa; x <= xb; x += 20) ctx.lineTo(x, wt.y + Math.sin(x * 0.03 + t * 2.4) * 3);
-      ctx.lineTo(xb, wt.bottom + 30);
-      ctx.lineTo(xa, wt.bottom + 30);
+      for (let x = xa; x <= xb; x += 12) ctx.lineTo(x, wt.y + Math.sin(x * 0.03 + t * 2.4) * 3);
+      // (le dessous suit le fond : sur la plage, l'eau s'amincit jusqu'à rien)
+      for (let x = xb; x >= xa; x -= 12) ctx.lineTo(x, Math.max(wt.y + 3, G.at(x) + 2));
       ctx.closePath();
       ctx.fill();
       // la ligne de la surface, qui brille
@@ -1555,7 +1576,7 @@ export function createCote(api) {
       g.moveTo(xa, G.at(xa));
       for (let x = xa; x <= xb; x += 8) g.lineTo(x, G.at(x));
       g.lineTo(xb, G.at(xb));
-      for (let x = xb; x >= xa; x -= 8) g.lineTo(x, Math.max(G.at(x), baseAt(c, x) + 26));
+      for (let x = xb; x >= xa; x -= 8) g.lineTo(x, Math.max(G.at(x), baseAt(c, x) + 6));
       g.closePath();
     };
     outline();
@@ -1711,7 +1732,7 @@ export function createCote(api) {
       }
       g.stroke();
     };
-    for (let n = 0; n < 6; n++) along((x) => baseAt(c, x) + 26 - n * 24, 0.07, 34);
+    for (let n = 0; n < 6; n++) along((x) => baseAt(c, x) + 6 - n * 24, 0.07, 34);
     for (let n = 0; n < 3; n++) along((x) => G.at(x) + 8 + n * 10, 0.08, 16);
     // (les montagnes) de la neige sur les sommets
     if (c.peak && pal.snow) {
