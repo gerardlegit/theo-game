@@ -123,7 +123,8 @@ export function createCote(api) {
       const x = find(hw * 0.8);
       if (x === null) continue;
       const H = R(...(L.mountainH || [1000, 1500]));
-      peaks.push({ x, hw, H });
+      const i0 = idx(x - hw);
+      peaks.push({ x, hw, H, x0: x - hw, x1: x + hw, i0, base: gy.slice(i0, idx(x + hw) + 1), seed: Math.floor(rnd() * 1e6), peak: true });
       for (let i = idx(x - hw); i <= idx(x + hw); i++) {
         const u = Math.abs(i * STEP - x) / hw;
         if (u >= 1) continue;
@@ -135,12 +136,17 @@ export function createCote(api) {
     const cliffs = [];
     const addCliff = (x0, x1, H) => {
       const e = 70;
-      for (let i = idx(x0 - e); i <= idx(x1 + e); i++) {
+      const i0 = idx(x0 - e), i1 = idx(x1 + e);
+      const seed = Math.floor(rnd() * 1e6);
+      const base = gy.slice(i0, i1 + 1);
+      for (let i = i0; i <= i1; i++) {
         const x = i * STEP;
-        const k = Math.min(smooth((x - (x0 - e)) / (e * 2)), smooth(((x1 + e) - x) / (e * 2)));
-        gy[i] -= H * k;
+        let k = Math.min(smooth((x - (x0 - e)) / (e * 2)), smooth(((x1 + e) - x) / (e * 2)));
+        // une paroi rocheuse n'est jamais lisse : des bosses, des creux
+        if (k > 0.04 && k < 0.97) k = clamp(k + Math.sin(i * 1.7 + seed) * 0.07 + Math.sin(i * 0.61 + seed * 0.3) * 0.06 + Math.sin(i * 3.1 + seed * 0.7) * 0.03, 0, 1);
+        gy[i] -= H * k + (k > 0.97 ? Math.sin(i * 0.45 + seed) * 9 + Math.sin(i * 1.3 + seed) * 4 : 0);
       }
-      cliffs.push({ x0, x1, H });
+      cliffs.push({ x0, x1, H, i0, base, seed });
     };
     for (let k = 0; k < (L.cliffs || 0); k++) {
       const wd = R(220, 520);
@@ -344,6 +350,14 @@ export function createCote(api) {
     return null;
   }
   const standOf = (e) => (STAND[e.look || e.sp?.look] ?? 0.6) * e.size;
+  const onRock = (x) => G.cliffs.some((c) => x > c.x0 - 140 && x < c.x1 + 140) || G.peaks.some((p) => Math.abs(x - p.x) < p.hw * 0.75);
+  /** Un animal peut-il aller jusqu'au nid ? (une corniche ou un sommet : seulement en volant ; une cime : en grimpant) */
+  function nestReachable(c, n) {
+    if ((c.sp.lives || 'sol') === 'air') return true;
+    if (n.kind === 'corniche' || n.kind === 'sommet') return false;
+    if (n.kind === 'cime' || n.kind === 'branche') return !!c.sp.climbs;
+    return !onRock(n.x);
+  }
   function thermalAt(x, y) {
     for (const t of G.thermals) if (Math.abs(x - t.x) < t.w / 2 && y > t.top && y < G.at(x)) return t;
     return null;
@@ -504,6 +518,17 @@ export function createCote(api) {
     } else {
       const g0 = G.at(e.x), g1 = G.at(nx);
       const wt = G.wetAt(nx);
+      // (can.turn : les animaux) une paroi de roche devant, ou un grand vide : demi-tour !
+      if (can.turn && Math.abs(e.vx) > 1) {
+        const dir = Math.sign(e.vx), ahead = G.at(e.x + dir * 40);
+        if (g0 - ahead > 40 * can.turn || ahead - g0 > 70) {
+          e.vx = 0;
+          e.bumpT = 2.5;
+          e.bumpDir = -dir;
+          e.y = g0 - st;
+          return;
+        }
+      }
       // un mur de roche (trop raide pour marcher), ou l'eau pour qui ne nage pas
       if ((g0 - g1) > STEEP * Math.abs(nx - e.x) + 2 && !can.climbRock) e.vx = 0;
       else if (wt && g1 > wt.y + 6) {
@@ -665,9 +690,17 @@ export function createCote(api) {
       c.angle = c.face > 0 ? c.pitch : Math.PI - c.pitch;
       return;
     }
-    const can = { fly: lives === 'air', swim: !!sp.swims, climb: !!sp.climbs, float: !!sp.floats, dive: !!sp.dives, climbK: 0.6, agile: sp.agile || 2.5 };
+    const can = { fly: lives === 'air', swim: !!sp.swims, climb: !!sp.climbs, float: !!sp.floats, dive: !!sp.dives, climbK: 0.6, agile: sp.agile || 2.5, turn: lives === 'air' ? 0 : 0.9 };
     let want = v > 6 ? { x: c.vx / v, y: c.vy / v } : null;
     let top = Math.max(v, 1);
+    if (c.bumpT > 0) {
+      // il vient de buter contre une falaise : il repart dans l'autre sens
+      c.bumpT -= dt;
+      want = { x: c.bumpDir, y: 0 };
+      top = Math.max(top, sp.speed * 0.45);
+      c.wx = clamp(c.x + c.bumpDir * 700, 200, G.w - 200);
+      c.wy = G.at(c.wx);
+    }
     // (un oiseau) il reste dans son étage du ciel
     if (lives === 'air') {
       if (!c.loco || c.loco === 'sol' && !c.perch) c.loco = 'vol';
@@ -779,6 +812,8 @@ export function createCote(api) {
       }
       if (wt && !sp.swims) continue;
       if (Math.abs(G.at(x + 30) - G.at(x - 30)) > 70) continue;
+      // (ceux qui marchent) jamais en haut d'une falaise ou d'une montagne : ils n'y montent pas
+      if (onRock(x)) continue;
       if (wt && sp.swims) return { x, y: wt.y + sp.size * 0.5 };
       return { x, y: G.at(x) - st };
     }
@@ -1053,70 +1088,12 @@ export function createCote(api) {
     ctx.lineTo(xb, deep);
     ctx.closePath();
     ctx.fill();
-    // la roche des falaises et des montagnes (des strates)
-    ctx.save();
-    ctx.clip();
-    const rock = pal.rock || '#9A8A78';
-    for (const c of G.cliffs) {
-      if (c.x1 + 200 < x0 || c.x0 - 200 > x1) continue;
-      const top = G.at((c.x0 + c.x1) / 2);
-      const rg = ctx.createLinearGradient(c.x0, 0, c.x1, 0);
-      rg.addColorStop(0, shade(rock, -0.18));
-      rg.addColorStop(0.5, rock);
-      rg.addColorStop(1, shade(rock, -0.25));
-      ctx.fillStyle = rg;
-      ctx.fillRect(c.x0 - 160, top - 20, c.x1 - c.x0 + 320, c.H + 160);
-      ctx.strokeStyle = shade(rock, -0.3);
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      for (let y = top + 50; y < top + c.H; y += 70) {
-        ctx.moveTo(c.x0 - 160, y + Math.sin(y) * 8);
-        ctx.lineTo(c.x1 + 160, y + Math.cos(y) * 8);
-      }
-      ctx.stroke();
-      ctx.strokeStyle = shade(rock, -0.4);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      for (let k = 0; k < 8; k++) {
-        const x = lerp(c.x0, c.x1, ((k * 0.618) % 1));
-        const y = top + 40 + ((k * 0.37) % 1) * c.H * 0.8;
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + 10, y + 60);
-        ctx.lineTo(x - 6, y + 110);
-      }
-      ctx.stroke();
+    // la roche des falaises et des montagnes (peinte une fois, voir rockSprite)
+    for (const c of [...G.cliffs, ...G.peaks]) {
+      if (c.x1 + 260 < x0 || c.x0 - 260 > x1) continue;
+      const sp = rockSprite(c);
+      ctx.drawImage(sp.cv, sp.xa, sp.ya, sp.w, sp.h);
     }
-    for (const p of G.peaks) {
-      if (p.x + p.hw < x0 || p.x - p.hw > x1) continue;
-      const top = G.at(p.x);
-      const rg = ctx.createLinearGradient(p.x - p.hw, 0, p.x + p.hw, 0);
-      rg.addColorStop(0, shade(rock, -0.1));
-      rg.addColorStop(0.45, shade(rock, 0.06));
-      rg.addColorStop(1, shade(rock, -0.3));
-      ctx.fillStyle = rg;
-      ctx.fillRect(p.x - p.hw, top - 20, p.hw * 2, p.H + 100);
-      if (pal.snow) {
-        ctx.fillStyle = pal.snow;
-        ctx.beginPath();
-        ctx.moveTo(p.x - p.hw * 0.4, top + p.H * 0.4);
-        for (let x = p.x - p.hw * 0.4; x <= p.x + p.hw * 0.4; x += 24) ctx.lineTo(x, Math.min(G.at(x) + 14, top + p.H * 0.32 + Math.sin(x * 0.05) * 30));
-        ctx.lineTo(p.x + p.hw * 0.4, top - 40);
-        ctx.lineTo(p.x - p.hw * 0.4, top - 40);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.strokeStyle = shade(rock, -0.35);
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      for (let k = 0; k < 10; k++) {
-        const x = p.x + (((k * 0.618) % 1) - 0.5) * p.hw * 1.4;
-        const y = G.at(x) + 40 + ((k * 0.37) % 1) * 200;
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + 30, y + 90);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
     // l'herbe sur le dessus (pas sous l'eau, pas sur la roche nue)
     const grass = pal.grass || '#6A9A3A';
     ctx.strokeStyle = shade(grass, -0.25);
@@ -1132,7 +1109,8 @@ export function createCote(api) {
         const y = G.at(x);
         const wt = G.wetAt(x);
         const steep = Math.abs(G.at(x + step) - G.at(x - step)) / (step * 2) > 0.85;
-        if ((wt && y > wt.y - 4) || steep) { pen = false; continue; }
+        const onPeak = G.peaks.some((pk) => Math.abs(x - pk.x) < pk.hw * 0.85);
+        if ((wt && y > wt.y - 4) || steep || onPeak) { pen = false; continue; }
         if (!pen) { ctx.moveTo(x, y + dy); pen = true; } else ctx.lineTo(x, y + dy);
       }
       ctx.stroke();
@@ -1541,32 +1519,371 @@ export function createCote(api) {
     }
   }
 
+
+  /* ---------- Les falaises et les montagnes : de la vraie roche ----------
+     Peintes une seule fois dans une petite toile (elles ne bougent pas) :
+     des couches de roche, des blocs, des fissures, une face au soleil et une
+     face à l'ombre, de la mousse, des lianes qui pendent, des éboulis au pied
+     et de l'herbe sur le dessus. */
+  const baseAt = (c, x) => {
+    const i = Math.round(x / STEP) - c.i0;
+    return i < 0 || i >= c.base.length ? G.at(x) : c.base[i];
+  };
+
+  function rockSprite(c) {
+    if (c.spr) return c.spr;
+    const pal = P();
+    const rock = pal.rock || '#9A8A78';
+    const r1 = mulberry32(c.seed || 7);
+    const R1 = (a, b) => a + r1() * (b - a);
+    const pad = c.peak ? 40 : 90;
+    const xa = Math.max(0, c.x0 - pad), xb = Math.min(G.w, c.x1 + pad);
+    let top = Infinity, bot = -Infinity;
+    for (let x = xa; x <= xb; x += STEP) { top = Math.min(top, G.at(x)); bot = Math.max(bot, baseAt(c, x)); }
+    const ya = top - 140, yb = bot + 70;
+    const k = 0.7;                                   // la toile est un peu moins fine que l'écran (c'est bien assez)
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.ceil((xb - xa) * k));
+    cv.height = Math.max(1, Math.ceil((yb - ya) * k));
+    const g = cv.getContext('2d');
+    g.scale(k, k);
+    g.translate(-xa, -ya);
+    const dark = shade(rock, -0.5);
+    // où est la roche : entre la surface et l'ancien sol (un peu en dessous)
+    const outline = () => {
+      g.beginPath();
+      g.moveTo(xa, G.at(xa));
+      for (let x = xa; x <= xb; x += 8) g.lineTo(x, G.at(x));
+      g.lineTo(xb, G.at(xb));
+      for (let x = xb; x >= xa; x -= 8) g.lineTo(x, Math.max(G.at(x), baseAt(c, x) + 26));
+      g.closePath();
+    };
+    outline();
+    g.save();
+    g.clip();
+    // les couches de roche (sédimentaires), de tons un peu différents
+    const tones = [rock, shade(rock, -0.07), shade(rock, 0.06), shade(rock, -0.13), shade(rock, 0.02)];
+    let y = top - 10, band = 0;
+    const bands = [];
+    const wav = (x, b) => Math.sin(x * (0.008 + (b % 3) * 0.004) + b * 1.7) * 9 + Math.sin(x * 0.031 + b) * 3;
+    while (y < yb) {
+      const hgt = R1(26, 62);
+      bands.push({ y, hgt });
+      g.fillStyle = tones[band % tones.length];
+      g.beginPath();
+      g.moveTo(xa, y + wav(xa, band));
+      for (let x = xa; x <= xb; x += 24) g.lineTo(x, y + wav(x, band));
+      g.lineTo(xb, y + hgt + 8);
+      g.lineTo(xa, y + hgt + 8);
+      g.closePath();
+      g.fill();
+      y += hgt;
+      band++;
+    }
+    // les blocs : des joints verticaux, décalés d'une couche à l'autre
+    bands.forEach((b, bi) => {
+      let x = xa + R1(0, 140);
+      while (x < xb) {
+        const w = R1(90, 240);
+        if (r1() < 0.7) {
+          // un joint de travers, avec un coude (de la vraie roche, pas des briques)
+          const y0 = b.y + wav(x, bi) + 2, y2 = b.y + b.hgt + wav(x, bi + 1);
+          const mx = x + R1(-14, 14), my = (y0 + y2) / 2 + R1(-6, 6);
+          const ex = mx + R1(-16, 16);
+          g.strokeStyle = 'rgba(40, 28, 18, 0.32)';
+          g.lineWidth = 3;
+          g.lineJoin = 'round';
+          g.beginPath();
+          g.moveTo(x, y0);
+          g.lineTo(mx, my);
+          g.lineTo(ex, y2);
+          g.stroke();
+          g.strokeStyle = 'rgba(255, 245, 225, 0.16)';
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(x - 3, y0 + 3);
+          g.lineTo(mx - 3, my);
+          g.lineTo(ex - 3, y2 - 3);
+          g.stroke();
+        }
+        // un bloc bombé : un reflet doux sur le dessus
+        g.fillStyle = 'rgba(255, 248, 230, 0.1)';
+        g.beginPath();
+        g.ellipse(x + w * 0.5, b.y + wav(x + w * 0.5, bi) + b.hgt * 0.3, w * 0.36, b.hgt * 0.22, 0, 0, TAU);
+        g.fill();
+        x += w;
+      }
+    });
+    for (const b of bands) {
+      // l'arête claire en haut de chaque couche, l'ombre en dessous
+      g.strokeStyle = 'rgba(255, 248, 230, 0.28)';
+      g.lineWidth = 3;
+      g.beginPath();
+      for (let x = xa; x <= xb; x += 24) {
+        const yy = b.y + wav(x, bands.indexOf(b)) + 2;
+        if (x === xa) g.moveTo(x, yy); else g.lineTo(x, yy);
+      }
+      g.stroke();
+      g.strokeStyle = 'rgba(40, 28, 18, 0.32)';
+      g.lineWidth = 4;
+      g.beginPath();
+      for (let x = xa; x <= xb; x += 24) {
+        const yy = b.y + b.hgt + wav(x, bands.indexOf(b) + 1) - 1;
+        if (x === xa) g.moveTo(x, yy); else g.lineTo(x, yy);
+      }
+      g.stroke();
+    }
+    // des trous et des petits cailloux incrustés
+    for (let n = 0; n < (xb - xa) / 60; n++) {
+      const x = R1(xa, xb), yy = R1(G.at(x) + 30, baseAt(c, x) - 10);
+      if (yy <= G.at(x) + 20) continue;
+      g.fillStyle = 'rgba(30, 20, 14, 0.4)';
+      g.beginPath();
+      g.ellipse(x, yy, R1(6, 16), R1(4, 9), 0, 0, TAU);
+      g.fill();
+      g.fillStyle = 'rgba(255, 245, 225, 0.25)';
+      g.beginPath();
+      g.ellipse(x - 2, yy - 4, R1(3, 7), 2, 0, Math.PI, TAU);
+      g.fill();
+    }
+    // les fissures, de haut en bas
+    for (let n = 0; n < Math.max(3, (xb - xa) / 160); n++) {
+      let x = R1(xa + 30, xb - 30), yy = G.at(x) + R1(10, 60);
+      const end = Math.min(baseAt(c, x), yy + R1(140, 420));
+      g.strokeStyle = 'rgba(30, 20, 14, 0.55)';
+      g.lineWidth = 3;
+      g.lineJoin = 'round';
+      g.beginPath();
+      g.moveTo(x, yy);
+      const pts = [];
+      while (yy < end) {
+        x += R1(-14, 14);
+        yy += R1(20, 46);
+        pts.push([x, yy]);
+        g.lineTo(x, yy);
+        if (r1() < 0.18) {
+          g.moveTo(x, yy);
+          g.lineTo(x + R1(-40, 40), yy + R1(20, 50));
+          g.moveTo(x, yy);
+        }
+      }
+      g.stroke();
+      g.strokeStyle = 'rgba(255, 245, 225, 0.22)';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      pts.forEach(([px, py], i2) => (i2 ? g.lineTo(px + 3, py) : g.moveTo(px + 3, py)));
+      g.stroke();
+    }
+    // les traînées sombres laissées par l'eau de pluie, qui coule du haut
+    for (let n = 0; n < Math.max(4, (xb - xa) / 90); n++) {
+      const x = R1(xa + 20, xb - 20), wd = R1(12, 38), y0 = G.at(x) + 4, len = R1(150, 520);
+      const sg = g.createLinearGradient(0, y0, 0, y0 + len);
+      sg.addColorStop(0, 'rgba(35, 25, 20, 0.2)');
+      sg.addColorStop(1, 'rgba(35, 25, 20, 0)');
+      g.fillStyle = sg;
+      g.beginPath();
+      g.moveTo(x - wd / 2, y0);
+      g.quadraticCurveTo(x - wd * 0.3, y0 + len * 0.6, x + R1(-6, 6), y0 + len);
+      g.quadraticCurveTo(x + wd * 0.3, y0 + len * 0.6, x + wd / 2, y0);
+      g.closePath();
+      g.fill();
+    }
+    // la lumière : la face de gauche au soleil, celle de droite dans l'ombre
+    const sunLeft = (pal.sun ? pal.sun.x : 0.7) < 0.5;
+    const lg = g.createLinearGradient(xa, 0, xb, 0);
+    const lit = 'rgba(255, 236, 190, 0.22)', shadow = 'rgba(20, 14, 30, 0.32)';
+    lg.addColorStop(0, sunLeft ? lit : shadow);
+    lg.addColorStop(Math.min(0.45, 160 / (xb - xa)), 'rgba(0, 0, 0, 0)');
+    lg.addColorStop(Math.max(0.55, 1 - 160 / (xb - xa)), 'rgba(0, 0, 0, 0)');
+    lg.addColorStop(1, sunLeft ? shadow : lit);
+    g.fillStyle = lg;
+    g.fillRect(xa, ya, xb - xa, yb - ya);
+    // l'ombre au pied (la roche s'enfonce dans le sol) et sous le rebord du haut
+    // (des traits larges et transparents qui suivent le contour : une ombre bien lisse)
+    const along = (yOf, alpha, lw) => {
+      g.strokeStyle = `rgba(20, 14, 10, ${alpha})`;
+      g.lineWidth = lw;
+      g.lineJoin = 'round';
+      g.beginPath();
+      for (let x = xa; x <= xb; x += 12) {
+        const yy = yOf(x);
+        if (x === xa) g.moveTo(x, yy); else g.lineTo(x, yy);
+      }
+      g.stroke();
+    };
+    for (let n = 0; n < 6; n++) along((x) => baseAt(c, x) + 26 - n * 24, 0.07, 34);
+    for (let n = 0; n < 3; n++) along((x) => G.at(x) + 8 + n * 10, 0.08, 16);
+    // (les montagnes) de la neige sur les sommets
+    if (c.peak && pal.snow) {
+      const snowY = G.at(c.x) + c.H * 0.3;
+      g.fillStyle = pal.snow;
+      g.beginPath();
+      g.moveTo(xa, ya);
+      for (let x = xa; x <= xb; x += 12) g.lineTo(x, Math.min(baseAt(c, x), snowY + Math.sin(x * 0.05) * 26 + Math.sin(x * 0.013) * 30));
+      g.lineTo(xb, ya);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = 'rgba(160, 190, 220, 0.6)';
+      g.lineWidth = 3;
+      g.stroke();
+    }
+    g.restore();
+    // le contour de la paroi
+    g.strokeStyle = dark;
+    g.lineWidth = 4;
+    g.lineJoin = 'round';
+    g.beginPath();
+    let pen = false;
+    for (let x = xa; x <= xb; x += 8) {
+      const yy = G.at(x);
+      const steep = Math.abs(G.at(x + 8) - G.at(x - 8)) / 16 > 0.7;
+      if (!steep || baseAt(c, x) - yy < 20) { pen = false; continue; }
+      if (!pen) { g.moveTo(x, yy); pen = true; } else g.lineTo(x, yy);
+    }
+    g.stroke();
+    // les éboulis au pied des parois
+    for (const fx of [c.x0, c.x1]) {
+      if (c.peak) break;
+      for (let n = 0; n < 9; n++) {
+        const x = fx + (fx === c.x0 ? -1 : 1) * R1(10, 120), rr = R1(8, 24);
+        const yy = baseAt(c, x) - rr * 0.35;
+        g.fillStyle = tones[n % tones.length];
+        g.strokeStyle = dark;
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.moveTo(x - rr, yy + rr * 0.4);
+        g.quadraticCurveTo(x - rr * 0.9, yy - rr * 0.7, x, yy - rr * 0.75);
+        g.quadraticCurveTo(x + rr * 0.9, yy - rr * 0.6, x + rr, yy + rr * 0.4);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        g.fillStyle = 'rgba(255, 245, 225, 0.3)';
+        g.beginPath();
+        g.ellipse(x - rr * 0.25, yy - rr * 0.4, rr * 0.35, rr * 0.14, -0.3, 0, TAU);
+        g.fill();
+      }
+    }
+    // la végétation : mousse sur les rebords, lianes qui pendent du haut, herbe sur le dessus
+    const grass = pal.grass || '#6A9A3A';
+    const moss = shade(grass, -0.08);
+    for (let n = 0; n < (xb - xa) / 45; n++) {
+      const x = R1(xa, xb), gt = G.at(x);
+      const yy = R1(gt + 20, Math.max(gt + 21, baseAt(c, x) - 40));
+      if (baseAt(c, x) - gt < 80) continue;
+      g.fillStyle = r1() < 0.5 ? moss : shade(moss, 0.12);
+      g.beginPath();
+      for (let m = 0; m < 4; m++) {
+        const mx = x + R1(-18, 18), my = yy + R1(-6, 6), mr = R1(5, 11);
+        g.moveTo(mx + mr, my);
+        g.arc(mx, my, mr, Math.PI, TAU);
+      }
+      g.fill();
+    }
+    if (!c.peak) {
+      for (const [fx, side] of [[c.x0, -1], [c.x1, 1]]) {
+        // le haut de la paroi : là où le dessus s'arrête
+        let ex = fx;
+        for (let x = fx + side * 120; side < 0 ? x < fx + 200 : x > fx - 200; x -= side * 8) {
+          if (Math.abs(G.at(x + 8) - G.at(x - 8)) / 16 < 0.6) { ex = x; break; }
+        }
+        const ey = G.at(ex);
+        for (let n = 0; n < 5; n++) {
+          const vx = ex + side * R1(-10, 60), len = R1(60, 260);
+          const vy = G.at(vx) + 4;
+          const sw = R1(-20, 20);
+          g.strokeStyle = shade(grass, -0.3);
+          g.lineWidth = 4;
+          g.lineCap = 'round';
+          g.beginPath();
+          g.moveTo(vx, vy);
+          g.quadraticCurveTo(vx + side * 18 + sw, vy + len * 0.5, vx + side * 8 + sw * 0.5, vy + len);
+          g.stroke();
+          g.fillStyle = shade(grass, 0.05);
+          for (let m = 1; m < len / 22; m++) {
+            const u = m / (len / 22);
+            const lx = vx + (side * 18 + sw) * Math.sin(u * Math.PI) * 0.8, ly = vy + len * u;
+            g.beginPath();
+            g.ellipse(lx + (m % 2 ? 6 : -6), ly, 7, 3.5, m % 2 ? 0.6 : -0.6, 0, TAU);
+            g.fill();
+          }
+        }
+        // une touffe d'herbe qui déborde au bord du haut
+        g.strokeStyle = shade(grass, 0.1);
+        g.lineWidth = 4;
+        g.beginPath();
+        for (let m = 0; m < 9; m++) {
+          const bx = ex + side * (m * 9 - 20);
+          g.moveTo(bx, ey + 2);
+          g.quadraticCurveTo(bx + side * 10, ey - 18, bx + side * 22, ey - 6 + R1(0, 14));
+        }
+        g.stroke();
+      }
+    }
+    c.spr = { cv, xa, ya, w: xb - xa, h: yb - ya };
+    return c.spr;
+  }
+
   function drawLedge(ctx, p) {
     // une dalle de roche qui sort de la paroi (la paroi est du côté opposé à p.side)
     const rock = P().rock || '#9A8A78';
     const wallX = p.side > 0 ? p.x0 : p.x1, tipX = p.side > 0 ? p.x1 : p.x0, s = p.side > 0 ? 1 : -1;
-    const g = ctx.createLinearGradient(0, p.y, 0, p.y + 44);
-    g.addColorStop(0, shade(rock, 0.12));
-    g.addColorStop(1, shade(rock, -0.3));
+    const L = Math.abs(tipX - wallX);
+    // son ombre, sur la paroi en dessous
+    ctx.fillStyle = 'rgba(20, 14, 10, 0.28)';
+    ctx.beginPath();
+    ctx.moveTo(wallX + s * 6, p.y + 30);
+    ctx.quadraticCurveTo(wallX - s * L * 0.45, p.y + 70, wallX + s * 6, p.y + 120);
+    ctx.closePath();
+    ctx.fill();
+    const g = ctx.createLinearGradient(0, p.y - 4, 0, p.y + 46);
+    g.addColorStop(0, shade(rock, 0.14));
+    g.addColorStop(0.45, rock);
+    g.addColorStop(1, shade(rock, -0.32));
     ctx.fillStyle = g;
     ctx.strokeStyle = shade(rock, -0.5);
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.5;
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(wallX - s * 14, p.y);
-    ctx.lineTo(tipX, p.y);
-    ctx.quadraticCurveTo(tipX + s * 6, p.y + 10, tipX - s * 8, p.y + 18);
-    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.45), p.y + 30, wallX - s * 10, p.y + 46);
+    ctx.moveTo(wallX - s * 16, p.y - 2);
+    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.5), p.y - 7, tipX, p.y - 1);
+    ctx.quadraticCurveTo(tipX + s * 9, p.y + 9, tipX - s * 4, p.y + 17);
+    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.72), p.y + 22, lerp(wallX, tipX, 0.55), p.y + 31);
+    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.3), p.y + 36, wallX - s * 12, p.y + 50);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // un peu d'herbe et de mousse sur le dessus
-    ctx.strokeStyle = P().grass ? shade(P().grass, -0.1) : '#6A8A3A';
-    ctx.lineWidth = 6;
+    // une couche plus sombre dans l'épaisseur, et un reflet sur l'arête
+    ctx.strokeStyle = 'rgba(40, 28, 18, 0.3)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(wallX, p.y + 15);
+    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.5), p.y + 18, tipX - s * 8, p.y + 12);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 248, 230, 0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(wallX, p.y + 2);
+    ctx.quadraticCurveTo(lerp(wallX, tipX, 0.5), p.y - 3, tipX - s * 2, p.y + 3);
+    ctx.stroke();
+    // la mousse et quelques brins d'herbe sur le dessus
+    const grass = P().grass || '#6A8A3A';
+    ctx.fillStyle = shade(grass, -0.05);
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) {
+      const mx = lerp(wallX, tipX, 0.15 + k * 0.22), mr = 7 + (k % 2) * 3;
+      ctx.moveTo(mx + mr, p.y - 1);
+      ctx.arc(mx, p.y - 1, mr, Math.PI, TAU);
+    }
+    ctx.fill();
+    ctx.strokeStyle = shade(grass, 0.12);
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(wallX, p.y - 1);
-    ctx.lineTo(tipX - s * 6, p.y - 1);
+    for (let k = 0; k < 6; k++) {
+      const bx = lerp(wallX, tipX, 0.1 + k * 0.15);
+      ctx.moveTo(bx, p.y - 2);
+      ctx.lineTo(bx + (k % 2 ? 4 : -3), p.y - 12 - (k % 3) * 4);
+    }
     ctx.stroke();
   }
 
@@ -1845,7 +2162,7 @@ export function createCote(api) {
   }
 
   return {
-    on, build, get G() { return G; }, groundY, waterAt, zoneAt, thermalAt, placeOf, move, creature, reach,
+    on, build, get G() { return G; }, groundY, nestReachable, waterAt, zoneAt, thermalAt, placeOf, move, creature, reach,
     spawnPoint, wanderPoint, nestSpots, respawnPoint, startPoint, standOf,
     drawBack, drawWorld, drawFront, drawWeather, minimap,
   };

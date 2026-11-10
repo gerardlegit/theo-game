@@ -223,7 +223,7 @@ const CENDRES = {
     { kind: 'mont', A: 300, p: 0.28, col: '#6E6860', wl: 600, haze: 'rgba(180, 160, 130, 0.3)' },
     { kind: 'foret', A: 160, p: 0.5, col: '#5A5A4A', cell: 140 },
   ],
-  ground: ['#7A6A54', '#4A3E30'], grass: '#7A7A4A', rock: '#8E8478', sand: '#B8A882',
+  ground: ['#7A6A54', '#4A3E30'], grass: '#7A7A4A', rock: '#A08A6E', sand: '#B8A882',
   waterTop: '#6A8A8E', waterDeep: '#2A3E44', waterFront: 'rgba(90, 120, 120, 0.45)', waterFront2: 'rgba(30, 50, 55, 0.6)',
   cloud: 'rgba(150, 140, 130, 0.7)', weather: 'cendre', mist: 'rgba(190, 170, 140, 0.35)', fern: ['#4E6A34', '#6E8A44'],
 };

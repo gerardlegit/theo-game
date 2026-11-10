@@ -1743,7 +1743,7 @@ function updateCreatures(dt) {
           mouthTarget = 0.5 + 0.5 * Math.abs(Math.sin(worldT * 9));
           if (Math.random() < dt * 2.5 && onScreen(c, 0)) sfx.snap();
         }
-        if (p.hidden || p.safe || !reachable || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
+        if (p.hidden || p.safe || !reachable || c.bumpT > 0 || d > sp.sense * 1.6 || c.timer <= 0) loseTrack(c, true);
       }
     } else if (sp.kind === 'rival' && fleeHunter(c, dt)) {
       // un rival a peur des gros chasseurs, lui aussi
@@ -2707,7 +2707,7 @@ function keepInPond(c) {
 function wander(c, speed, dt) {
   const h = c.post;                                     // (une tanière : il ne s'en éloigne pas ; ses gardiens tournent autour, entre in et r)
   const away = h && Math.hypot(c.x - h.x, c.y - h.y) > h.r * 1.6 && Math.hypot(c.wx - h.x, c.wy - h.y) > h.r;
-  if (side() && c.sp.raider && game.nest && dist(c, game.nest) < 2600 && !(c.stoleT > 0)) {
+  if (side() && c.sp.raider && game.nest && dist(c, game.nest) < 2600 && !(c.stoleT > 0) && !(c.bumpT > 0) && cote.nestReachable(c, game.nest)) {
     // un voleur de nid : il file droit vers tes œufs (ou tes petits)
     c.wx = game.nest.x;
     c.wy = game.nest.y - c.size;

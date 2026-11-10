@@ -790,13 +790,23 @@ function drawReptile(ctx, c, t, S, col, o = {}) {
   // la colonne : de la queue au cou. Le serpent ondule (des bosses qui glissent vers l'arrière)
   const nodes = [];
   const tailL = T.L * (o.tailK || 1);
-  const nt = S.snake ? 9 : 5;
-  for (let i = nt; i >= 1; i--) {
-    const u = i / nt;
-    nodes.push({ x: -a - tailL * u, u, tail: true });
-  }
-  nodes.push({ x: -a * 0.92, u: 0 }, { x: -a * 0.45, u: 0 }, { x: 0, u: 0 }, { x: a * 0.5, u: 0 }, { x: a * 0.9, u: 0 }, { x: a + S.neck, u: 0, neck: true });
   const total = a * 2 + tailL;
+  if (S.snake) {
+    // (le serpent) beaucoup de points, régulièrement espacés : il peut onduler sur toute sa longueur
+    const N = 30;
+    for (let i = N; i >= 1; i--) {
+      const x = a + S.neck - (total + S.neck) * (i / N);
+      nodes.push(x < -a ? { x, u: (-a - x) / tailL, tail: true } : { x, u: 0 });
+    }
+    nodes.push({ x: a + S.neck, u: 0, neck: true });
+  } else {
+    const nt = 5;
+    for (let i = nt; i >= 1; i--) {
+      const u = i / nt;
+      nodes.push({ x: -a - tailL * u, u, tail: true });
+    }
+    nodes.push({ x: -a * 0.92, u: 0 }, { x: -a * 0.45, u: 0 }, { x: 0, u: 0 }, { x: a * 0.5, u: 0 }, { x: a * 0.9, u: 0 }, { x: a + S.neck, u: 0, neck: true });
+  }
   const pts = nodes.map((n) => {
     let y = 0;
     if (n.tail) {
@@ -804,15 +814,20 @@ function drawReptile(ctx, c, t, S, col, o = {}) {
       y = -(T.up || 0) * n.u * n.u + sway;
     }
     if (S.snake && !swim && loco !== 'grimpe') {
-      // de profil, le serpent forme de petites bosses qui avancent
-      const u = (a - n.x) / total;
-      y -= Math.max(0, Math.sin((c.walk || t) * 2.2 - u * 14)) * 0.14 * (0.25 + k) * (u > 0.1 ? 1 : u * 10);
+      // il rampe : son corps forme des vagues qui restent à leur place sur le sol pendant qu'il
+      // glisse dedans (chaque bout du corps passe là où la tête est passée)
+      const u = (a + S.neck - n.x) / (total + S.neck);
+      const wx = (c.x || 0) / r + face * n.x;
+      const wave = (1 - Math.cos((wx / (S.wave || 1.3)) * TAU)) / 2;
+      const env = clamp((u - 0.05) / 0.14, 0, 1) * (1 - u * 0.45);
+      y -= wave * h * 1.25 * env;
+      if (n.tail) y += (T.up || 0) * n.u * n.u;
     } else if (S.snake && swim) {
       const u = (a - n.x) / total;
       y += Math.sin((c.walk || t) * 2.4 - u * 9) * 0.08;
     }
     let th = h;
-    if (n.tail) th = lerp(h * T.w, 0.035, n.u);
+    if (n.tail) th = lerp(h * T.w, 0.035, S.snake ? n.u * n.u : n.u);
     else if (n.neck) th = H.D * 0.42;
     else if (Math.abs(n.x) > a * 0.8) th = h * 0.9;
     return [n.x, y, th, th * (n.tail || n.neck ? 1 : 1.08)];
