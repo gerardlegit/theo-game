@@ -602,7 +602,7 @@ const tqv = createTqv({
   rebuilt: () => tqvRebuilt(),
   steer: (c, x, y, sp, dt) => steer(c, x, y, sp, dt),
   spawnAt: (id, x, y) => { const c = makeCreature(id, x, y); creatures.push(c); return c; },
-  spearHit: (c, owner, s) => spearHit(c, owner, s), huntTarget: () => huntTarget,
+  spearHit: (c, owner, s) => spearHit(c, owner, s), huntTarget: () => huntTarget, hungerLost: () => hungerLost(),
   horn: () => { sfx.horn(); shake = Math.max(shake, 0.3); },
   drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
 });
@@ -1511,6 +1511,37 @@ function spearHit(c, owner, s) {
     // un renne, un cerf : la chasse est réussie (huntWon compte la prise et donne les idées)
     huntWon(c, 'Bien visé !');
   }
+}
+
+/** (chapters[].hunger) La faim du village est à zéro : on a perdu, on recommence l'époque */
+function hungerLost() {
+  if (state !== 'playing' || game.chapterDone || !dialogEl.hidden) return;
+  sfx.sad();
+  shake = Math.max(shake, 0.4);
+  openDialog(`
+    <div class="dlg-head">
+      <div class="dlg-face ammo-face">${AMMO_SVG}</div>
+      <div><p class="dlg-chapter">Le village a trop faim…</p><p class="dlg-name">Perdu ! 😢</p></div>
+    </div>
+    <p class="dlg-say">${escapeHtml(LINES.hungerLost)}</p>
+    <div class="dlg-actions"><button class="royal" data-act="go">🔁 Recommencer cette époque</button></div>`, {
+    go: () => { closeDialog(); restartChapter(); },
+  });
+}
+
+/** On recommence l'époque : ce qu'on y a construit disparaît, le grenier et l'enclos sont de nouveau pleins */
+function restartChapter() {
+  const ch = game.chapter + 1;
+  for (const st of tqv.M.sites) if ((st.ch || 1) === ch) delete game.built[st.id];
+  game.res = game.res || {};
+  game.res.ble = Math.max(game.res.ble || 0, (CH.hunger && CH.hunger.restartBle) || 16);
+  game.vivres = 1;
+  Object.assign(game, freshChapter());
+  game.chapterDone = false;
+  tqv.resetRaid();
+  setupChapter(true);
+  openChapterIntro();
+  saveGame();
 }
 
 /** Un prédateur touché par assez de lances : il est vaincu (la tribu est plus forte que lui) */
@@ -3554,8 +3585,8 @@ function chapterDecor() {
 function setupChapter(keepPos) {
   chapterDecor();
   applySkin();
-  $('waterIcon').textContent = CH.trust ? '🤝' : CH.wings ? '💨' : meter().icon;
-  waterItem.title = CH.trust ? LINES.trustTitle : CH.wings ? LINES.wingsTitle : meter().title;
+  $('waterIcon').textContent = CH.hunger ? '🍞' : CH.trust ? '🤝' : CH.wings ? '💨' : meter().icon;
+  waterItem.title = CH.hunger ? LINES.hungerTitle : CH.trust ? LINES.trustTitle : CH.wings ? LINES.wingsTitle : meter().title;
   shownBark = -1;
   shownStrike = -1;
   const pw = CH.power || LV.world.strike;
@@ -4389,7 +4420,7 @@ function renderHud() {
     era,
     shields: `${player.shield}/${stats.shield}`,
     canEvolve: affordable(),
-    water: drying() ? Math.round(player.wet * 50) : CH.wings ? Math.round((player.energy ?? 1) * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
+    water: CH.hunger ? Math.round((game.vivres ?? 1) * 50) : drying() ? Math.round(player.wet * 50) : CH.wings ? Math.round((player.energy ?? 1) * 50) : CH.trust ? Math.round((game.trust || 0) * 50) : -1,
     res: trois() ? JSON.stringify(game.res || {}) : '',
   };
   if (v.res !== shown.res) renderRes();
@@ -4409,7 +4440,7 @@ function renderHud() {
   if (v.water !== shown.water) {
     waterItem.hidden = v.water < 0;
     waterBar.style.width = `${Math.max(0, v.water) * 2}%`;
-    waterItem.classList.toggle('low', (drying() || !!CH.wings) && v.water >= 0 && v.water < 15);
+    waterItem.classList.toggle('low', (drying() || !!CH.wings || !!CH.hunger) && v.water >= 0 && v.water < 15);
     waterItem.classList.toggle('trust', !!CH.trust);
   }
   shown = v;
@@ -6270,7 +6301,8 @@ function tqvBot(go0) {
     if (pen && Math.hypot(x - pen.x, y - pen.y) > pen.r * FENCE) {
       return go0(pen.x + Math.cos(pen.gate) * (pen.r * FENCE + 70), pen.y + Math.sin(pen.gate) * (pen.r * FENCE + 70));
     }
-    const gate = M.sites.find((s) => s.type === 'porte');
+    // (la porte la plus pratique : celle qui fait le moins de chemin)
+    const gate = M.sites.filter((s) => s.type === 'porte').reduce((a, b) => (!a || dist(b, p) + Math.hypot(b.x - x, b.y - y) < dist(a, p) + Math.hypot(a.x - x, a.y - y) ? b : a), null);
     const inside = tqv.inVillage(p.x, p.y);
     // (un plan sur la palissade elle-même : on y va du côté où l'on est)
     if (ring) return (!inside && walled && around(x, y)) || go0(x, y, stop);
@@ -6291,6 +6323,10 @@ function tqvBot(go0) {
     return it ? go(it.x, it.y, it.r * 0.4) : null;
   };
   const fields = tqv.sitesOf('champ').filter((s) => game.built[s.id] === true);
+  if (CH.hunger && (game.vivres ?? 1) < 0.55 && (game.res.ble || 0) < 6 && !tqv.raidLeft()) {
+    const ripe = tqvTarget([{ type: 'harvest' }]);
+    if (ripe) return go(ripe.x, ripe.y, 10);
+  }
   for (const m of CH.missions) {
     if (missionInfo(m).done) continue;
     if (m.type === 'evolve') {

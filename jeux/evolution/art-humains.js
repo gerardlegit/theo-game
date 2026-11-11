@@ -1912,8 +1912,10 @@ export function drawStake(ctx, s) {
   }
 }
 
-/** La porte du village : deux grands poteaux, un linteau, deux battants */
-export function drawGate(ctx, b, t, open) {
+/** La porte du village : deux grands poteaux, un linteau, deux battants
+    (side : une porte à l'est ou à l'ouest, qu'on voit de profil) */
+export function drawGate(ctx, b, t, open, side = false) {
+  if (side) { drawSideGate(ctx, b, open); return; }
   const { x, y } = b;
   const W = 120;
   groundShadow(ctx, x, y + 4, W * 0.9, 24, 0.3);
@@ -1968,6 +1970,62 @@ export function drawGate(ctx, b, t, open) {
     }
     ctx.stroke();
   }
+}
+
+/** Une porte de côté (est ou ouest) : vue de profil, ses poteaux sont l'un derrière l'autre */
+function drawSideGate(ctx, b, open) {
+  const { x, y } = b;
+  const D = 64;
+  groundShadow(ctx, x + 10, y + 4, 34, D + 24, 0.3);
+  const post = (py) => {
+    ctx.fillStyle = '#5A3A22';
+    ctx.strokeStyle = '#2A1A0C';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x - 13, py - 192, 26, 194, 6) : ctx.rect(x - 13, py - 192, 26, 194);
+    ctx.fill();
+    ctx.stroke();
+  };
+  post(y - D);
+  // les battants (fermés : une paroi de planches entre les deux poteaux ; ouverts : rabattus)
+  ctx.fillStyle = '#8A6440';
+  ctx.strokeStyle = '#2A1A0C';
+  ctx.lineWidth = 2.5;
+  const k = open ? 0.3 : 1;
+  for (const sgn of [-1, 1]) {
+    const y0 = y + sgn * D, y1 = y + sgn * D * (1 - k);
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y0 - 150);
+    ctx.lineTo(x - 6, y0);
+    ctx.lineTo(x + 6, y1);
+    ctx.lineTo(x + 6, y1 - 150);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // le linteau, d'un poteau à l'autre
+  ctx.fillStyle = '#7A5A34';
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y - D - 200);
+  ctx.lineTo(x + 12, y - D - 200);
+  ctx.lineTo(x + 12, y + D - 178);
+  ctx.lineTo(x - 12, y + D - 178);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  post(y + D);
+  // le crâne d'aurochs, tout en haut
+  ctx.fillStyle = '#F2EAD6';
+  ell(ctx, x, y + D - 212, 11, 13);
+  ctx.fill();
+  ctx.strokeStyle = '#EDE2C6';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(x - 6, y + D - 222);
+  ctx.quadraticCurveTo(x - 22, y + D - 238, x - 18, y + D - 250);
+  ctx.moveTo(x + 6, y + D - 222);
+  ctx.quadraticCurveTo(x + 22, y + D - 238, x + 18, y + D - 250);
+  ctx.stroke();
 }
 
 /** La tour de guet : quatre poteaux, une plateforme, un toit… et un guetteur */
@@ -2110,6 +2168,20 @@ export function drawResIcon(ctx, id, x, y, s) {
     ctx.stroke();
   } else if (id === 'feu') {
     flame(ctx, 0, s * 0.7, s * 0.85, 0.3, 1);
+  } else if (id === 'mouton') {
+    // un petit mouton tout rond (sa laine, sa tête noire)
+    ctx.fillStyle = '#F4F0E6';
+    ctx.strokeStyle = '#6A5A48';
+    for (const [dx, dy, r] of [[-0.35, 0, 0.36], [0.05, -0.18, 0.4], [0.3, 0.05, 0.34], [-0.05, 0.15, 0.38]]) {
+      ell(ctx, dx * s, dy * s, r * s, r * s * 0.85);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2E2A26';
+    ell(ctx, s * 0.62, -s * 0.12, s * 0.22, s * 0.28);
+    ctx.fill();
+    ctx.fillRect(-s * 0.35, s * 0.4, s * 0.1, s * 0.3);
+    ctx.fillRect(s * 0.2, s * 0.4, s * 0.1, s * 0.3);
   } else if (id === 'viande') {
     ctx.fillStyle = '#C4583E';
     ctx.strokeStyle = '#4A1A10';

@@ -167,7 +167,9 @@
 //      'hutte' / 'enclos' / 'champ' / 'grenier' / 'palissade' / 'porte' / 'tour',
 //      name, ch, at = [dx, dy] depuis le village ou 'grotte', cost = { bois: 3,
 //      feu: 1… }, need = l'invention qu'il faut, planR, adn = les idées gagnées ;
-//      la palissade : ring = le nombre de morceaux, gate = l'angle de la porte) ;
+//      la palissade : ring = le nombre de morceaux, gate = l'angle de la porte, ou
+//      gates = les angles de plusieurs portes ; 'canal' = le canal d'irrigation, tracé
+//      par land.canal = { y, to } : une fois creusé, il arrose les champs tout seul) ;
 //      world.currency = la monnaie (💡 « idées » au lieu de 🧬 : icon, name,
 //      verb, order, many, later, tag, sub, stat) ; world.noEat = on ne mange
 //      rien. "lines" peut remplacer toutes les phrases d'Ammo de data.js.
@@ -181,7 +183,10 @@
 //      la troupe ({ icon, name, word, join, full, lost, sound, whiff = le mot de l'appel
 //      lointain d'un chasseur caché (sp.lair) }), penned = les
 //      bêtes déjà dans l'enclos, raids = les attaques ({ after = la mission après
-//      laquelle elles commencent, species, chief, waves, gap, first }), zoom.
+//      laquelle elles commencent, species, chief, waves, gap, first ; les pillards visent
+//      le grenier ou l'enclos et ses moutons), hunger = la faim du village (jauge 🍞 :
+//      { rate, below, bread, breadGain, sheepGain, startBle, restartBle } ; il mange le blé du
+//      grenier, puis les moutons ; à zéro, on a perdu et on recommence l'époque), zoom.
 //      Missions : gather (res, n), build (what = un type de site, n), deliver
 //      (item 'eau' : arroser les champs), harvest (n gerbes), defend (n attaques
 //      repoussées sans qu'ils volent de blé). Intro 'humains' ; fin scene
