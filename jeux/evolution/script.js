@@ -1592,6 +1592,8 @@ function tqvTarget(todo) {
       const sites = tqv.sitesOf(m.what).filter((st) => (st.ch || 1) <= game.chapter + 1 && game.built[st.id] !== true);
       if (!sites.length) return null;
       const st = sites.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a));
+      // (s.store) il faut d'abord remplir le grenier
+      if (st.store && !(st.need && !game.owned[st.need]) && tqv.lockText(st)) return tqvTarget([{ type: 'deliver', item: 'ble' }]);
       // il manque quelque chose : la flèche montre où le trouver
       const miss = tqv.missing(st, p);
       if (miss && !(st.need && !game.owned[st.need])) {
@@ -1606,6 +1608,19 @@ function tqvTarget(todo) {
         }
       }
       return { x: st.x, y: st.y - 60, size: 60, icon: '🔨' };
+    }
+    if (m.type === 'deliver' && m.item === 'ble') {
+      // remplir le grenier : on y porte son blé ; sans blé, on va le récolter (ou le cueillir)
+      const gr = tqv.sitesOf('grenier').find((st) => game.built[st.id] === true);
+      if (!gr) return null;
+      if ((game.res.ble || 0) > 0) return { x: gr.x, y: gr.y - 60, size: 60, img: resIconUrl('ble') };
+      const ripe = tqv.sitesOf('champ').filter((st) => game.fields && game.fields[st.id] && game.fields[st.id].stage === 'mur');
+      if (ripe.length) {
+        const f = ripe.reduce((a, b) => (dist(b, p) < dist(a, p) ? b : a));
+        return { x: f.x, y: f.y, size: 60, img: resIconUrl('ble') };
+      }
+      const it = tqv.nearestRes(p, 'ble');
+      return it ? { x: it.x, y: it.y - 40, size: 40, img: resIconUrl('ble') } : null;
     }
     if (m.type === 'deliver') {
       const fields = tqv.sitesOf('champ').filter((st) => game.built[st.id] === true && game.fields[st.id] && game.fields[st.id].stage === 'seme' && !game.fields[st.id].watered);

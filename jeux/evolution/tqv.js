@@ -418,6 +418,25 @@ export function createTqv(api) {
       p.gatherT = 0;
       p.working = null;
     }
+    // (une mission « remplir le grenier ») près du grenier, on y dépose son blé, épi par épi
+    const fill = api.chapter().missions.find((m) => m.type === 'deliver' && m.item === 'ble');
+    // (pas avant d'avoir semé tous les champs : on garde son blé pour les semailles)
+    const sown = !M.sites.some((s) => s.type === 'champ' && (s.ch || 1) <= ch && g.built[s.id] !== true);
+    const gr = fill && sown && M.sites.find((s) => s.type === 'grenier' && g.built[s.id] === true);
+    g.delivered = g.delivered || {};
+    if (gr && (g.res.ble || 0) > 0 && (g.delivered.ble || 0) < fill.n && Math.hypot(gr.x - p.x, gr.y - p.y) < 200) {
+      p.storeT = (p.storeT || 0) + dt;
+      if (p.storeT > 0.18) {
+        p.storeT = 0;
+        g.res.ble--;
+        g.delivered.ble = (g.delivered.ble || 0) + 1;
+        api.floater(`Grenier : ${g.delivered.ble}/${fill.n}`, gr.x, gr.y - 190, '#FFE58A', 0.9);
+        api.sfx.pickup();
+        api.sayOnce('stored', api.lines().stored, 120, 2);
+        api.changed();
+        api.checkMissions();
+      }
+    } else p.storeT = 0;
     // le feu de l'arbre frappé par la foudre : on en prend une branche
     for (const l of M.lights) {
       if (!l.tree || p.carry === 'feu' || Math.hypot(l.tree.x - p.x, l.tree.y - p.y) > 150) continue;
@@ -439,9 +458,12 @@ export function createTqv(api) {
     const site = nearSite(p);
     p.site = site;
     if (site) {
-      const lock = site.need && !g.owned[site.need];
+      const lock = lockText(site);
       const miss = lock ? null : missing(site, p);
-      if (lock) {
+      if (lock && !(site.need && !g.owned[site.need])) {
+        p.buildT = 0;
+        api.sayOnce(`store-${site.id}`, api.lines().needStore.replace('{n}', site.store), 25, 2);
+      } else if (lock) {
         p.buildT = 0;
         api.sayOnce(`lock-${site.need}`, api.lines().needInvent.replace('{x}', api.evoName(site.need)), 25, 2);
       } else if (miss) {
@@ -505,6 +527,15 @@ export function createTqv(api) {
     }
   }
 
+  /** Pourquoi ce plan est verrouillé (null s'il ne l'est pas) : une invention qui manque, ou
+      (s.store) le blé qu'il faut d'abord apporter au grenier */
+  function lockText(s) {
+    const g = api.game();
+    if (s.need && !g.owned[s.need]) return `Invente d’abord : ${api.evoName(s.need)}`;
+    const have = (g.delivered || {}).ble || 0;
+    if (s.store && have < s.store) return `Apporte d’abord ${s.store} blé au grenier (${have}/${s.store})`;
+    return null;
+  }
   function nearSite(p) {
     const g = api.game(), ch = g.chapter + 1;
     let best = null, bd = Infinity;
@@ -1221,11 +1252,11 @@ export function createTqv(api) {
     // l'étiquette du plan sur lequel on est : son nom, et ce qu'il coûte
     const p = api.player(), s = p.site, g = api.game();
     if (s && !p.dead) {
-      const lock = s.need && !g.owned[s.need];
+      const lock = lockText(s);
       const entries = Object.entries(s.cost || {});
       const k = 1 / zoom;
       ctx.font = `700 ${12 * k}px 'Baloo 2', sans-serif`;
-      const need = lock ? ctx.measureText(`Invente d’abord : ${api.evoName(s.need)}`).width + 28 * k : 0;
+      const need = lock ? ctx.measureText(lock).width + 28 * k : 0;
       const w = Math.max(150 * k, (40 + entries.length * 74) * k, need), h = 64 * k;
       const x = s.x - w / 2, y = s.y - (s.arc ? 230 : 260) - h;
       ctx.fillStyle = 'rgba(255, 252, 243, 0.95)';
@@ -1242,7 +1273,7 @@ export function createTqv(api) {
       ctx.fillText(lock ? `🔒 ${s.name}` : s.name, s.x, y + 6 * k);
       if (lock) {
         ctx.font = `700 ${12 * k}px 'Baloo 2', sans-serif`;
-        ctx.fillText(`Invente d’abord : ${api.evoName(s.need)}`, s.x, y + 32 * k);
+        ctx.fillText(lock, s.x, y + 32 * k);
       } else {
         entries.forEach(([id, n], i) => {
           const cx = s.x + (i - (entries.length - 1) / 2) * 74 * k;
@@ -1377,7 +1408,7 @@ export function createTqv(api) {
   return {
     on, build, refresh, get M() { return M; }, zoneAt, collide, interact, update, steer, spawnPoint, startPoint, respawnPoint,
     throwSpear, repel, drawGround, uprights, drawUpright, drawTop, drawNight, minimap, nearestRes, sitesOf, missing, inVillage,
-    raidLeft, raidState, palisadeDone, resetRaid: () => { raid = null; spears = []; mealT = 0; sheepShown = -1; }, irrigated,
+    lockText, raidLeft, raidState, palisadeDone, resetRaid: () => { raid = null; spears = []; mealT = 0; sheepShown = -1; }, irrigated,
     get pens() { return M ? M.pens : []; }, get hides() { return M ? M.hides : []; },
   };
 }
