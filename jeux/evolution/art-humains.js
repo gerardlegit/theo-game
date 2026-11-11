@@ -824,14 +824,15 @@ const H0 = (seed) => {
 // les gens de la tribu : chacun le sien (peau, cheveux, habit, enfant ou adulte)
 function villager(ctx, c, t, o) {
   const b = H0(c.seed);
-  const child = b.r() < 0.25;
+  // (c.warrior) un guerrier : un adulte, avec sa lance
+  const child = b.r() < 0.25 && !c.warrior;
   const female = b.r() < 0.5;
   const woven = !!o.woven;
   const cloth = (woven ? WOVEN : FURS)[Math.floor(b.r() * 5)];
   return drawHuman(ctx, c, t, {
     skin: b.skin, hair: b.hair, cloth, child, style: female ? 'long' : b.r() < 0.5 ? 'hirsute' : 'court',
     beard: !female && !child && b.r() < 0.4, woven, border: ['#A8442A', '#3A6A9A', '#C9A030'][Math.floor(b.r() * 3)],
-    tool: o.tools ? o.tools[Math.floor(b.r() * o.tools.length)] : null, necklace: !child && b.r() < 0.4, carry: c.carry, brow: o.brow,
+    tool: c.warrior ? 'lance' : o.tools ? o.tools[Math.floor(b.r() * o.tools.length)] : null, necklace: !child && b.r() < 0.4, carry: c.carry, brow: o.brow,
     bare: o.bare && !female, legs: o.legs,
   });
 }
@@ -1194,61 +1195,391 @@ export function drawGrass(ctx, d, t, pal) {
   }
 }
 
-/** La grotte : une falaise de roche, avec son entrée sombre (et les peintures, une fois faites) */
-export function drawCave(ctx, d, t, pal, painted) {
+/** Une fougère : des frondes qui s'ouvrent en éventail, couvertes de petites folioles */
+export function drawFern(ctx, d, t, pal) {
   const { x, y, r } = d;
-  const rock = pal.rock || '#9A928A';
-  groundShadow(ctx, x, y + 6, r * 1.5, r * 0.25, 0.3);
-  const g = ctx.createLinearGradient(0, y - r * 1.6, 0, y);
-  g.addColorStop(0, shade(rock, 0.1));
-  g.addColorStop(1, shade(rock, -0.25));
-  ctx.fillStyle = g;
-  ctx.strokeStyle = shade(rock, -0.6);
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(x - r * 1.6, y);
-  ctx.quadraticCurveTo(x - r * 1.7, y - r * 0.9, x - r * 1.1, y - r * 1.4);
-  ctx.quadraticCurveTo(x - r * 0.4, y - r * 1.9, x + r * 0.3, y - r * 1.65);
-  ctx.quadraticCurveTo(x + r * 1.2, y - r * 1.75, x + r * 1.55, y - r * 1.0);
-  ctx.quadraticCurveTo(x + r * 1.75, y - r * 0.4, x + r * 1.6, y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // des couches de roche
-  ctx.strokeStyle = 'rgba(40, 30, 20, 0.3)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (const k of [0.45, 0.85, 1.2]) {
-    ctx.moveTo(x - r * 1.5, y - r * k);
-    ctx.quadraticCurveTo(x, y - r * (k + 0.12), x + r * 1.5, y - r * k);
+  const col = pal.fern || (pal.leaf ? pal.leaf[1] : '#3E7A34');
+  groundShadow(ctx, x, y, r * 0.85, r * 0.24, 0.2);
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.34 + Math.sin(t * 1.4 + d.seed + i) * 0.04;
+    const L = r * (1.1 - Math.abs(i - 3) * 0.09);
+    const ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L * 0.95;
+    const cx = x + Math.cos(a) * L * 0.45, cy = y + Math.sin(a) * L * 0.65 - L * 0.12;
+    const c2 = i % 2 ? col : shade(col, 0.12);
+    ctx.strokeStyle = shade(col, -0.35);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(cx, cy, ex, ey);
+    ctx.stroke();
+    // les folioles, de chaque côté de la tige
+    ctx.fillStyle = c2;
+    const dx = ex - x, dy = ey - y, dl = Math.hypot(dx, dy) || 1, nx = -dy / dl, ny = dx / dl;
+    for (let k = 1; k <= 7; k++) {
+      const u = k / 8;
+      const px = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * cx + u * u * ex;
+      const py = (1 - u) * (1 - u) * y + 2 * (1 - u) * u * cy + u * u * ey;
+      const s = r * 0.16 * (1 - u * 0.6);
+      for (const side of [-1, 1]) {
+        ell(ctx, px + nx * side * s * 0.8, py + ny * side * s * 0.8, s, s * 0.42, Math.atan2(ny * side, nx * side) + 0.5 * side);
+        ctx.fill();
+      }
+    }
   }
-  ctx.stroke();
-  // l'entrée, toute noire
-  ctx.fillStyle = '#140E0A';
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.62, y);
-  ctx.quadraticCurveTo(x - r * 0.7, y - r * 0.85, x, y - r * 0.95);
-  ctx.quadraticCurveTo(x + r * 0.7, y - r * 0.85, x + r * 0.62, y);
-  ctx.closePath();
-  ctx.fill();
-  if (painted) {
-    // les peintures : un mammouth, un cheval, des mains (à l'ocre et au charbon)
-    ctx.save();
-    ctx.clip();
-    ctx.fillStyle = 'rgba(255, 180, 90, 0.18)';
-    ctx.fillRect(x - r, y - r, r * 2, r);
-    ctx.restore();
-    paintAnimal(ctx, x - r * 1.1, y - r * 0.55, r * 0.2, '#A8442A');
-    paintAnimal(ctx, x + r * 0.95, y - r * 0.7, r * 0.17, '#2A1C14');
-    for (const [hx, hy] of [[-1.25, -1.05], [1.2, -1.2], [-0.95, -1.25]]) hand(ctx, x + hx * r, y + hy * r, r * 0.08, '#A8442A');
-  }
-  // de la mousse et des touffes d'herbe en haut
-  ctx.fillStyle = pal.grass || '#6A9A3A';
-  for (let i = 0; i < 6; i++) {
-    const xx = x + (i - 2.5) * r * 0.5;
-    ell(ctx, xx, y - r * (1.6 - Math.abs(i - 2.5) * 0.12), r * 0.14, r * 0.06);
+  if (pal.snow) {
+    ctx.fillStyle = pal.snow;
+    ell(ctx, x, y - r * 0.7, r * 0.35, r * 0.12);
     ctx.fill();
   }
+}
+
+/** Un bouquet de fleurs sauvages (pas à l'âge de glace) */
+export function drawFlowers(ctx, d, t, pal) {
+  if (pal.snow) return;
+  const { x, y, r } = d;
+  const cols = pal.flowers || ['#F2E25A', '#FFFFFF', '#E86A9A'];
+  const leaf = pal.leaf ? pal.leaf[1] : '#3E7A34';
+  const rnd = seeded(d.seed);
+  ctx.fillStyle = leaf;
+  for (let i = 0; i < 4; i++) {
+    ell(ctx, x + (i - 1.5) * r * 0.32, y - r * 0.1, r * 0.22, r * 0.09, (i - 1.5) * 0.5);
+    ctx.fill();
+  }
+  for (let i = 0; i < 7; i++) {
+    const fx = x + (rnd() - 0.5) * r * 1.6, h = r * (0.5 + rnd() * 0.6), sw = Math.sin(t * 2 + i + d.seed) * 2;
+    ctx.strokeStyle = shade(leaf, -0.2);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fx, y);
+    ctx.quadraticCurveTo(fx - 3, y - h * 0.5, fx + sw, y - h);
+    ctx.stroke();
+    ctx.fillStyle = cols[i % cols.length];
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * TAU + d.seed;
+      circle(ctx, fx + sw + Math.cos(a) * 4.5, y - h + Math.sin(a) * 4.5, 3.6);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#F2B84A';
+    circle(ctx, fx + sw, y - h, 2.4);
+    ctx.fill();
+  }
+}
+
+/** Des roseaux, au bord de l'eau (certains avec leur massette brune) */
+export function drawReeds(ctx, d, t, pal) {
+  const { x, y, r } = d;
+  const rnd = seeded(d.seed);
+  groundShadow(ctx, x, y, r * 0.8, r * 0.18, 0.18);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    const fx = x + (i - 4) * r * 0.16 + (rnd() - 0.5) * 6;
+    const h = r * (1.3 + rnd() * 0.7), sw = Math.sin(t * 1.5 + i * 0.7 + d.seed) * r * 0.08;
+    ctx.strokeStyle = pal.snow ? (i % 2 ? '#9A9A6A' : '#B0A878') : i % 2 ? '#6A8A3A' : '#88A048';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(fx, y);
+    ctx.quadraticCurveTo(fx, y - h * 0.5, fx + sw, y - h);
+    ctx.stroke();
+    if (i % 3 === 0) {
+      ctx.fillStyle = '#6A4228';
+      ell(ctx, fx + sw * 0.9, y - h + 12, 4, 11);
+      ctx.fill();
+    } else {
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(fx, y - h * 0.3);
+      ctx.quadraticCurveTo(fx + (i % 2 ? 14 : -14), y - h * 0.55, fx + (i % 2 ? 22 : -22) + sw, y - h * 0.45);
+      ctx.stroke();
+    }
+  }
+}
+
+/** Au sol : une petite touffe d'herbe, ou quelques fleurs (dark, light : les couleurs de l'herbe) */
+export function drawDecal(ctx, d, flowers, dark, light) {
+  const s = d.s;
+  if (d.k === 'fleur' && flowers) {
+    for (let i = 0; i < 3; i++) {
+      const fx = d.x + (((d.seed >> (i * 3)) % 7) - 3) * 5 * s, fy = d.y + (((d.seed >> (i * 4 + 1)) % 5) - 2) * 4 * s;
+      ctx.fillStyle = flowers[(d.seed + i) % flowers.length];
+      circle(ctx, fx, fy, 3.2 * s);
+      ctx.fill();
+    }
+    return;
+  }
+  ctx.strokeStyle = d.seed & 1 ? dark : light;
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const k of [-1, 0, 1]) {
+    ctx.moveTo(d.x + k * 5 * s, d.y);
+    ctx.lineTo(d.x + k * 8 * s, d.y - (k ? 9 : 13) * s);
+  }
+  ctx.stroke();
+}
+
+/* ============================================================================
+   LA GROTTE : une colline de roche creusée d'une grande salle. On y entre par
+   l'arche ; dedans, la colline devient transparente (alpha) et l'on voit le
+   sol, la paroi du fond, ses stalactites… et les peintures, une fois faites.
+   d : { x, y (le milieu du sol de la salle), rw, rd (sa demi-largeur, sa demi-profondeur), seed }
+   ============================================================================ */
+/** Le haut de la colline (de la base gauche à la base droite) */
+function hillTop(pth, x, y, rw, top, baseY) {
+  pth.quadraticCurveTo(x - rw - 300, y - 140, x - rw * 0.8, top + 110);
+  pth.quadraticCurveTo(x - rw * 0.3, top - 40, x + rw * 0.3, top + 30);
+  pth.quadraticCurveTo(x + rw * 1.05, top + 50, x + rw + 180, y - 220);
+  pth.quadraticCurveTo(x + rw + 280, y - 60, x + rw + 230, baseY);
+}
+
+/** Le sol de la salle (dessiné à plat, avant tout le reste) */
+export function drawCaveFloor(ctx, d, t, pal) {
+  const { x, y, rw, rd } = d;
+  const rock = pal.rock || '#9A928A';
+  const g = ctx.createRadialGradient(x, y + rd * 0.5, 30, x, y, rw + 60);
+  g.addColorStop(0, shade(rock, -0.32));
+  g.addColorStop(1, shade(rock, -0.62));
+  ctx.fillStyle = g;
+  ell(ctx, x, y, rw + 48, rd + 40);
+  ctx.fill();
+  // la lumière du jour qui entre par l'arche
+  const lg = ctx.createRadialGradient(x, y + rd + 30, 10, x, y + rd, rd * 1.3);
+  lg.addColorStop(0, 'rgba(255, 240, 200, 0.3)');
+  lg.addColorStop(1, 'rgba(255, 240, 200, 0)');
+  ctx.fillStyle = lg;
+  ell(ctx, x, y + rd * 0.4, rw * 0.7, rd);
+  ctx.fill();
+  // des cailloux
+  const rnd = seeded(d.seed);
+  for (let i = 0; i < 34; i++) {
+    const a = rnd() * TAU, k = Math.sqrt(rnd()) * 0.92;
+    ctx.fillStyle = shade(rock, i % 3 ? -0.45 : -0.15);
+    ell(ctx, x + Math.cos(a) * rw * k, y + Math.sin(a) * rd * k, 5 + rnd() * 9, 3 + rnd() * 5);
+    ctx.fill();
+  }
+  // un vieux foyer (des cendres, du charbon) et quelques os
+  ctx.fillStyle = 'rgba(70, 64, 60, 0.85)';
+  ell(ctx, x - rw * 0.45, y + rd * 0.15, 40, 18);
+  ctx.fill();
+  ctx.fillStyle = '#1A1410';
+  for (const [dx, dy] of [[-12, -2], [8, 4], [0, -6]]) { ell(ctx, x - rw * 0.45 + dx, y + rd * 0.15 + dy, 9, 4); ctx.fill(); }
+  ctx.strokeStyle = '#E8DCC4';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (const [bx, by, a] of [[0.4, 0.3, 0.4], [0.55, -0.1, -0.8], [-0.2, 0.55, 1.2]]) {
+    const cx = x + bx * rw, cy = y + by * rd;
+    ctx.moveTo(cx - Math.cos(a) * 14, cy - Math.sin(a) * 6);
+    ctx.lineTo(cx + Math.cos(a) * 14, cy + Math.sin(a) * 6);
+  }
+  ctx.stroke();
+}
+
+/** La grotte, debout : part 'fond' (la colline derrière, la paroi du fond) ou 'devant' (la colline et son arche) */
+export function drawCave(ctx, d, t, pal, painted, part = 'devant', alpha = 1) {
+  const { x, y, rw, rd } = d;
+  const rock = pal.rock || '#9A928A';
+  const top = y - rd - 430;
+  if (part === 'fond') {
+    // la colline, derrière la salle
+    const g = ctx.createLinearGradient(0, top, 0, y);
+    g.addColorStop(0, shade(rock, 0.05));
+    g.addColorStop(1, shade(rock, -0.3));
+    ctx.fillStyle = g;
+    ctx.strokeStyle = shade(rock, -0.6);
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(x - rw - 230, y + 30);
+    hillTop(ctx, x, y, rw, top, y + 30);
+    ctx.lineTo(x + rw + 40, y);
+    ctx.ellipse(x, y, rw + 40, rd + 35, 0, 0, Math.PI, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // la paroi du fond, à l'intérieur (là où l'on peint)
+    const H = 250;
+    const wg = ctx.createLinearGradient(0, y - rd - H, 0, y - rd * 0.2);
+    wg.addColorStop(0, shade(rock, -0.62));
+    wg.addColorStop(1, shade(rock, -0.32));
+    ctx.fillStyle = wg;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rw + 40, rd + 35, 0, Math.PI, TAU, false);
+    ctx.ellipse(x, y - H, rw + 10, rd + 10, 0, 0, Math.PI, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = shade(rock, -0.7);
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    // les veines de la roche
+    ctx.strokeStyle = 'rgba(20, 14, 10, 0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (const k of [0.3, 0.6]) ctx.ellipse(x, y - H * k, rw + 30 - k * 20, rd + 30 - k * 20, 0, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.stroke();
+    // les stalactites, qui pendent du plafond
+    ctx.fillStyle = shade(rock, -0.15);
+    ctx.strokeStyle = shade(rock, -0.6);
+    ctx.lineWidth = 2;
+    const rnd = seeded(d.seed + 5);
+    for (let i = 0; i < 14; i++) {
+      const a = Math.PI + ((i + 0.5) / 14) * Math.PI;
+      const sx = x + Math.cos(a) * (rw + 10), sy = y - H + Math.sin(a) * (rd + 10);
+      const len = 26 + rnd() * 46, w = 8 + rnd() * 8;
+      ctx.beginPath();
+      ctx.moveTo(sx - w, sy - 2);
+      ctx.quadraticCurveTo(sx - w * 0.3, sy + len * 0.6, sx, sy + len);
+      ctx.quadraticCurveTo(sx + w * 0.3, sy + len * 0.6, sx + w, sy - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (painted) {
+      // les peintures (à l'ocre et au charbon), éclairées par deux torches
+      const glow = ctx.createRadialGradient(x, y - rd - 110, 20, x, y - rd - 110, rw);
+      glow.addColorStop(0, 'rgba(255, 180, 90, 0.32)');
+      glow.addColorStop(1, 'rgba(255, 150, 60, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - rw, y - rd - 260, rw * 2, 300);
+      paintAnimal(ctx, x - rw * 0.42, y - rd - 80, 34, '#A8442A');
+      paintAnimal(ctx, x + rw * 0.18, y - rd - 105, 28, '#2A1C14');
+      paintAnimal(ctx, x + rw * 0.55, y - rd - 55, 24, '#A8442A');
+      for (const [hx, hy] of [[-0.75, -40], [-0.08, -140], [0.82, -110], [0.3, -30]]) hand(ctx, x + hx * rw, y - rd + hy, 13, '#A8442A');
+      for (const s of [-1, 1]) {
+        const tx = x + s * rw * 0.85, ty = y - rd * 0.45;
+        ctx.strokeStyle = '#3A2414';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - s * 6, ty - 70);
+        ctx.stroke();
+        flame(ctx, tx - s * 6, ty - 70, 18, t, s + 4);
+      }
+    }
+    return;
+  }
+  // ---- 'devant' : la colline, son arche, sa végétation ----
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const base = y + rd + 30;
+  groundShadow(ctx, x, base + 8, rw + 270, 44, 0.3);
+  const hill = new Path2D();
+  hill.moveTo(x - rw - 230, base);
+  hillTop(hill, x, y, rw, top, base);
+  hill.quadraticCurveTo(x, base + 40, x - rw - 230, base);
+  const g = ctx.createLinearGradient(0, top, 0, base);
+  g.addColorStop(0, shade(rock, 0.14));
+  g.addColorStop(0.55, rock);
+  g.addColorStop(1, shade(rock, -0.32));
+  ctx.fillStyle = g;
+  ctx.fill(hill);
+  ctx.save();
+  ctx.clip(hill);
+  // l'ombre du côté droit, et des blocs de roche plus clairs
+  const sg = ctx.createLinearGradient(x, 0, x + rw + 260, 0);
+  sg.addColorStop(0, 'rgba(30, 20, 10, 0)');
+  sg.addColorStop(1, 'rgba(30, 20, 10, 0.35)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(x, top - 60, rw + 300, base - top + 100);
+  const rnd = seeded(d.seed);
+  for (let i = 0; i < 16; i++) {
+    const bx = x + (rnd() - 0.5) * (rw * 2 + 300), by = top + 90 + rnd() * (base - top - 120);
+    const br = 40 + rnd() * 60;
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.06 + rnd() * 0.08})`;
+    ell(ctx, bx, by, br, br * 0.6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(30, 20, 10, 0.22)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(bx, by, br, br * 0.6, 0, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+  }
+  // les couches de roche
+  ctx.strokeStyle = 'rgba(40, 28, 18, 0.28)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (const k of [0.22, 0.42, 0.62]) {
+    const yy = lerp(base, top, k);
+    ctx.moveTo(x - rw - 320, yy + 30);
+    ctx.quadraticCurveTo(x, yy - 40, x + rw + 320, yy + 20);
+  }
+  ctx.stroke();
+  // le sommet : de l'herbe (ou de la neige)
+  const cap = pal.snow || (pal.leaf ? pal.leaf[1] : '#5E8A3A');
+  ctx.fillStyle = cap;
+  ctx.beginPath();
+  ctx.moveTo(x - rw - 400, top - 100);
+  ctx.lineTo(x + rw + 400, top - 100);
+  ctx.lineTo(x + rw + 400, top + 130);
+  for (let i = 0; i <= 24; i++) {
+    const xx = lerp(x + rw + 400, x - rw - 400, i / 24);
+    ctx.lineTo(xx, top + 110 + Math.sin(i * 1.7 + d.seed) * 22 + (i % 2) * 14);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = shade(rock, -0.62);
+  ctx.lineWidth = 5;
+  ctx.stroke(hill);
+  // l'arche d'entrée
+  const aw = 128, ah = 250;
+  const arch = new Path2D();
+  arch.moveTo(x - aw, base + 2);
+  arch.lineTo(x - aw * 0.95, base - ah * 0.45);
+  arch.quadraticCurveTo(x - aw * 0.85, base - ah, x, base - ah);
+  arch.quadraticCurveTo(x + aw * 0.85, base - ah, x + aw * 0.95, base - ah * 0.45);
+  arch.lineTo(x + aw, base + 2);
+  arch.closePath();
+  const ag = ctx.createLinearGradient(0, base - ah, 0, base);
+  ag.addColorStop(0, '#0C0806');
+  ag.addColorStop(1, '#2E2218');
+  ctx.fillStyle = ag;
+  ctx.fill(arch);
+  if (painted) {
+    // la lueur des torches, au fond
+    const lg = ctx.createRadialGradient(x, base - ah * 0.35, 10, x, base - ah * 0.35, aw * 1.2);
+    lg.addColorStop(0, 'rgba(255, 160, 70, 0.45)');
+    lg.addColorStop(1, 'rgba(255, 140, 50, 0)');
+    ctx.fillStyle = lg;
+    ctx.fill(arch);
+  }
+  ctx.strokeStyle = shade(rock, 0.22);
+  ctx.lineWidth = 12;
+  ctx.stroke(arch);
+  ctx.strokeStyle = shade(rock, -0.6);
+  ctx.lineWidth = 4;
+  ctx.stroke(arch);
+  // du lierre qui pend de l'arche
+  const leaf = pal.leaf || ['#2E5E2A', '#3E7A34', '#5E9A44'];
+  for (let i = 0; i < 7; i++) {
+    const vx = x + (i - 3) * aw * 0.26, vy = base - ah * (0.97 - Math.abs(i - 3) * 0.06);
+    const len = 40 + ((i * 37) % 50), sw = Math.sin(t * 1.2 + i) * 4;
+    ctx.strokeStyle = shade(leaf[0], -0.2);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(vx, vy);
+    ctx.quadraticCurveTo(vx + sw, vy + len * 0.5, vx + sw * 1.5, vy + len);
+    ctx.stroke();
+    ctx.fillStyle = leaf[(i % 2) + 1];
+    for (let k = 1; k <= 4; k++) { ell(ctx, vx + sw * k * 0.35 + (k % 2 ? 5 : -5), vy + len * k / 4, 6, 4, k % 2 ? 0.6 : -0.6); ctx.fill(); }
+  }
+  // des pierres au pied de la colline
+  for (const [bx, br] of [[-aw - 40, 34], [aw + 50, 30], [-rw - 120, 46], [rw + 110, 40], [-rw * 0.6, 26], [rw * 0.55, 30]]) {
+    ctx.fillStyle = shade(rock, -0.05);
+    ctx.strokeStyle = shade(rock, -0.6);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x + bx, base + 6 - br * 0.4, br, br * 0.65, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+  }
+  // des arbres là-haut, des fougères et des buissons en bas
+  for (const [tx, ty, r, kind, s] of [[-rw * 0.6, top + 175, 58, 'pin', 1], [rw * 0.5, top + 150, 54, 'feuillu', 2], [rw * 0.02, top + 95, 50, 'pin', 3], [-rw - 40, top + 300, 46, 'feuillu', 4]]) {
+    drawTree(ctx, { x: x + tx, y: ty, r, kind, seed: d.seed * 7 + s }, t, pal);
+  }
+  for (const [fx, r, s] of [[-aw - 95, 48, 1], [aw + 105, 52, 2], [-rw - 30, 56, 3], [rw + 20, 50, 4]]) {
+    drawFern(ctx, { x: x + fx, y: base + 10, r, seed: d.seed + s * 13 }, t, pal);
+  }
+  ctx.restore();
 }
 function paintAnimal(ctx, x, y, s, col) {
   ctx.fillStyle = col;

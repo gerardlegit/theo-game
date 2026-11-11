@@ -4,7 +4,8 @@
 // Rien ici ne connaît une espèce par son nom ; ce que l'on construit et où,
 // c'est le niveau qui le dit (world.sites).
 //
-//   - La carte : une rivière, une grotte, des forêts, des rochers, et ce qu'on
+//   - La carte : une rivière, une grotte où l'on entre, des forêts, des fougères,
+//     des fleurs, des roseaux, des rochers, et ce qu'on
 //     ramasse (du bois mort, du silex, de l'ocre, du blé sauvage), l'arbre
 //     frappé par la foudre (le premier feu). Elle reste la même d'un chapitre
 //     à l'autre : le village grandit, et ce qu'on a construit reste.
@@ -12,15 +13,16 @@
 //     on s'arrête sur un plan pour construire (s'il y a assez de bois…) ;
 //     on arrose les champs, on récolte le blé mûr.
 //   - Les obstacles (arbres, rochers, huttes, palissade), la lance qu'on
-//     lance, les attaques des pillards des autres villages, la nuit et ses
+//     lance (et celle des guerriers du village et de la troupe), les attaques des pillards des autres villages, la nuit et ses
 //     lumières, le radar.
 // (Les dessins sont dans art-humains.js.)
 // ============================================================================
 
 import { shade } from './art.js';
 import {
-  drawTree, drawFireTree, drawRock, drawResource, drawBush, drawGrass, drawCave, drawHearth, drawHut, drawPost,
+  drawTree, drawFireTree, drawRock, drawResource, drawBush, drawGrass, drawCave, drawCaveFloor, drawHearth, drawHut, drawPost,
   drawField, drawGranary, drawStake, drawGate, drawTower, drawPlan, drawResIcon, groundShadow, flame,
+  drawFern, drawFlowers, drawReeds, drawDecal,
 } from './art-humains.js';
 
 const TAU = Math.PI * 2;
@@ -49,6 +51,28 @@ const SPEAR_SPEED = 950;
 const CELL = 220;                  // la grille des obstacles
 const GATE_GAP = 150;              // l'ouverture de la palissade, que ferme la grande porte
 const WALL_HP = 300;               // la solidité d'un morceau de palissade (un pillard tape 12 par seconde)
+const CAVE_RW = 330;               // la salle de la grotte : sa demi-largeur…
+const CAVE_RD = 190;               // …et sa demi-profondeur
+const CAVE_DOOR = 0.42;            // la moitié de l'arche d'entrée (en radians, au sud)
+const THROW_RANGE = 560;           // (les guerriers, la troupe) ils lancent leur lance d'aussi loin
+
+/** Les murs de la grotte (des cercles) : tout autour de la salle, sauf sous l'arche ; et la colline */
+function caveWalls(c) {
+  const out = [];
+  for (let a = 0; a < TAU; a += 0.12) {
+    if (Math.abs(((a - Math.PI / 2 + Math.PI) % TAU + TAU) % TAU - Math.PI) < CAVE_DOOR) continue;
+    out.push({ x: c.x + Math.cos(a) * (c.rw + 45), y: c.y + Math.sin(a) * (c.rd + 35), r: 52 });
+    if (Math.sin(a) < -0.1) out.push({ x: c.x + Math.cos(a) * (c.rw + 200), y: c.y + Math.sin(a) * (c.rd + 180), r: 125 });
+  }
+  // la face de la colline, de part et d'autre de l'arche
+  for (let x = -(c.rw + 200); x <= c.rw + 200; x += 70) {
+    if (Math.abs(x) >= 190) out.push({ x: c.x + x, y: c.y + c.rd + 25, r: 52 });
+  }
+  for (const s of [-1, 1]) for (let y = -c.rd; y <= c.rd; y += 90) out.push({ x: c.x + s * (c.rw + 150), y: c.y + y, r: 85 });
+  // le haut de la colline
+  for (let x = -c.rw; x <= c.rw; x += 160) out.push({ x: c.x + x, y: c.y - c.rd - 330, r: 150 });
+  return out;
+}
 
 export function createTqv(api) {
   const on = () => api.level().world.view === 'tqv';
@@ -73,24 +97,34 @@ export function createTqv(api) {
     for (let y = -200; y <= W.h + 200; y += 260) river.push({ x: rx + Math.sin(y / 900) * 260 + Math.sin(y / 330 + 1.3) * 80, y });
     const riverW = L.riverW || 210;
     const nearRiver = (x, y, m = 0) => riverDist(river, x, y) < riverW / 2 + m;
-    // la grotte, au nord du village
-    const cave = { type: 'grotte', x: V.x + (L.caveDx ?? 500), y: V.y + (L.caveDy ?? -1900), r: 210, seed: 11, solid: true };
+    // la grotte, au nord du village : une colline de roche, creusée d'une grande salle
+    // (x, y) = le milieu du sol de la salle ; on y entre par l'arche, au sud
+    const cave = { type: 'grotte', x: V.x + (L.caveDx ?? 500), y: V.y + (L.caveDy ?? -1900), r: 210, rw: CAVE_RW, rd: CAVE_RD, seed: 11, solid: true };
+    cave.walls = caveWalls(cave);
     items.push(cave);
+    const inCave = (x, y, m) => ((x - cave.x) / (cave.rw + 260 + m)) ** 2 + ((y - (cave.y - 140)) / (cave.rd + 380 + m)) ** 2 < 1;
     const free = (x, y, m) => x > 150 && y > 150 && x < W.w - 150 && y < W.h - 150 && Math.hypot(x - V.x, y - V.y) > VR + 180 + m
-      && !nearRiver(x, y, m + 30) && Math.hypot(x - cave.x, y - (cave.y - 80)) > cave.r * 1.7 + m;
+      && !nearRiver(x, y, m + 30) && !inCave(x, y, m);
+    const tooClose = (x, y, d) => items.some((o) => (o.type === 'arbre' || o.type === 'rocher') && Math.hypot(o.x - x, o.y - y) < d);
+    const kindOf = () => (rnd() < 0.45 ? 'pin' : rnd() < 0.4 ? 'bouleau' : 'feuillu');
     // l'arbre frappé par la foudre (le premier feu)
     if (L.fireTree) items.push({ type: 'arbre-feu', x: V.x + L.fireTree[0], y: V.y + L.fireTree[1], r: 70, seed: 3, solid: true, from: 1, to: 1 });
     // les forêts
     for (let k = 0; k < (L.forests || 9); k++) {
       let cx, cy, tries = 0;
       do { cx = R(300, W.w - 300); cy = R(300, W.h - 300); tries++; } while (!free(cx, cy, 200) && tries < 60);
-      const n = Math.floor(R(10, 22));
+      const n = Math.floor(R(16, 30));
       for (let i = 0; i < n; i++) {
-        const a = rnd() * TAU, d = Math.sqrt(rnd()) * R(250, 520);
+        const a = rnd() * TAU, d = Math.sqrt(rnd()) * R(250, 560);
         const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
-        if (!free(x, y, 40) || items.some((o) => o.type === 'arbre' && Math.hypot(o.x - x, o.y - y) < 110)) continue;
-        const kind = rnd() < 0.45 ? 'pin' : rnd() < 0.4 ? 'bouleau' : 'feuillu';
-        items.push({ type: 'arbre', kind, x, y, r: R(60, 95), seed: Math.floor(rnd() * 1e6), solid: true });
+        if (!free(x, y, 40) || tooClose(x, y, 100)) continue;
+        items.push({ type: 'arbre', kind: kindOf(), x, y, r: R(60, 98), seed: Math.floor(rnd() * 1e6), solid: true });
+      }
+      // le sous-bois : des fougères et des buissons entre les arbres
+      for (let i = 0; i < 10; i++) {
+        const a = rnd() * TAU, d = Math.sqrt(rnd()) * 560;
+        const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+        if (free(x, y, 0) && !tooClose(x, y, 70)) items.push({ type: rnd() < 0.6 ? 'fougere' : 'buisson', x, y, r: R(45, 70), seed: Math.floor(rnd() * 1e6), hide: true });
       }
       // du bois mort au bord de chaque forêt
       for (let i = 0; i < 4; i++) {
@@ -114,13 +148,33 @@ export function createTqv(api) {
       const byRiver = i % 3 !== 2;
       const y = R(300, W.h - 300);
       const x = byRiver ? riverX(river, y) + (rnd() < 0.5 ? -1 : 1) * (riverW / 2 + R(60, 220)) : cave.x + R(-700, 700);
-      const yy = byRiver ? y : cave.y + R(250, 600);
+      const yy = byRiver ? y : cave.y + cave.rd + R(150, 520);
       if (Math.hypot(x - V.x, yy - V.y) < VR + 100) continue;
       items.push({ type: 'silex', x, y: yy, r: 46, seed: Math.floor(rnd() * 1e6), amount: 3, max: 3, res: 'silex', solid: false });
     }
     // l'ocre, la terre rouge des peintres, au pied de la grotte
     for (let i = 0; i < (L.ochre || 6); i++) {
-      items.push({ type: 'ocre', x: cave.x + R(-650, 650), y: cave.y + R(220, 520), r: 40, seed: Math.floor(rnd() * 1e6), amount: 2, max: 2, res: 'ocre', from: L.ochreFrom || 2 });
+      items.push({ type: 'ocre', x: cave.x + R(-620, 620), y: cave.y + cave.rd + R(110, 380), r: 40, seed: Math.floor(rnd() * 1e6), amount: 2, max: 2, res: 'ocre', from: L.ochreFrom || 2 });
+    }
+    // des arbres seuls, un peu partout dans la vallée
+    for (let i = 0; i < (L.loneTrees || 0); i++) {
+      const x = R(250, W.w - 250), y = R(250, W.h - 250);
+      if (free(x, y, 60) && !tooClose(x, y, 160)) items.push({ type: 'arbre', kind: kindOf(), x, y, r: R(65, 100), seed: Math.floor(rnd() * 1e6), solid: true });
+    }
+    // la forêt épaisse tout au bord de la carte
+    for (let i = 0; i < (L.borderTrees || 0); i++) {
+      const side = i % 4, u = rnd(), d = R(160, 520);
+      const x = side === 0 ? d : side === 1 ? W.w - d : u * W.w;
+      const y = side === 2 ? d : side === 3 ? W.h - d : u * W.h;
+      if (x > 120 && y > 120 && x < W.w - 120 && y < W.h - 120 && free(x, y, 0) && !tooClose(x, y, 105)) {
+        items.push({ type: 'arbre', kind: kindOf(), x, y, r: R(70, 105), seed: Math.floor(rnd() * 1e6), solid: true });
+      }
+    }
+    // les roseaux, au bord de la rivière (on s'y cache)
+    for (let i = 0; i < (L.reeds || 0); i++) {
+      const y = R(150, W.h - 150);
+      const x = riverX(river, y) + (rnd() < 0.5 ? -1 : 1) * (riverW / 2 + R(10, 70));
+      if (Math.hypot(x - V.x, y - V.y) > VR + 120 && !inCave(x, y, 0)) items.push({ type: 'roseaux', x, y, r: R(40, 60), seed: Math.floor(rnd() * 1e6), hide: true });
     }
     // le blé sauvage, dans une prairie (à partir du chapitre de l'agriculture)
     const meadow = { x: V.x + (L.meadow ? L.meadow[0] : -1500), y: V.y + (L.meadow ? L.meadow[1] : 1700) };
@@ -130,15 +184,31 @@ export function createTqv(api) {
       if (nearRiver(x, y, 40) || Math.hypot(x - V.x, y - V.y) < VR + 80) continue;
       items.push({ type: 'ble', x, y, r: 34, seed: Math.floor(rnd() * 1e6), amount: 2, max: 2, res: 'ble', from: L.wheatFrom || 4 });
     }
-    // les buissons et les hautes herbes (on s'y cache)
+    // les buissons, les hautes herbes et les fougères (on s'y cache), et des fleurs
     for (let i = 0; i < (L.bushes || 60); i++) {
       const x = R(200, W.w - 200), y = R(200, W.h - 200);
-      if (free(x, y, 0)) items.push({ type: rnd() < 0.5 ? 'buisson' : 'herbes', x, y, r: R(50, 80), seed: Math.floor(rnd() * 1e6), hide: true });
+      if (!free(x, y, 0) || tooClose(x, y, 70)) continue;
+      const u = rnd();
+      const type = u < 0.35 ? 'buisson' : u < 0.62 ? 'herbes' : 'fougere';
+      items.push({ type, x, y, r: R(48, 80), seed: Math.floor(rnd() * 1e6), hide: true });
+    }
+    // des bouquets de fleurs sauvages (même près du village)
+    for (let i = 0; i < (L.flowers || 0); i++) {
+      const x = R(200, W.w - 200), y = R(200, W.h - 200);
+      if (nearRiver(x, y, 40) || inCave(x, y, 0) || Math.hypot(x - V.x, y - V.y) < VR * 0.7 || tooClose(x, y, 60)) continue;
+      items.push({ type: 'fleurs', x, y, r: R(30, 48), seed: Math.floor(rnd() * 1e6) });
+    }
+    // (au sol, pour décorer) des touffes d'herbe et des fleurs, même dans le village
+    const decals = [];
+    for (let i = 0; i < (L.decals || 0); i++) {
+      const x = R(100, W.w - 100), y = R(100, W.h - 100);
+      if (nearRiver(x, y, 20) || inCave(x, y, -200) || Math.hypot(x - V.x, y - V.y) < 260) continue;
+      decals.push({ x, y, k: rnd() < 0.45 ? 'fleur' : 'touffe', s: R(0.7, 1.3), seed: Math.floor(rnd() * 1e6) });
     }
     items.sort((a, b) => a.y - b.y);
     // les plans du village (ce que le niveau propose de construire)
     const sites = (W.sites || []).flatMap((s) => expandSite(s, V, VR, cave));
-    M = { W, L, V, VR, river, riverW, cave, items, sites, meadow, grid: null, stakes: [], posts: [], lights: [] };
+    M = { W, L, V, VR, river, riverW, cave, items, sites, meadow, decals, caveFade: 1, grid: null, stakes: [], posts: [], lights: [] };
     refresh();
     return M;
   }
@@ -163,8 +233,8 @@ export function createTqv(api) {
       const a = s.angle ?? Math.PI / 2;
       return [{ ...s, x: V.x + Math.cos(a) * VR, y: V.y + Math.sin(a) * VR, a }];
     }
-    // ('grotte') devant l'entrée de la grotte (on ne peut pas entrer dans la roche)
-    const at = s.at === 'grotte' ? { x: cave.x, y: cave.y + 240 } : { x: V.x + s.at[0], y: V.y + s.at[1] };
+    // ('grotte') dans la grotte, devant la paroi du fond
+    const at = s.at === 'grotte' ? { x: cave.x, y: cave.y - cave.rd * 0.35 } : { x: V.x + s.at[0], y: V.y + s.at[1] };
     return [{ ...s, x: at.x, y: at.y }];
   }
 
@@ -177,7 +247,8 @@ export function createTqv(api) {
     const solids = [];
     for (const it of M.items) {
       if (!active(it, ch)) continue;
-      if (it.solid) solids.push({ x: it.x, y: it.y - (it.type === 'grotte' ? 60 : 0), r: it.type === 'arbre' ? 26 : it.type === 'grotte' ? it.r * 1.25 : it.type === 'arbre-feu' ? 30 : it.r * 0.85, item: it });
+      if (it.type === 'grotte') { for (const w of it.walls) solids.push({ ...w, item: it }); continue; }
+      if (it.solid) solids.push({ x: it.x, y: it.y, r: it.type === 'arbre' ? 26 : it.type === 'arbre-feu' ? 30 : it.r * 0.85, item: it });
     }
     M.stakes = [];
     M.posts = [];
@@ -229,6 +300,8 @@ export function createTqv(api) {
     }
     // (le feu de l'arbre frappé par la foudre)
     for (const it of M.items) if (it.type === 'arbre-feu' && active(it, ch)) M.lights.push({ x: it.x, y: it.y - 90, r: 470, warm: 260, fear: 420, tree: it });
+    // (les peintures faites) des torches éclairent la grotte
+    if (M.sites.some((s) => s.type === 'peinture' && g.built[s.id] === true)) M.lights.push({ x: M.cave.x, y: M.cave.y - M.cave.rd * 0.4, r: 380, warm: 0, fear: 0, cave: true });
     // la grille des obstacles (pour aller vite)
     const grid = new Map();
     for (const s of solids) {
@@ -494,6 +567,7 @@ export function createTqv(api) {
         api.sayOnce('ripe', api.lines().ripe, 40, 2);
       }
     }
+    updateThrowers(dt);
     updateSpears(dt);
     updateRaid(dt);
     // (les tours de guet lancent des lances sur les pillards)
@@ -514,8 +588,41 @@ export function createTqv(api) {
   function throwSpear(p) {
     const a = Math.atan2(p.vy, p.vx);
     const ang = Math.hypot(p.vx, p.vy) > 20 ? a : p.angle;
-    spears.push({ x: p.x + Math.cos(ang) * p.size, y: p.y - p.size * 1.3 + Math.sin(ang) * p.size, vx: Math.cos(ang) * SPEAR_SPEED, vy: Math.sin(ang) * SPEAR_SPEED, life: 0.6, owner: 'joueur', ang });
+    spears.push({ x: p.x + Math.cos(ang) * p.size, y: p.y - p.size * 1.3 + Math.sin(ang) * p.size, vx: Math.cos(ang) * SPEAR_SPEED, vy: Math.sin(ang) * SPEAR_SPEED, life: 0.6, owner: 'joueur', ang, ox: p.x, oy: p.y });
     api.sfx.whip();
+  }
+  /** Un guerrier du village (ou un chasseur de ta troupe) lance sa lance sur une bête */
+  function throwAt(c, t, owner) {
+    const sx = c.x, sy = c.y - c.size * 1.3;
+    // (il vise un peu devant la bête, là où elle va)
+    const tx = t.x + (t.vx || 0) * 0.35, ty = t.y - t.size * 0.8 + (t.vy || 0) * 0.35;
+    const a = Math.atan2(ty - sy, tx - sx), v = SPEAR_SPEED * 0.85;
+    spears.push({ x: sx, y: sy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: (THROW_RANGE + 80) / v, owner, ang: a, ox: c.x, oy: c.y });
+    c.angle = Math.cos(a) >= 0 ? 0 : Math.PI;
+    c.throwFx = 0.35;
+    if (Math.hypot(c.x - api.player().x, c.y - api.player().y) < 900) api.sfx.whip();
+  }
+  /** (world.spearKill, à partir de son chapitre) les guerriers et la troupe lancent eux aussi */
+  function updateThrowers(dt) {
+    const K = api.level().world.spearKill, g = api.game();
+    if (!K || g.chapter + 1 < (K.from || 1)) return;
+    const all = api.creatures(), hunt = api.huntTarget();
+    for (const c of all) {
+      const troop = c.sp.kind === 'ally';
+      if (c.dead || !(troop || (c.sp.kind === 'tribu' && c.warrior))) continue;
+      c.throwFx = Math.max(0, (c.throwFx || 0) - dt);
+      c.throwT = (c.throwT ?? Math.random() * 2) - dt;
+      if (c.throwT > 0) continue;
+      let best = null, bd = THROW_RANGE;
+      for (const o of all) {
+        if (o.dead || !(o.sp.kind === 'hunter' || (troop && o === hunt))) continue;
+        const d = Math.hypot(o.x - c.x, o.y - c.y);
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (!best) { c.throwT = 0.4; continue; }
+      c.throwT = 2.2 + Math.random() * 1.2;
+      throwAt(c, best, troop ? 'troupe' : 'guerrier');
+    }
   }
   function updateSpears(dt) {
     for (const s of spears) {
@@ -527,7 +634,7 @@ export function createTqv(api) {
         // (on vise le corps : un peu au-dessus des pattes)
         if (Math.hypot(c.x - s.x, c.y - c.size * 0.8 - s.y) > c.size * 0.9 + 14) continue;
         s.life = 0;
-        api.spearHit(c, s.owner);
+        api.spearHit(c, s.owner, s);
       }
     }
     spears = spears.filter((s) => s.life > 0);
@@ -628,7 +735,21 @@ export function createTqv(api) {
       const night = !!CH.night;
       const home = M.lights.find((l) => l.site && l.site.type === 'foyer') || { x: M.V.x, y: M.V.y };
       const R = night ? 240 : 650;
-      const threat = api.creatures().find((o) => o.sp.kind === 'hunter' && dist(o, c) < 380);
+      // (world.spearKill) la moitié des adultes sont des guerriers, avec une lance
+      if (c.warrior === undefined) {
+        const K = api.level().world.spearKill;
+        c.warrior = !!K && g.chapter + 1 >= (K.from || 1) && Math.random() < 0.5;
+      }
+      if (c.warrior) {
+        // un guerrier ne fuit pas : il tient sa place et lance sa lance (sauf si la bête est tout près)
+        const foe = api.creatures().find((o) => o.sp.kind === 'hunter' && !o.dead && dist(o, c) < THROW_RANGE + 60);
+        if (foe && dist(foe, c) > 170) {
+          api.steer(c, 0, 0, 0, dt);
+          c.mood = 'angry';
+          return true;
+        }
+      }
+      const threat = api.creatures().find((o) => o.sp.kind === 'hunter' && dist(o, c) < (c.warrior ? 170 : 380));
       if (threat) {
         const d = dist(threat, c) || 1;
         api.steer(c, (c.x - threat.x) / d, (c.y - threat.y) / d, sp.speed * 1.8, dt);
@@ -830,6 +951,17 @@ export function createTqv(api) {
       }
     }
     ctx.stroke();
+    // les touffes d'herbe et les fleurs, au sol
+    const flowers = P.flowers, dark = shade(P.floor || '#7FA34E', -0.2), light = shade(P.floor || '#7FA34E', 0.14);
+    for (const d of M.decals) {
+      if (d.x < x0 - 30 || d.x > x1 + 30 || d.y < y0 - 30 || d.y > y1 + 30) continue;
+      drawDecal(ctx, d, flowers, dark, light);
+    }
+    // le sol de la grotte (quand on y entre, la colline devient transparente)
+    const c = M.cave, pp = api.player();
+    const inside = !pp.dead && ((pp.x - c.x) / (c.rw + 40)) ** 2 + ((pp.y - c.y) / (c.rd + 40)) ** 2 < 1;
+    M.caveFade += ((inside ? 0.22 : 1) - M.caveFade) * 0.12;
+    if (c.x + c.rw + 300 > x0 && c.x - c.rw - 300 < x1 && c.y + c.rd + 100 > y0 && c.y - c.rd - 100 < y1) drawCaveFloor(ctx, c, t, P);
     // les champs (à plat)
     for (const s of M.sites) {
       if (s.type !== 'champ' || !g.built[s.id]) continue;
@@ -863,6 +995,14 @@ export function createTqv(api) {
     const g = api.game(), ch = g.chapter + 1, out = [];
     const inV = (o, m) => o.x + m > x0 && o.x - m < x1 && o.y + m * 0.2 > y0 && o.y - m * 2.4 < y1;
     for (const it of M.items) {
+      if (it.type === 'grotte') {
+        // la grotte : le fond (derrière ce qui est dans la salle) et la colline, devant
+        if (inV(it, it.rw + 450)) {
+          out.push({ y: it.y - it.rd - 40, item: it, part: 'fond' });
+          out.push({ y: it.y + it.rd + 30, item: it, part: 'devant' });
+        }
+        continue;
+      }
       if (!active(it, ch) || !inV(it, it.r * 2 + 200)) continue;
       out.push({ y: it.y, item: it });
     }
@@ -887,7 +1027,13 @@ export function createTqv(api) {
       else if (it.res) drawResource(ctx, it, t, P);
       else if (it.type === 'buisson') drawBush(ctx, it, t, P);
       else if (it.type === 'herbes') drawGrass(ctx, it, t, P);
-      else if (it.type === 'grotte') drawCave(ctx, it, t, P, M.sites.some((s) => s.type === 'peinture' && g.built[s.id] === true));
+      else if (it.type === 'fougere') drawFern(ctx, it, t, P);
+      else if (it.type === 'fleurs') drawFlowers(ctx, it, t, P);
+      else if (it.type === 'roseaux') drawReeds(ctx, it, t, P);
+      else if (it.type === 'grotte') {
+        const painted = M.sites.some((s) => s.type === 'peinture' && g.built[s.id] === true);
+        drawCave(ctx, it, t, P, painted, u.part, u.part === 'devant' ? M.caveFade : 1);
+      }
       return;
     }
     if (u.stake) { drawStake(ctx, u.stake); return; }

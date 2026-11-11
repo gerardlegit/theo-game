@@ -35,6 +35,7 @@ const world = {
   maxChasers: 3,
   noise: 460,
   penalty: { adn: 0.25, growth: 0 },
+  spearKill: { hits: 5, from: 2 },  // à partir du chapitre 2 : 5 coups de lance abattent un prédateur ; les guerriers lancent aussi
   currency: {
     icon: '💡', name: 'idées', verb: 'Inventer', order: 'Invente', many: 'inventions', later: 'Plus tard',
     tag: 'Nouvelle invention !', sub: 'Choisis ce que ta tribu va inventer :', stat: 'inventions',
@@ -51,7 +52,8 @@ const world = {
   ],
   land: {
     riverX: 2650, riverW: 210, caveDx: 500, caveDy: -1950, fireTree: [-860, -430],
-    forests: 11, rocks: 42, flint: 22, ochre: 7, wheat: 30, meadow: [-1650, 1800], bushes: 64, woodNear: 12,
+    forests: 18, rocks: 42, flint: 22, ochre: 7, wheat: 30, meadow: [-1650, 1800], bushes: 480, woodNear: 12,
+    loneTrees: 220, borderTrees: 260, reeds: 120, flowers: 260, decals: 2600,
   },
   // ce qu'on peut construire, et où (par rapport au foyer, au centre du village)
   sites: [
@@ -240,11 +242,11 @@ const evolutions = {
 };
 
 /* Les couleurs de la vallée à chaque époque */
-const NUIT = { floor: '#3E5E34', motes: 'rgba(255, 240, 200, 0.35)', water: '#2A5A7A', bank: '#5A5A3A', sand: '#8A8060', dirt: 'rgba(110, 90, 60, 0.6)', leaf: ['#1E3A22', '#2A4E2A', '#3A6234'], rock: '#7A7468', bush: ['#2A4A26', '#3A5E30', '#4E7438'], tallGrass: ['#4E6A2E', '#6A7E3A'] };
+const NUIT = { floor: '#3E5E34', motes: 'rgba(255, 240, 200, 0.35)', water: '#2A5A7A', bank: '#5A5A3A', sand: '#8A8060', dirt: 'rgba(110, 90, 60, 0.6)', leaf: ['#1E3A22', '#2A4E2A', '#3A6234'], rock: '#7A7468', bush: ['#2A4A26', '#3A5E30', '#4E7438'], tallGrass: ['#4E6A2E', '#6A7E3A'], flowers: ['#B8C4E8', '#E8E8F0'] };
 const GLACE = { floor: '#C2CEBE', motes: 'rgba(255, 255, 255, 0.9)', water: '#4E8AA8', bank: '#8A9488', sand: '#D2D8CC', dirt: 'rgba(140, 120, 90, 0.5)', leaf: ['#1E4A34', '#2A5E40', '#3A7650'], snow: '#F4F8FF', rock: '#9A968E', bush: ['#4A6A4A', '#5E7E58', '#7A9A6A'], tallGrass: ['#A8A87A', '#C8C29A'] };
-const PRINTEMPS = { floor: '#7FA34E', motes: 'rgba(255, 250, 210, 0.5)', water: '#3E8EB8', bank: '#7A8A4A', sand: '#C9B07A', dirt: 'rgba(160, 130, 85, 0.6)', leaf: ['#2E5E2A', '#3E7A34', '#5E9A44'], rock: '#9A928A', berries: '#C8302A', fruit: '#E2443A', thatch: '#C9A860' };
-const ETE = { floor: '#8AA850', motes: 'rgba(255, 250, 210, 0.5)', water: '#3E8EB8', bank: '#7A8A4A', sand: '#D2B87A', dirt: 'rgba(170, 135, 85, 0.65)', leaf: ['#3A6A2A', '#4E8A34', '#6EA644'], rock: '#9A928A', berries: '#7A2AA8', thatch: '#D2B060' };
-const SOIR = { floor: '#7E8E48', motes: 'rgba(255, 220, 160, 0.5)', water: '#4A7A9A', bank: '#7A7A4A', sand: '#C2A070', dirt: 'rgba(150, 115, 75, 0.65)', leaf: ['#3A5A28', '#4E7232', '#6A8A3E'], rock: '#8E8478', thatch: '#C29A58' };
+const PRINTEMPS = { floor: '#7FA34E', motes: 'rgba(255, 250, 210, 0.5)', water: '#3E8EB8', bank: '#7A8A4A', sand: '#C9B07A', dirt: 'rgba(160, 130, 85, 0.6)', leaf: ['#2E5E2A', '#3E7A34', '#5E9A44'], rock: '#9A928A', berries: '#C8302A', fruit: '#E2443A', thatch: '#C9A860', flowers: ['#F2E25A', '#FFFFFF', '#E86A9A', '#8A6AD8'] };
+const ETE = { floor: '#8AA850', motes: 'rgba(255, 250, 210, 0.5)', water: '#3E8EB8', bank: '#7A8A4A', sand: '#D2B87A', dirt: 'rgba(170, 135, 85, 0.65)', leaf: ['#3A6A2A', '#4E8A34', '#6EA644'], rock: '#9A928A', berries: '#7A2AA8', thatch: '#D2B060', flowers: ['#F2C24A', '#E8443A', '#FFFFFF', '#5A8AE8'] };
+const SOIR = { floor: '#7E8E48', motes: 'rgba(255, 220, 160, 0.5)', water: '#4A7A9A', bank: '#7A7A4A', sand: '#C2A070', dirt: 'rgba(150, 115, 75, 0.65)', leaf: ['#3A5A28', '#4E7232', '#6A8A3E'], rock: '#8E8478', thatch: '#C29A58', flowers: ['#E8A040', '#C85A8A', '#F2E2B0'] };
 
 /* La torche : le cri du niveau (touche B), avec son bruit et ses étincelles */
 const TORCHE = { icon: '🔥', name: 'Torche', cry: 'FWOUF !', sound: 'torch', ring: '#FFB36B', sparks: true };
@@ -305,13 +307,14 @@ const chapters = [
       { type: 'stun', species: 'lion', n: 3, text: 'Fais fuir 3 lions des cavernes avec ta lance' },
       { type: 'pack', species: 'chasseur-seul', n: 4, text: 'Forme une troupe de 4 chasseurs' },
       { type: 'eat', species: 'mammouth', n: 1, text: 'Chassez un mammouth tous ensemble' },
-      { type: 'build', what: 'peinture', n: 1, img: 'ocre', text: 'Peins vos exploits sur la paroi de la grotte' },
+      { type: 'build', what: 'peinture', n: 1, img: 'ocre', text: 'Entre dans la grotte et peins vos exploits sur la paroi' },
     ],
     tips: [
       "Le silex se trouve au bord de la rivière et près de la grotte : il brille un peu.",
       "Les chasseurs seuls ont un anneau doré : touche-les, ils te suivent. Chacun te donne des idées 💡 !",
+      "Cinq coups de lance, et un fauve est vaincu. Ta troupe et les guerriers du camp lancent leurs lances avec toi !",
       "Le mammouth se défend ! Quand il baisse la tête, écarte-toi… puis lance ta lance.",
-      "Pour peindre, il te faut de l'ocre : la terre rouge, au pied de la grotte.",
+      "Pour peindre, il te faut de l'ocre : la terre rouge, au pied de la grotte. Puis entre dans la grotte par la grande arche !",
     ],
   },
   {
@@ -478,7 +481,8 @@ const lines = {
   raidLost: "Les pillards sont repartis avec du blé… Ils vont revenir ! La prochaine fois, repousse-les avant qu'ils arrivent au grenier.",
   looted: "Ils pillent le grenier ! Vite, repousse-les !",
   wallBroken: "La palissade est cassée ! Les pillards entrent… Répare-la vite : arrête-toi devant.",
-  spearHit: "Touché ! Avec une lance, on fait fuir les plus grands fauves… de loin !",
+  spearHit: "Touché ! Regarde les points au-dessus de lui : au bout de 5 lances, il est vaincu. Tes guerriers lancent aussi !",
+  predatorDown: "Vaincu ! Seuls, les humains étaient des proies… Avec des lances, et tous ensemble, ils sont devenus plus forts que les fauves.",
   // la troupe de chasseurs (chapitre 2)
   packTitle: "Ta troupe de chasseurs : touche les chasseurs entourés d'un anneau doré pour qu'ils te suivent",
   packJoin: "Un chasseur de plus dans ta troupe ! Ensemble, vous êtes plus forts que le plus gros des animaux.",

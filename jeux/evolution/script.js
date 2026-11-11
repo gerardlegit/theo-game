@@ -602,7 +602,7 @@ const tqv = createTqv({
   rebuilt: () => tqvRebuilt(),
   steer: (c, x, y, sp, dt) => steer(c, x, y, sp, dt),
   spawnAt: (id, x, y) => { const c = makeCreature(id, x, y); creatures.push(c); return c; },
-  spearHit: (c, owner) => spearHit(c, owner),
+  spearHit: (c, owner, s) => spearHit(c, owner, s), huntTarget: () => huntTarget,
   horn: () => { sfx.horn(); shake = Math.max(shake, 0.3); },
   drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
 });
@@ -1452,13 +1452,19 @@ function renderRes() {
   bar.innerHTML = list.map((r) => `<span class="hud-item res-item" title="${escapeHtml(r.name)}"><img src="${resIconUrl(r.id)}" alt="${escapeHtml(r.name)}"> <b>${(game.res || {})[r.id] || 0}</b></span>`).join('');
 }
 
-/** Une lance (la tienne, ou celle d'une tour de guet) touche quelqu'un */
-function spearHit(c, owner) {
+/** (world.spearKill) combien de coups de lance abattent un prédateur (0 = jamais) */
+function spearKill() {
+  const K = LV.world.spearKill;
+  return K && game.chapter + 1 >= (K.from || 1) ? K.hits || 5 : 0;
+}
+
+/** Une lance (la tienne, celle d'un guerrier, de ta troupe ou d'une tour de guet) touche quelqu'un */
+function spearHit(c, owner, s) {
   const k = c.sp.kind;
   burst(c.x, c.y - c.size, 10, ['#FFFFFF', '#FFD24A', c.sp.color || '#FFFFFF'], c.size * 4 + 60, Math.max(2, c.size * 0.08));
   sfx.snap();
-  // (les tours de guet tirent depuis le village : on s'enfuit loin du village)
-  const from = owner === 'joueur' ? player : tqv.M.V;
+  // (les tours de guet tirent depuis le village : on s'enfuit loin du village ; sinon, loin du lanceur)
+  const from = owner === 'joueur' ? player : owner === 'tour' || !s ? tqv.M.V : { x: s.ox, y: s.oy };
   if (k === 'pillard' || c.sp.fieldRaider) {
     // (sp.tough) le chef des pillards ne recule qu'au deuxième coup
     c.hits = (c.hits || 0) + 1;
@@ -1484,8 +1490,13 @@ function spearHit(c, owner) {
     if (c.hp <= 0) huntWon(c);
     return;
   }
+  if (k === 'hunter' && spearKill()) {
+    // un prédateur : chaque lance compte ; au bout de spearKill() lances, il est vaincu
+    c.spearHits = (c.spearHits || 0) + 1;
+    if (c.spearHits >= spearKill()) { predatorDown(c, owner); return; }
+  }
   if (k === 'hunter' || k === 'defender') {
-    c.stunT = 2.5;
+    c.stunT = k === 'hunter' && spearKill() ? 1.2 : 2.5;
     c.scaredT = 3;
     c.barkX = from.x;
     c.barkY = from.y;
@@ -1499,6 +1510,41 @@ function spearHit(c, owner) {
   if (k === 'prey') {
     // un renne, un cerf : la chasse est réussie (huntWon compte la prise et donne les idées)
     huntWon(c, 'Bien visé !');
+  }
+}
+
+/** Un prédateur touché par assez de lances : il est vaincu (la tribu est plus forte que lui) */
+function predatorDown(c, owner) {
+  c.dead = true;
+  if (c === huntTarget) huntTarget = null;
+  noteStun(c);
+  game.killed = game.killed || {};
+  game.killed[c.id] = (game.killed[c.id] || 0) + 1;
+  game.stats.eaten++;
+  sfx.thud();
+  shake = Math.max(shake, 0.3);
+  burst(c.x, c.y - c.size * 0.6, 22, [c.sp.color || '#A08A62', '#E8DCC4', '#FFFFFF'], c.size * 5, Math.max(3, c.size * 0.1));
+  addFloater(owner === 'joueur' ? 'Vaincu !' : 'Vaincu par la tribu !', c.x, c.y - c.size * 2.4, '#7CF0A0', 1.5);
+  deed(15, c.x, c.y - c.size * 3);
+  sayOnce('predatorDown', LINES.predatorDown, 60, 2);
+  checkMissions();
+}
+
+/** (au-dessus d'un prédateur touché) les coups de lance reçus : ●●●○○ */
+function drawSpearPips(c) {
+  const n = spearKill();
+  if (!n || !c.spearHits || c.sp.kind !== 'hunter' || c.dead) return;
+  const r = 6 / zoom, gap = 16 / zoom;
+  const y = c.y - c.size * 2.15 - 30 / zoom;
+  for (let i = 0; i < n; i++) {
+    const x = c.x + (i - (n - 1) / 2) * gap;
+    ctx.fillStyle = i < c.spearHits ? '#FF6B4A' : 'rgba(255, 255, 255, 0.85)';
+    ctx.strokeStyle = 'rgba(30, 20, 10, 0.85)';
+    ctx.lineWidth = 2 / zoom;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
   }
 }
 
@@ -1601,6 +1647,7 @@ function drawTqvView() {
     if (!inView(c, c.size * 4)) continue;
     const top = { ...c, y: c.y - c.size * (c.sp.hp ? 1.0 : 0.9) };
     if (CH.pack) drawPackMark(top);
+    drawSpearPips(c);
     if (c.stunT > 0) drawStars(top);
     if (c.mark) {
       const pop = clamp((1.1 - c.markT) * 6 + 0.3, 0.05, 1);
@@ -6207,7 +6254,17 @@ function tqvBot(go0) {
     const a = a0 + Math.sign(da) * 0.45;
     return go0(V.x + Math.cos(a) * (M.VR + 240), V.y + Math.sin(a) * (M.VR + 240));
   };
+  const C = M.cave;
+  const inCave = (q) => ((q.x - C.x) / (C.rw + 40)) ** 2 + ((q.y - C.y) / (C.rd + 40)) ** 2 < 1;
   const go = (x, y, stop = 0, ring = false) => {
+    // (la grotte) on y entre, et on en sort, par l'arche (au sud) ; on contourne la colline
+    if (inCave(p) !== inCave({ x, y })) {
+      const door = { x: C.x, y: C.y + C.rd + 150 }, sill = { x: C.x, y: C.y + C.rd - 70 };
+      if (Math.abs(p.x - C.x) < 90 && p.y > C.y + C.rd - 130) return inCave(p) ? go0(door.x, door.y) : go0(sill.x, sill.y);
+      if (inCave(p)) return go0(sill.x, sill.y);
+      if (p.y < C.y + C.rd + 60 && Math.abs(p.x - C.x) < C.rw + 360) return go0(C.x + Math.sign(p.x - C.x || 1) * (C.rw + 400), C.y + C.rd + 170);
+      return go0(door.x, door.y);
+    }
     // (dans l'enclos) on ressort par sa porte
     const pen = pens.find((z) => dist(p, z) < z.r * FENCE);
     if (pen && Math.hypot(x - pen.x, y - pen.y) > pen.r * FENCE) {

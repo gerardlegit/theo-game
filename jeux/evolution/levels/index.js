@@ -155,7 +155,13 @@
 //      reste d'un chapitre à l'autre. world.village + villageR (le centre et le
 //      rayon de la palissade) ; world.land (riverX, riverW, caveDx/caveDy = la
 //      grotte, fireTree = l'arbre en feu du chapitre 1, forests, woodNear, rocks,
-//      flint, ochre, wheat + meadow = le blé sauvage, bushes) ; world.res = les
+//      flint, ochre, wheat + meadow = le blé sauvage, bushes = buissons, herbes,
+//      fougères et fleurs, loneTrees = arbres seuls, borderTrees = la forêt du bord,
+//      reeds = roseaux de la rivière, decals = touffes et fleurs au sol) ; la grotte
+//      est une salle où l'on entre par une arche (la colline devient transparente) ;
+//      world.spearKill = { hits, from } : à partir du chapitre "from", "hits" coups
+//      de lance abattent un prédateur, et la moitié de la tribu (des guerriers) et la
+//      troupe lancent aussi leurs lances sur les fauves ; world.res = les
 //      ressources du compteur ([{ id, name, from, to }] : bois, silex, ocre, blé) ;
 //      world.sites = ce qu'on construit ({ id, type 'foyer' / 'feu' / 'peinture' /
 //      'hutte' / 'enclos' / 'champ' / 'grenier' / 'palissade' / 'porte' / 'tour',
