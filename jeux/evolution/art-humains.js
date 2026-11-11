@@ -877,6 +877,10 @@ for (const id of ['corbeau', 'passereau']) {
   FRAMES[`th-${id}`] = { r: 0.24, x: 0.5, y: 0.9 };
 }
 
+// les poules
+LOOKS['th-poule'] = drawChicken;
+FRAMES['th-poule'] = { r: 0.32, x: 0.5, y: 0.85 };
+
 /* ---- Le joueur : sa forme à chaque époque, et ses inventions qui se voient ---- */
 const HERO = {
   'th-erectus': (P) => ({ bare: !P.vetements, cloth: P.vetements ? PLAYER.body : '#8A6440', brow: true, style: 'hirsute', beard: true, tool: P.feu ? 'torche' : null }),
@@ -1910,6 +1914,263 @@ export function drawStake(ctx, s) {
     ctx.lineTo(s.x + w / 2, s.y - 36);
     ctx.stroke();
   }
+}
+
+/** Le grand barbecue : des pierres, des braises, deux piquets fourchus et la broche ; quand un
+    mouton rôtit, il tourne au-dessus du feu (folk(x, y, seed, sens) dessine les cuisiniers) */
+export function drawBarbecue(ctx, b, t, roasting, folk) {
+  const { x, y } = b;
+  groundShadow(ctx, x, y + 6, 125, 34, 0.28);
+  // les braises, dans un cercle de pierres
+  ctx.fillStyle = '#3A1E10';
+  ell(ctx, x, y, 66, 24);
+  ctx.fill();
+  ctx.fillStyle = '#E8642A';
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4, r = 20 + (i % 3) * 14;
+    circle(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.32, 3.5 + Math.sin(t * 6 + i) * 1.2);
+    ctx.fill();
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * TAU, sx = x + Math.cos(a) * 82, sy = y + Math.sin(a) * 30;
+    ctx.fillStyle = i % 2 ? '#8A847C' : '#9E978E';
+    ctx.strokeStyle = '#3A3630';
+    ctx.lineWidth = 2;
+    ell(ctx, sx, sy, 17, 11);
+    ctx.fill();
+    ctx.stroke();
+  }
+  flame(ctx, x - 22, y + 2, roasting ? 26 : 18, t, 1);
+  flame(ctx, x + 20, y + 4, roasting ? 22 : 15, t, 2);
+  // les deux piquets fourchus
+  ctx.lineCap = 'round';
+  for (const sgn of [-1, 1]) {
+    const px = x + sgn * 98;
+    for (const [w, col] of [[10, '#2A1A0C'], [6, '#7A5634']]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(px, y + 8);
+      ctx.lineTo(px - sgn * 2, y - 104);
+      ctx.moveTo(px - sgn * 2, y - 100);
+      ctx.lineTo(px - sgn * 14, y - 122);
+      ctx.moveTo(px - sgn * 2, y - 100);
+      ctx.lineTo(px + sgn * 10, y - 120);
+      ctx.stroke();
+    }
+  }
+  // le mouton qui rôtit (il tourne doucement)
+  if (roasting) {
+    const turn = Math.sin(t * 1.6) * 0.25;
+    const g = ctx.createLinearGradient(0, y - 132, 0, y - 76);
+    g.addColorStop(0, '#C8803A');
+    g.addColorStop(1, '#7A3E18');
+    ctx.fillStyle = g;
+    ctx.strokeStyle = '#4A220C';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 104, 60, 26 + turn * 6, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#7A3E18';
+    ctx.beginPath();
+    for (const lx of [-34, -16, 18, 36]) {
+      ctx.moveTo(x + lx, y - 88 + turn * 8);
+      ctx.lineTo(x + lx + 6, y - 68 + turn * 8);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#8A4A20';
+    ell(ctx, x + 62, y - 110, 15, 12);
+    ctx.fill();
+    // ça brille, ça grésille
+    ctx.fillStyle = 'rgba(255, 230, 170, 0.6)';
+    ell(ctx, x - 12, y - 116 + turn * 4, 26, 7, -0.1);
+    ctx.fill();
+    ctx.fillStyle = '#F2C24A';
+    for (let i = 0; i < 3; i++) {
+      const k = (t * 1.3 + i / 3) % 1;
+      circle(ctx, x - 20 + i * 22, y - 78 + k * 70, 3);
+      ctx.fill();
+    }
+  }
+  // la broche, et sa manivelle
+  ctx.strokeStyle = '#3A2414';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(x - 112, y - 104);
+  ctx.lineTo(x + 116, y - 104);
+  ctx.moveTo(x + 116, y - 104);
+  ctx.lineTo(x + 116 + Math.cos(t * 3) * 14, y - 104 + Math.sin(t * 3) * 14);
+  ctx.stroke();
+  // la fumée qui monte
+  for (let i = 0; i < 4; i++) {
+    const k = (t * 0.22 + i * 0.25) % 1;
+    ctx.fillStyle = `rgba(170, 170, 170, ${(roasting ? 0.3 : 0.15) * (1 - k)})`;
+    circle(ctx, x + Math.sin(k * 6 + i) * 22, y - 130 - k * 230, 14 + k * 34);
+    ctx.fill();
+  }
+  // les cuisiniers
+  if (folk) {
+    folk(x + 140, y + 24, 7.3, -1);
+    if (roasting) folk(x - 140, y + 30, 3.1, 1);
+  }
+}
+
+/** Le poulailler : une petite cabane sur pattes, son toit de chaume, sa rampe… et de la paille */
+export function drawHenhouse(ctx, b, t, pal) {
+  const { x, y } = b;
+  groundShadow(ctx, x, y + 6, 95, 26, 0.28);
+  // la paille, par terre
+  ctx.strokeStyle = '#D8B860';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const sx = x - 90 + i * 12, sy = y + 6 + (i % 3) * 5;
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + 9, sy - 4 + (i % 2) * 6);
+  }
+  ctx.stroke();
+  // les pattes
+  ctx.strokeStyle = '#2A1A0C';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const px of [-60, 60]) { ctx.moveTo(x + px, y); ctx.lineTo(x + px, y - 46); }
+  ctx.stroke();
+  ctx.strokeStyle = '#7A5634';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  // la cabane, en planches
+  const wall = '#9A7048';
+  const wg = ctx.createLinearGradient(x - 70, 0, x + 70, 0);
+  wg.addColorStop(0, shade(wall, 0.12));
+  wg.addColorStop(1, shade(wall, -0.22));
+  ctx.fillStyle = wg;
+  ctx.strokeStyle = '#3A2414';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.rect(x - 72, y - 116, 144, 72);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(40, 24, 10, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let yy = y - 100; yy < y - 44; yy += 14) { ctx.moveTo(x - 70, yy); ctx.lineTo(x + 70, yy); }
+  ctx.stroke();
+  // la petite porte ronde
+  ctx.fillStyle = '#1E140C';
+  ctx.beginPath();
+  ctx.moveTo(x - 30, y - 46);
+  ctx.lineTo(x - 30, y - 78);
+  ctx.quadraticCurveTo(x - 14, y - 96, x + 2, y - 78);
+  ctx.lineTo(x + 2, y - 46);
+  ctx.closePath();
+  ctx.fill();
+  // le toit de chaume
+  const roof = pal.thatch || '#C9A860';
+  ctx.fillStyle = roof;
+  ctx.strokeStyle = shade(roof, -0.55);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x - 92, y - 108);
+  ctx.lineTo(x, y - 176);
+  ctx.lineTo(x + 92, y - 108);
+  ctx.quadraticCurveTo(x, y - 98, x - 92, y - 108);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(80, 60, 20, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = -4; i <= 4; i++) { ctx.moveTo(x + i * 4, y - 172); ctx.lineTo(x + i * 20, y - 108); }
+  ctx.stroke();
+  // la rampe, avec ses barreaux
+  ctx.strokeStyle = '#6A4A2A';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(x - 14, y - 46);
+  ctx.lineTo(x - 70, y + 10);
+  ctx.stroke();
+  ctx.strokeStyle = '#3A2414';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 1; i < 5; i++) {
+    const k = i / 5, rx = x - 14 - 56 * k, ry = y - 46 + 56 * k;
+    ctx.moveTo(rx - 6, ry - 3);
+    ctx.lineTo(rx + 6, ry + 3);
+  }
+  ctx.stroke();
+  // deux œufs dans la paille
+  ctx.fillStyle = '#F8F2E4';
+  ctx.strokeStyle = '#B8A888';
+  ctx.lineWidth = 1.5;
+  for (const ex of [36, 50]) { ell(ctx, x + ex, y + 4, 7, 9); ctx.fill(); ctx.stroke(); }
+}
+
+/** Une poule : elle trottine, picore (sa tête descend), et bat des ailes quand elle a peur */
+function drawChicken(ctx, c, t) {
+  const s = c.size, x = c.x, y = c.y;
+  const f = Math.cos(c.angle || 0) >= 0 ? 1 : -1;
+  const sp = clamp(c.speed ?? 0, 0, 1);
+  const ph = (c.walk || 0) * 3;
+  const peck = c.pecking ? Math.max(0, Math.sin(t * 9 + (c.seed || 0) * 3)) : 0;
+  const col = ['#F2EDE0', '#C8783A', '#8A5A34', '#F2EDE0'][Math.floor((c.seed || 0) * 7) % 4];
+  const dark = shade(col, -0.55), lw = Math.max(1, s * 0.07);
+  groundShadow(ctx, x, y, s * 0.9, s * 0.28, 0.25);
+  // les pattes
+  ctx.strokeStyle = '#E8A030';
+  ctx.lineWidth = Math.max(1.5, s * 0.12);
+  ctx.lineCap = 'round';
+  for (const k of [-1, 1]) {
+    const sw = Math.sin(ph + (k > 0 ? 0 : Math.PI)) * s * 0.2 * sp;
+    ctx.beginPath();
+    ctx.moveTo(x + k * s * 0.16, y - s * 0.55);
+    ctx.lineTo(x + k * s * 0.16 + sw * f, y - 1);
+    ctx.stroke();
+  }
+  const by = y - s * 0.95 - Math.abs(Math.sin(ph)) * s * 0.06 * sp;
+  // la queue
+  ctx.fillStyle = shade(col, -0.15);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x - f * s * 0.5, by - s * 0.1);
+  ctx.quadraticCurveTo(x - f * s * 1.05, by - s * 0.75, x - f * s * 0.85, by - s * 0.98);
+  ctx.quadraticCurveTo(x - f * s * 0.6, by - s * 0.45, x - f * s * 0.15, by - s * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // le corps, l'aile (elle bat quand la poule a peur)
+  ctx.fillStyle = col;
+  ell(ctx, x, by, s * 0.68, s * 0.5);
+  ctx.fill();
+  ctx.stroke();
+  const flap = c.mood === 'scared' ? Math.sin(t * 30) * 0.6 : 0;
+  ctx.fillStyle = shade(col, -0.1);
+  ell(ctx, x - f * s * 0.08, by - flap * s * 0.2, s * 0.36, s * 0.24, -f * (0.3 + flap));
+  ctx.fill();
+  ctx.stroke();
+  // la tête (elle picore)
+  const hx = x + f * s * (0.55 + peck * 0.25), hy = by - s * 0.55 + peck * s * 0.75;
+  ctx.fillStyle = col;
+  circle(ctx, hx, hy, s * 0.3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#D8342A';
+  for (let i = 0; i < 3; i++) { circle(ctx, hx - f * s * 0.12 + f * i * s * 0.1, hy - s * 0.3, s * 0.1); ctx.fill(); }
+  ell(ctx, hx + f * s * 0.2, hy + s * 0.22, s * 0.07, s * 0.11);
+  ctx.fill();
+  ctx.fillStyle = '#F2B830';
+  ctx.beginPath();
+  ctx.moveTo(hx + f * s * 0.24, hy - s * 0.05);
+  ctx.lineTo(hx + f * s * 0.48, hy + s * 0.04);
+  ctx.lineTo(hx + f * s * 0.24, hy + s * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1A1410';
+  circle(ctx, hx + f * s * 0.1, hy - s * 0.05, Math.max(1, s * 0.06));
+  ctx.fill();
 }
 
 /** La porte du village : deux grands poteaux, un linteau, deux battants

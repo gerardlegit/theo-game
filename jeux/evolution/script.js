@@ -602,6 +602,7 @@ const tqv = createTqv({
   rebuilt: () => tqvRebuilt(),
   steer: (c, x, y, sp, dt) => steer(c, x, y, sp, dt),
   spawnAt: (id, x, y) => { const c = makeCreature(id, x, y); creatures.push(c); return c; },
+  drawFolk: (g, x, y, t, seed, face) => drawCreature(g, { sp: { look: 'th-tribu-village', color: '#B89A6A' }, x, y, size: 26, seed, angle: face > 0 ? 0 : Math.PI, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
   spearHit: (c, owner, s) => spearHit(c, owner, s), huntTarget: () => huntTarget, hungerLost: () => hungerLost(),
   horn: () => { sfx.horn(); shake = Math.max(shake, 0.3); },
   drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
@@ -832,7 +833,7 @@ function maintainPopulation(dt) {
   spawnT = 0.3;
   const half = Math.hypot(viewW, viewH) / 2;
   const far = half * 1.7;
-  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.sp.kind === 'tribu' || c.sp.kind === 'pillard' || c.penned || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
+  creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.sp.kind === 'tribu' || c.sp.kind === 'chien' || c.sp.kind === 'poule' || c.sp.kind === 'pillard' || c.penned || c.led || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
   for (const c of creatures) if (!c.penned && !c.guard) counts[c.id] = (counts[c.id] || 0) + 1;
   for (const [id, n] of Object.entries(CH.species)) {
@@ -1020,7 +1021,7 @@ function activateBark() {
   let hunters = 0;
   for (const c of creatures) {
     const k = c.sp.kind;
-    if (k === 'ally' || k === 'food' || k === 'human' || k === 'flock' || k === 'shepherd' || k === 'tribu' || k === 'stray' || dist(c, p) > R + c.size) continue;
+    if (k === 'ally' || k === 'food' || k === 'human' || k === 'flock' || k === 'shepherd' || k === 'tribu' || k === 'stray' || k === 'chien' || dist(c, p) > R + c.size) continue;
     c.scaredT = BARK_SCARE;
     c.barkX = p.x;
     c.barkY = p.y;
@@ -2186,7 +2187,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd', 'tribu', 'pillard'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd', 'tribu', 'pillard', 'chien'].includes(o.sp.kind)) continue;
           // un gros chasseur croque aussi les rivaux (plus petits que lui) ; un rival, jamais un autre rival
           const rivalSnack = o.sp.kind === 'rival' && sp.kind === 'hunter' && o.size < c.size * 1.05;
           if (o.sp.kind === 'rival' ? !rivalSnack : o.size > c.size * most) continue;
@@ -2248,7 +2249,7 @@ function updateCreatures(dt) {
       const m = c.size + 40;
       if (c.x < m || c.x > W.w - m) { c.vx = -c.vx; c.x = clamp(c.x, m, W.w - m); c.wx = W.w / 2; }
       if (c.y < m || c.y > W.h - m) { c.vy = -c.vy; c.y = clamp(c.y, m, W.h - m); c.wy = W.h / 2; }
-      if (trois()) tqv.collide(c, c.size * 0.4, ['tribu', 'ally', 'stray', 'flock'].includes(sp.kind) ? 'ami' : 'sauvage');
+      if (trois()) tqv.collide(c, c.size * 0.4, ['tribu', 'ally', 'stray', 'flock', 'chien', 'poule'].includes(sp.kind) ? 'ami' : 'sauvage');
     }
     const v = Math.hypot(c.vx, c.vy);
     if (v > 4 && c.state !== 'alert' && !side()) c.angle = turnToward(c.angle, Math.atan2(c.vy, c.vx), 5 * dt);

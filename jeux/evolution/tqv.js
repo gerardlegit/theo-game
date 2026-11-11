@@ -21,7 +21,7 @@
 
 import { shade } from './art.js';
 import {
-  drawTree, drawFireTree, drawRock, drawResource, drawBush, drawGrass, drawCave, drawCaveFloor, drawHearth, drawHut, drawPost,
+  drawBarbecue, drawHenhouse, drawTree, drawFireTree, drawRock, drawResource, drawBush, drawGrass, drawCave, drawCaveFloor, drawHearth, drawHut, drawPost,
   drawField, drawGranary, drawStake, drawGate, drawTower, drawPlan, drawResIcon, groundShadow, flame,
   drawFern, drawFlowers, drawReeds, drawDecal,
 } from './art-humains.js';
@@ -213,6 +213,9 @@ export function createTqv(api) {
     // les plans du village (ce que le niveau propose de construire)
     const sites = (W.sites || []).flatMap((s) => expandSite(s, V, VR, cave));
     M = { W, L, V, VR, river, riverW, cave, canal, items, sites, meadow, decals, caveFade: 1, grid: null, stakes: [], posts: [], lights: [] };
+    // (land.bbq, land.henhouse) le grand barbecue et le poulailler du village
+    M.bbq = L.bbq ? { x: V.x + L.bbq[0], y: V.y + L.bbq[1] } : null;
+    M.henhouse = L.henhouse ? { x: V.x + L.henhouse[0], y: V.y + L.henhouse[1] } : null;
     refresh();
     return M;
   }
@@ -306,6 +309,11 @@ export function createTqv(api) {
         }
       }
       if (s.type === 'porte') solids.push({ x: s.x, y: s.y, r: GATE_GAP / 2, gate: true, site: s });
+    }
+    // (le barbecue et le poulailler)
+    if (extrasOn()) {
+      if (M.bbq) solids.push({ x: M.bbq.x, y: M.bbq.y - 10, r: 62 });
+      if (M.henhouse) solids.push({ x: M.henhouse.x, y: M.henhouse.y - 10, r: 70 });
     }
     // (le feu de l'arbre frappé par la foudre)
     for (const it of M.items) if (it.type === 'arbre-feu' && active(it, ch)) M.lights.push({ x: it.x, y: it.y - 90, r: 470, warm: 260, fear: 420, tree: it });
@@ -580,7 +588,8 @@ export function createTqv(api) {
     api.confetti(s.type === 'foyer' ? 60 : 20);
     for (let i = 0; i < 18; i++) api.particles().push({ x: s.x + (Math.random() - 0.5) * 120, y: s.y - Math.random() * 80, vx: (Math.random() - 0.5) * 260, vy: -100 - Math.random() * 200, life: 0, max: 0.8, size: 6, color: Math.random() < 0.5 ? '#C9A860' : '#8A6440' });
     const line = api.lines()[`built_${s.type}`];
-    if (line && !wasBroken) api.say(line, 2, 6000);
+    if (s.arc && !wasBroken && palisadeDone() && api.lines().palisadeClosed) api.say(api.lines().palisadeClosed, 3, 7000);
+    else if (line && !wasBroken) api.say(line, 2, 6000);
     api.changed();
     api.checkMissions();
   }
@@ -608,6 +617,7 @@ export function createTqv(api) {
       }
     }
     updateIrrigation();
+    updateConvoy(dt);
     updateHunger(dt);
     updateThrowers(dt);
     updateSpears(dt);
@@ -671,8 +681,12 @@ export function createTqv(api) {
         smoke(hearth);
         api.sayOnce('bread', api.lines().bread, 240, 1);
         api.changed();
+      } else if (convoy) {
+        // (un villageois amène déjà un mouton au barbecue)
+      } else if (flock.length && startConvoy(true)) {
+        api.sayOnce('roast', api.lines().roast, 120, 2);
       } else if (flock.length) {
-        // plus de blé : on cuit un mouton
+        // (pas de barbecue) on cuit un mouton au foyer
         flock[0].dead = true;
         g.vivres = Math.min(1, g.vivres + (H.sheepGain || 0.4));
         api.floater('On cuit un mouton…', hearth.x, hearth.y - 140, '#FFB36B', 1);
@@ -684,6 +698,54 @@ export function createTqv(api) {
     }
     if (g.vivres < 0.3) api.sayOnce('hungerLow', api.lines().hungerLow, 40, 3);
     if (g.vivres <= 0) api.hungerLost();
+  }
+  /* ---------- Le grand barbecue : un villageois va chercher un mouton à l'enclos et l'y amène ----------
+     (quand le grenier est vide… et, de temps en temps, pour la fête, s'il y a beaucoup de moutons) */
+  let convoy = null, roastT = 0, feastT = 60;
+  const extrasOn = () => !!M && !!M.L.extrasFrom && api.game().chapter + 1 >= M.L.extrasFrom;
+  function startConvoy(hungry) {
+    const pen = M.pens[0];
+    if (!pen || !M.bbq || !extrasOn()) return false;
+    const sheep = api.creatures().filter((o) => o.penned && !o.dead);
+    const cooks = api.creatures().filter((o) => o.sp.kind === 'tribu' && !o.warrior && !o.dead);
+    if (!sheep.length || !cooks.length) return false;
+    const gate = { x: pen.x + Math.cos(pen.gate) * (pen.r * 0.85 + 90), y: pen.y + Math.sin(pen.gate) * (pen.r * 0.85 + 90) };
+    const cook = cooks.reduce((a, b) => (dist(b, gate) < dist(a, gate) ? b : a));
+    const sh = sheep.reduce((a, b) => (dist(b, gate) < dist(a, gate) ? b : a));
+    convoy = { cook, sheep: sh, gate, stage: 'prendre', t: 0, hungry };
+    return true;
+  }
+  function updateConvoy(dt) {
+    roastT = Math.max(0, roastT - dt);
+    if (!extrasOn()) { convoy = null; return; }
+    const g = api.game(), H = api.chapter().hunger;
+    // (la fête) de temps en temps, s'il y a beaucoup de moutons, on en fait rôtir un
+    feastT -= dt;
+    if (feastT <= 0) {
+      feastT = 100 + Math.random() * 40;
+      if (!convoy && api.creatures().filter((o) => o.penned && !o.dead).length >= 6) startConvoy(false);
+    }
+    if (!convoy) return;
+    const C = convoy;
+    C.t += dt;
+    if (C.cook.dead || C.sheep.dead) { if (!C.sheep.dead) { C.sheep.led = null; C.sheep.penned = true; } convoy = null; return; }
+    if (C.stage === 'prendre' && dist(C.cook, C.gate) < 80) {
+      // il ouvre la barrière : le mouton le suit
+      C.stage = 'mener';
+      C.sheep.penned = false;
+      C.sheep.led = C.cook;
+      api.floater('Viens, petit mouton !', C.cook.x, C.cook.y - 80, '#FFFFFF', 0.9);
+    }
+    if (C.stage === 'mener' && ((dist(C.cook, M.bbq) < 140 && dist(C.sheep, M.bbq) < 240) || C.t > 50)) {
+      // arrivés : le mouton cuit sur la broche
+      C.sheep.dead = true;
+      roastT = 32;
+      if (H) g.vivres = Math.min(1, (g.vivres ?? 1) + (H.sheepGain || 0.4));
+      api.floater('Le mouton rôtit sur le barbecue !', M.bbq.x, M.bbq.y - 170, '#FFB36B', 1.1);
+      smoke(M.bbq);
+      if (Math.hypot(M.bbq.x - api.player().x, M.bbq.y - api.player().y) < 1000) api.sayOnce('bbq', api.lines().bbq, 200, 1);
+      convoy = null;
+    }
   }
   function smoke(at) {
     for (let i = 0; i < 10; i++) api.particles().push({ x: at.x + (Math.random() - 0.5) * 50, y: at.y - 60, vx: (Math.random() - 0.5) * 40, vy: -60 - Math.random() * 60, life: 0, max: 1.4, size: 12, color: 'rgba(200, 200, 200, 0.6)' });
@@ -780,7 +842,7 @@ export function createTqv(api) {
       s.y += s.vy * dt;
       s.life -= dt;
       for (const c of api.creatures()) {
-        if (s.life <= 0 || c.dead || c.sp.kind === 'tribu' || c.sp.kind === 'ally' || c.sp.kind === 'stray' || c.sp.kind === 'food' || c.sp.kind === 'flock') continue;
+        if (s.life <= 0 || c.dead || ['tribu', 'ally', 'stray', 'food', 'flock', 'chien', 'poule'].includes(c.sp.kind)) continue;
         // (on vise le corps : un peu au-dessus des pattes)
         if (Math.hypot(c.x - s.x, c.y - c.size * 0.8 - s.y) > c.size * 0.9 + 14) continue;
         s.life = 0;
@@ -879,6 +941,78 @@ export function createTqv(api) {
       repel(c, { x: c.barkX ?? p.x, y: c.barkY ?? p.y }, 'Au feu !', 4);
     }
     // la tribu : elle vit au village, près du feu (la nuit, tout près)
+    if (sp.kind === 'tribu' && convoy && convoy.cook === c) {
+      // le cuisinier : à l'enclos, puis au barbecue (le mouton le suit)
+      const to = convoy.stage === 'prendre' ? convoy.gate : M.bbq;
+      const dx = to.x - c.x, dy = to.y - c.y, d = Math.hypot(dx, dy) || 1;
+      api.steer(c, dx / d, dy / d, d < 40 ? 0 : sp.speed * 1.7, dt);
+      c.mood = 'happy';
+      return true;
+    }
+    if (sp.kind === 'flock' && c.led) {
+      // un mouton qu'on mène au barbecue : il suit le villageois, un peu derrière
+      const L = c.led, dx = L.x - c.x, dy = L.y - c.y, d = Math.hypot(dx, dy) || 1;
+      api.steer(c, dx / d, dy / d, d < 70 ? 0 : Math.min(sp.speed, d * 1.5), dt);
+      c.mood = 'calm';
+      return true;
+    }
+    if (sp.kind === 'chien') {
+      // un chien : il se promène dans le village et autour… et file chasser les loups
+      c.fleeing = false;
+      c.mood = 'happy';
+      const wolf = api.creatures().find((o) => o.sp.kind === 'hunter' && !o.dead && dist(o, c) < 700 && dist(o, M.V) < M.VR + 900);
+      if (wolf) {
+        const d = dist(wolf, c) || 1;
+        api.steer(c, (wolf.x - c.x) / d, (wolf.y - c.y) / d, sp.speed * 1.4, dt);
+        c.mood = 'angry';
+        if (d < c.size + wolf.size + 50 && !(wolf.scaredT > 0)) {
+          wolf.scaredT = 3.5;
+          wolf.barkX = c.x;
+          wolf.barkY = c.y;
+          wolf.rest = Math.max(wolf.rest || 0, 3);
+          if (wolf.state === 'chase' || wolf.state === 'alert') wolf.state = 'wander';
+          api.floater('Wouf ! Wouf !', c.x, c.y - c.size * 2.4, '#FFFFFF', 1.1);
+          if (Math.hypot(c.x - p.x, c.y - p.y) < 900) api.sfx.bark();
+          api.sayOnce('dogChase', api.lines().dogChase, 90, 1);
+        }
+        return true;
+      }
+      c.walkT = (c.walkT || 0) - dt;
+      if (!c.wx || c.walkT <= 0 || Math.hypot(c.wx - c.x, c.wy - c.y) < 50) {
+        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * M.VR * 1.15;
+        c.wx = M.V.x + Math.cos(a) * d;
+        c.wy = M.V.y + Math.sin(a) * d;
+        c.walkT = 5 + Math.random() * 5;
+      }
+      const dx = c.wx - c.x, dy = c.wy - c.y, d = Math.hypot(dx, dy) || 1;
+      api.steer(c, dx / d, dy / d, sp.speed * 0.45, dt);
+      return true;
+    }
+    if (sp.kind === 'poule') {
+      // une poule : elle picore autour du poulailler, et s'enfuit en battant des ailes quand on arrive
+      const home = M.henhouse || M.V;
+      const dp = Math.hypot(p.x - c.x, p.y - c.y) || 1;
+      if (!p.dead && dp < 150) {
+        api.steer(c, (c.x - p.x) / dp, (c.y - p.y) / dp, sp.speed * 1.8, dt);
+        c.pecking = false;
+        c.mood = 'scared';
+        if (Math.random() < dt * 0.6) api.floater('Cot cot !', c.x, c.y - 50, '#FFFFFF', 0.7);
+        return true;
+      }
+      c.mood = 'happy';
+      c.peckT = (c.peckT || 0) - dt;
+      if (!c.wx || Math.hypot(c.wx - home.x, c.wy - home.y) > 280 || c.peckT < -5 || Math.hypot(c.wx - c.x, c.wy - c.y) < 15) {
+        const a = Math.random() * TAU, d = 60 + Math.random() * 200;
+        c.wx = home.x + Math.cos(a) * d;
+        c.wy = home.y + 40 + Math.sin(a) * d * 0.7;
+        c.peckT = 1 + Math.random() * 2.5;
+      }
+      c.pecking = c.peckT > 0;
+      if (c.pecking) { api.steer(c, 0, 0, 0, dt); return true; }
+      const dx = c.wx - c.x, dy = c.wy - c.y, d = Math.hypot(dx, dy) || 1;
+      api.steer(c, dx / d, dy / d, sp.speed * 0.5, dt);
+      return true;
+    }
     if (sp.kind === 'tribu') {
       c.fleeing = false;
       c.mood = 'happy';
@@ -925,6 +1059,7 @@ export function createTqv(api) {
       c.fleeing = true;
       c.mood = 'scared';
       if (sp.kind === 'pillard' && Math.hypot(c.x - M.V.x, c.y - M.V.y) > M.VR + 1300) { c.gone = true; c.dead = true; }
+      if (sp.fieldRaider && c.routed && Math.hypot(c.x - M.V.x, c.y - M.V.y) > M.VR + 500) c.routed = false;
       return true;
     }
     // les pillards : ils foncent vers le grenier (ou le feu) du village… et forcent la palissade
@@ -989,6 +1124,11 @@ export function createTqv(api) {
       return true;
     }
     // les sangliers (et les oiseaux) qui viennent manger le blé des champs
+    if (sp.fieldRaider && palisadeDone()) {
+      // (la palissade est fermée) les sangliers ne viennent plus ; ceux qui sont dedans repartent
+      if (inVillage(c.x, c.y)) { c.routed = true; c.fleeFrom = { x: M.V.x, y: M.V.y }; return true; }
+      return false;
+    }
     if (sp.fieldRaider) {
       const fields = M.sites.filter((s) => s.type === 'champ' && g.built[s.id] && g.fields[s.id] && g.fields[s.id].stage !== 'seme');
       if (!fields.length || c.fedT > 0) {
@@ -1033,9 +1173,11 @@ export function createTqv(api) {
      ============================================================================ */
   function spawnPoint(sp, near, minD, far) {
     for (let i = 0; i < 20; i++) {
-      if (sp.kind === 'tribu') {
-        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * 500;
-        return { x: M.V.x + Math.cos(a) * d, y: M.V.y + Math.sin(a) * d * 0.7 };
+      if (sp.kind === 'tribu' || sp.kind === 'chien' || sp.kind === 'poule') {
+        // (au village ; les poules, autour du poulailler)
+        const home = sp.kind === 'poule' && M.henhouse ? { x: M.henhouse.x, y: M.henhouse.y + 60 } : M.V;
+        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * (sp.kind === 'poule' ? 200 : 500);
+        return { x: home.x + Math.cos(a) * d, y: home.y + Math.sin(a) * d * 0.7 };
       }
       const a = Math.random() * TAU, d = lerp(minD, far, Math.random());
       const x = near.x + Math.cos(a) * d, y = near.y + Math.sin(a) * d;
@@ -1179,6 +1321,10 @@ export function createTqv(api) {
       if (b === true || (b === 'casse' && !s.arc)) out.push({ y: s.y, site: s });
       else if (visibleSite(s) && !s.arc && s.type !== 'champ') out.push({ y: s.y, ghost: s });
     }
+    if (extrasOn()) {
+      if (M.bbq && inV(M.bbq, 260)) out.push({ y: M.bbq.y, bbq: M.bbq });
+      if (M.henhouse && inV(M.henhouse, 260)) out.push({ y: M.henhouse.y, hen: M.henhouse });
+    }
     for (const st of M.stakes) if (inV(st, 60)) out.push({ y: st.y, stake: st });
     for (const pt of M.posts) if (inV(pt, 80)) out.push({ y: pt.y, post: pt });
     return out;
@@ -1203,6 +1349,8 @@ export function createTqv(api) {
       }
       return;
     }
+    if (u.bbq) { drawBarbecue(ctx, u.bbq, t, roastT > 0, (x, y, seed, face) => api.drawFolk(ctx, x, y, t, seed, face)); return; }
+    if (u.hen) { drawHenhouse(ctx, u.hen, t, P); return; }
     if (u.stake) { drawStake(ctx, u.stake); return; }
     if (u.post) { drawPost(ctx, u.post); return; }
     const s = u.site || u.ghost;
@@ -1249,6 +1397,7 @@ export function createTqv(api) {
       ctx.stroke();
       ctx.restore();
     }
+    drawGranaryBar(ctx, zoom);
     // l'étiquette du plan sur lequel on est : son nom, et ce qu'il coûte
     const p = api.player(), s = p.site, g = api.game();
     if (s && !p.dead) {
@@ -1296,6 +1445,39 @@ export function createTqv(api) {
         ctx.stroke();
       }
     }
+  }
+
+  /** Au-dessus du grenier : combien de blé il contient (la réserve du village ; au chapitre du
+      grenier à remplir, ce qu'on y a déjà apporté) */
+  function drawGranaryBar(ctx, zoom) {
+    const g = api.game(), CH = api.chapter();
+    const gr = M.sites.find((s) => s.type === 'grenier' && g.built[s.id] === true);
+    const fill = CH.missions.find((m) => m.type === 'deliver' && m.item === 'ble');
+    if (!gr || (!CH.hunger && !fill)) return;
+    const cap = CH.hunger ? CH.hunger.store || 30 : fill.n;
+    const v = CH.hunger ? g.res.ble || 0 : (g.delivered || {}).ble || 0;
+    const k = 1 / zoom, w = 150 * k, h = 16 * k, x = gr.x - w / 2, y = gr.y - 250 - h;
+    ctx.fillStyle = 'rgba(30, 20, 10, 0.75)';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x - 3 * k, y - 3 * k, w + 6 * k, h + 6 * k, 9 * k) : ctx.rect(x - 3 * k, y - 3 * k, w + 6 * k, h + 6 * k);
+    ctx.fill();
+    const u = clamp(v / cap, 0, 1);
+    const gg = ctx.createLinearGradient(x, 0, x + w, 0);
+    gg.addColorStop(0, '#E8B040');
+    gg.addColorStop(1, '#F8E07A');
+    ctx.fillStyle = u < 0.2 ? '#E8603A' : gg;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, Math.max(h, w * u), h, 7 * k) : ctx.rect(x, y, w * u, h);
+    ctx.fill();
+    ctx.font = `800 ${13 * k}px 'Baloo 2', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 4 * k;
+    ctx.strokeStyle = 'rgba(30, 20, 10, 0.85)';
+    const label = `Grenier : ${v}/${cap} blé`;
+    ctx.strokeText(label, gr.x, y - 5 * k);
+    ctx.fillStyle = '#FFF2C8';
+    ctx.fillText(label, gr.x, y - 5 * k);
   }
 
   /** La nuit : tout est noir, sauf autour des feux (et de ta torche). On voit briller les yeux des fauves. */
@@ -1408,7 +1590,7 @@ export function createTqv(api) {
   return {
     on, build, refresh, get M() { return M; }, zoneAt, collide, interact, update, steer, spawnPoint, startPoint, respawnPoint,
     throwSpear, repel, drawGround, uprights, drawUpright, drawTop, drawNight, minimap, nearestRes, sitesOf, missing, inVillage,
-    lockText, raidLeft, raidState, palisadeDone, resetRaid: () => { raid = null; spears = []; mealT = 0; sheepShown = -1; }, irrigated,
+    lockText, raidLeft, raidState, palisadeDone, resetRaid: () => { raid = null; spears = []; mealT = 0; sheepShown = -1; convoy = null; roastT = 0; }, irrigated,
     get pens() { return M ? M.pens : []; }, get hides() { return M ? M.hides : []; },
   };
 }

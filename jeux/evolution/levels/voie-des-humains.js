@@ -54,6 +54,7 @@ const world = {
   land: {
     riverX: 2650, riverW: 210, caveDx: 500, caveDy: -1950, fireTree: [-860, -430],
     canal: { y: 0, to: -600 },        // le canal d'irrigation : de la rivière jusqu'aux champs, entre leurs deux rangées
+    bbq: [-560, -430], henhouse: [400, -520], extrasFrom: 5,  // le grand barbecue et le poulailler (chapitre 5)
     forests: 18, rocks: 42, flint: 22, ochre: 7, wheat: 30, meadow: [-1650, 1800], bushes: 480, woodNear: 12,
     loneTrees: 220, borderTrees: 260, reeds: 120, flowers: 260, decals: 2600,
   },
@@ -182,6 +183,18 @@ const species = {
     name: 'Corbeau', plural: 'corbeaux', kind: 'neutral', look: 'th-corbeau', color: '#24242C', flying: true, noEat: true,
     size: 18, speed: 160, sense: 0, adn: 0,
     fact: "Les corbeaux suivent les humains depuis toujours : ils mangent les graines tombées dans les champs et les restes des repas.",
+  },
+
+  /* ---- Les animaux du village (chapitre 5) ---- */
+  chien: {
+    name: 'Chien', plural: 'chiens', kind: 'chien', look: 'th-loup', color: '#B07A40', belly: '#F2E2C8', noEat: true, tag: '🐕 Le chien du village',
+    size: 42, speed: 250, sense: 0, adn: 0,
+    fact: "Le chien est le premier animal apprivoisé par les humains : c'est un loup devenu ami. Il garde les troupeaux et chasse les loups sauvages !",
+  },
+  poule: {
+    name: 'Poule', plural: 'poules', kind: 'poule', look: 'th-poule', color: '#F2EDE0', noEat: true, tag: '🐔 La basse-cour',
+    size: 17, speed: 140, sense: 0, adn: 0,
+    fact: "Les poules descendent d'un oiseau sauvage d'Asie, le coq doré. Les humains les ont apprivoisées il y a environ 8 000 ans… pour leurs œufs !",
   },
 
   /* ---- Les pillards des autres villages ---- */
@@ -405,10 +418,10 @@ const chapters = [
     vision: 1.35,
     palette: SOIR,
     penned: { species: 'mouton', n: 8 },
-    species: { 'tribu-village': 10, corbeau: 2, cerf: 2 },
+    species: { 'tribu-village': 10, corbeau: 2, cerf: 2, sanglier: 2, loup: 2, chien: 3, poule: 8 },
     raids: { after: 2, species: 'pillard', chief: 'chef-pillard', waves: [3, 5, 8], gap: 26, first: 8 },
     // la faim du village : il mange le pain du grenier (le blé), puis les moutons ; à zéro, on a perdu
-    hunger: { rate: 1 / 75, below: 0.8, bread: 2, breadGain: 0.25, sheepGain: 0.4, startBle: 18, restartBle: 18 },
+    hunger: { rate: 1 / 75, below: 0.8, bread: 2, breadGain: 0.25, sheepGain: 0.4, startBle: 18, restartBle: 18, store: 30 },
     unlock: ['palissade', 'tour'],
     intro: "Il y a 7 000 ans. Ton village est riche : des champs, des troupeaux, un grenier plein de blé… Ça fait des envieux ! Les pillards d'un autre village préparent une attaque. Tu es le chef : plante une palissade tout autour du village, construis ses quatre portes et des tours de guet. Puis repousse les attaques ! Et surveille la jauge 🍞 : ton village mange le pain du grenier et les moutons de l'enclos. Si les pillards volent tout, ton village aura faim… et tu perdras !",
     missions: [
@@ -426,6 +439,8 @@ const chapters = [
       "Un morceau de palissade est cassé ? Arrête-toi devant pour le réparer.",
       "Les tours de guet lancent des lances sur les pillards qui approchent.",
       "La jauge 🍞 baisse ? Va récolter le blé des champs : il remplit le grenier, et ton village mange du pain.",
+      "Des sangliers viennent manger le blé des champs… jusqu'à ce que la palissade soit fermée tout autour du village !",
+      "Les chiens du village se promènent et chassent les loups qui s'approchent. Les poules, elles, picorent autour du poulailler.",
     ],
   },
 ];
@@ -511,6 +526,9 @@ const lines = {
   hungerLost: "Les pillards ont pris tout le blé du grenier et les moutons de l'enclos : ton village n'a plus rien à manger. Recommence cette époque… et protège bien tes réserves !",
   stored: "Tu déposes ton blé au grenier : il y sera à l'abri pour l'hiver. Il en faut 20 avant de creuser le canal !",
   needStore: "Pas encore ! Pour creuser le canal, le village a besoin de réserves : apporte d'abord {n} blé au grenier.",
+  palisadeClosed: "La palissade fait tout le tour du village ! Les sangliers ne peuvent plus entrer manger le blé des champs.",
+  dogChase: "Wouf ! Le chien chasse le loup loin du troupeau. Le chien, c'est un loup devenu l'ami des humains !",
+  bbq: "Regarde : les villageois font rôtir un mouton sur le grand barbecue. Ça sent bon !",
   built_canal: "Le canal est creusé ! L'eau de la rivière coule jusqu'aux champs : ils seront toujours arrosés.",
   looted: "Ils pillent le grenier ! Vite, repousse-les !",
   wallBroken: "La palissade est cassée ! Les pillards entrent… Répare-la vite : arrête-toi devant.",

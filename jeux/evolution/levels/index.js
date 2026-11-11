@@ -176,7 +176,11 @@
 //      Espèces : kind 'tribu' (les gens du village), 'pillard' (ils viennent
 //      voler le blé et cassent la palissade ; breaker = leur force, tough = il
 //      faut deux coups de lance), fieldRaider (il mange le blé des champs),
-//      tag = l'étiquette de sa fiche. Looks « th-<nom> » (art-humains.js).
+//      tag = l'étiquette de sa fiche ; kind 'chien' (il se promène autour du village et
+//      chasse les loups), 'poule' (elle picore autour du poulailler). land.bbq, land.henhouse
+//      + extrasFrom : le grand barbecue (un villageois y amène un mouton de l'enclos pour le
+//      faire rôtir) et le poulailler, à partir de ce chapitre. Les sangliers (fieldRaider) ne
+//      viennent plus quand la palissade est fermée. Looks « th-<nom> » (art-humains.js).
 //      Chapitre : night (on ne voit que près des feux), dry + world.meter (le
 //      froid), bark = la torche ({ icon, name, cry, sound, ring, sparks }), power
 //      type 'lance' (+ need = l'invention qui la donne), packText = les mots de
