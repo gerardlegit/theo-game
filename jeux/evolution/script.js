@@ -17,7 +17,7 @@ import {
 import { drawCloudShadows } from './art-terre.js';
 import './art-mer.js';
 import './art-mammiferes.js';
-import { campFire } from './art-loup.js';
+import './art-loup.js';
 import { BREED_PARADE } from './art-profil.js';
 import './art-requins.js';
 import { drawDecoyTail } from './art-dessus.js';
@@ -25,7 +25,8 @@ import { STAND, sideMouth, drawNest, drawCarry } from './art-cote.js';
 import { createCote } from './cote.js';
 import { createSideIntro, drawSideEnding } from './intro-cote.js';
 import { createTqv } from './tqv.js';
-import { resIconUrl } from './art-humains.js';
+import { createDecorTqv } from './decor-tqv.js';
+import { resIconUrl, drawHut, drawHearth } from './art-humains.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES as BASE_LINES } from './data.js';
 import { createHumanIntro, drawHumanEnding } from './intro-humains.js';
@@ -430,7 +431,8 @@ function mouthPoint(e, k = 0.8) {
     const m = sideMouth(e, e === player ? CH.form : e.sp.look);
     if (m) return m;
   }
-  k = SNOUT[e === player ? CH.form : e.sp.look] ?? k;
+  // (species[].reach) la portée de sa gueule, quand le niveau la fixe lui-même
+  k = (e === player ? null : e.sp.reach) ?? SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
 
@@ -479,6 +481,8 @@ function baseZoom() { return clamp(cssW / 950, 0.58, 1.1); }
 function targetZoom() {
   if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
   if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1);
+  // (world.style = 'tqv') les bêtes sont debout : la caméra est un peu plus près
+  if (LV.world.style === 'tqv') return baseZoom() * 1.1 * clamp(Math.pow(30 / player.size, 0.5), 0.6, 1.3);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
 }
 
@@ -570,6 +574,8 @@ function buildWorld() {
     covers = covers.filter(free);
   }
   levelDecor = { zones, hides, covers };
+  // (world.style = 'tqv') le même décor, dessiné de trois quarts
+  if (W.style === 'tqv') decorTq.build(decor, zones, 777 + game.level * 13);
   clouds = W.ground === 'land' ? Array.from({ length: 16 }, () => ({ x: rnd() * W.w - 2000, y: rnd() * W.h - 800, r: 300 + rnd() * 500 })) : [];
   motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(1, 2.6), d: rand(0.25, 0.7), p: rand(0, TAU) }));
 }
@@ -608,6 +614,9 @@ const tqv = createTqv({
   drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
 });
 const trois = () => tqv.on();
+/* (world.style = 'tqv') un niveau vu de dessus, dessiné comme la voie des humains : voir decor-tqv.js */
+const decorTq = createDecorTqv({ level: () => LV, chapter: () => CH, game: () => game, player: () => player });
+const tqStyle = () => decorTq.on();
 /** Ce qui a été construit change le monde : les enclos, les cachettes */
 function tqvRebuilt() {
   pens = tqv.pens;
@@ -1659,6 +1668,13 @@ function tqvTarget(todo) {
   return null;
 }
 
+/** (world.style = 'tqv') De profil, il regarde à gauche ou à droite : il ne se retourne que
+    quand il part franchement de l'autre côté (sinon, en montant tout droit, il clignoterait) */
+function faceOf(c) {
+  const k = Math.cos(c.angle || 0);
+  if (Math.abs(k) > 0.25 || !c.face) c.face = k >= 0 ? 1 : -1;
+}
+
 /** Le dessin, vu de trois quarts : le sol, puis tout ce qui est debout, du fond vers le devant */
 function drawTqvView() {
   const W = LV.world;
@@ -1675,26 +1691,36 @@ function drawTqvView() {
   for (let tx = Math.floor(x0 / T) * T; tx < x1; tx += T) {
     for (let ty = Math.floor(y0 / T) * T; ty < y1; ty += T) ctx.drawImage(floorTile, tx, ty, T + 1, T + 1);
   }
-  tqv.drawGround(ctx, x0, x1, y0, y1, worldT);
+  // (world.style = 'tqv') le décor d'un niveau vu de dessus, dessiné de trois quarts (decor-tqv.js)
+  const V = trois() ? tqv : decorTq;
+  V.drawGround(ctx, x0, x1, y0, y1, worldT);
   for (const d of drops) if (inView(d, d.r * 2)) drawDrop(ctx, d, worldT);
   // tout ce qui est debout, rangé du fond (en haut) vers le devant (en bas)
-  const list = tqv.uprights(x0, x1, y0, y1);
+  const list = V.uprights(x0, x1, y0, y1);
   for (const c of creatures) if (inView(c, c.size * 4)) list.push({ y: c.y, c });
   if (!player.dead) list.push({ y: player.y, me: true });
   list.sort((a, b) => a.y - b.y);
+  // (species[].drawK) un animal dessiné plus petit que sa taille de jeu (les humains vus par le loup)
+  const shown = (c) => (c.sp.drawK ? { ...c, size: c.size * c.sp.drawK } : c);
   for (const u of list) {
-    if (u.c) drawCreature(ctx, u.c, worldT + u.c.seed);
-    else if (u.me) drawThePlayer();
-    else tqv.drawUpright(ctx, u, worldT);
+    if (u.c) {
+      if (!trois()) faceOf(u.c);
+      drawCreature(ctx, shown(u.c), worldT + u.c.seed);
+    } else if (u.me) {
+      if (!trois()) faceOf(player);
+      drawThePlayer();
+    } else V.drawUpright(ctx, u, worldT);
   }
-  tqv.drawTop(ctx, worldT, zoom);
-  if (!CH.night) drawCloudShadows(ctx, clouds, worldT, x0, y0, x1, y1);
+  if (trois()) tqv.drawTop(ctx, worldT, zoom);
+  // (sur la neige, l'ombre des nuages ferait des taches grises)
+  if (!CH.night && !CH.palette.ice) drawCloudShadows(ctx, clouds, worldT, x0, y0, x1, y1);
   // au-dessus des têtes : la barre de vie, les étoiles, les « ! »
-  for (const c of creatures) {
-    if (!inView(c, c.size * 4)) continue;
+  for (const c0 of creatures) {
+    if (!inView(c0, c0.size * 4)) continue;
+    const c = shown(c0);
     const top = { ...c, y: c.y - c.size * (c.sp.hp ? 1.0 : 0.9) };
     if (CH.pack) drawPackMark(top);
-    drawSpearPips(c);
+    drawSpearPips(c0);
     if (c.stunT > 0) drawStars(top);
     if (c.mark) {
       const pop = clamp((1.1 - c.markT) * 6 + 0.3, 0.05, 1);
@@ -1703,6 +1729,7 @@ function drawTqvView() {
       drawSweat(ctx, c.x + c.size * 0.6, c.y - c.size * 2.2, Math.max(4, c.size * 0.28), worldT);
     }
   }
+  if (tqStyle()) drawEdges(W);
   drawFx();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (CH.night) tqv.drawNight(ctx, cssW, cssH, worldToScreen, zoom, worldT, dpr, creatures);
@@ -3831,7 +3858,8 @@ function updateCamera(dt) {
   viewW = cssW / zoom;
   viewH = cssH / zoom;
   const lead = 0.25;
-  const tx = player.x + player.vx * lead, ty = player.y + player.vy * lead;
+  // (world.style = 'tqv') le loup est debout : on centre son corps, pas ses pattes
+  const tx = player.x + player.vx * lead, ty = player.y + player.vy * lead - (tqStyle() ? player.size * 0.6 : 0);
   const k = 1 - Math.exp(-5 * dt);
   cam.x += (tx - cam.x) * k;
   cam.y += (ty - cam.y) * k;
@@ -3850,7 +3878,7 @@ function worldToScreen(x, y) {
 /* ---------- Dessin ---------- */
 function draw() {
   if (side()) { drawSideView(); return; }
-  if (trois()) { drawTqvView(); return; }
+  if (trois() || tqStyle()) { drawTqvView(); return; }
   const W = LV.world;
   const sx = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
   const sy = shake > 0 ? (Math.random() - 0.5) * shake * 18 : 0;
@@ -4063,11 +4091,13 @@ function drawThePlayer() {
   ctx.globalAlpha = 1;
   // les coups que la carapace peut encore encaisser
   if (stats.shield > 0) {
+    // (vue de trois quarts) autour de son corps, pas de ses pattes
+    const cy = tqStyle() ? p.y - p.size * 0.8 : p.y;
     for (let i = 0; i < stats.shield; i++) {
       const a = -Math.PI / 2 + (i - (stats.shield - 1) / 2) * 0.5;
       ctx.fillStyle = i < p.shield ? '#FFD24A' : 'rgba(255, 255, 255, 0.25)';
       ctx.beginPath();
-      ctx.arc(p.x + Math.cos(a) * p.size * 1.35, p.y + Math.sin(a) * p.size * 1.35, Math.max(3, p.size * 0.1), 0, TAU);
+      ctx.arc(p.x + Math.cos(a) * p.size * 1.35, cy + Math.sin(a) * p.size * 1.35, Math.max(3, p.size * 0.1), 0, TAU);
       ctx.fill();
     }
   }
@@ -5709,9 +5739,51 @@ function drawSharkEnding(dt) {
    14 s →       le texte et le chemin suivant */
 const DOG_TEXT_AT = 14;
 const PARADE_AT = 8.8;
-const VILLAGE = { type: 'village', x: 0, y: 0, r: 0, seed: 1, v: 1 };
 /* Les humains autour du feu : [x, y, look, couleur, tourné vers la gauche] */
 const FOLK = [[0.68, 0.5, 'chasseur', '#6E5238', true], [0.62, 0.74, 'humain', '#8A6A48', true], [0.36, 0.42, 'humain', '#9A7A52', false]];
+/* Les huttes du village, debout : [x, y] */
+const VILLAGE_HUTS = [[0.2, 0.44], [0.47, 0.38], [0.79, 0.42]];
+
+/** Le village de la fin, de trois quarts (comme le niveau) : les huttes, le feu, les gens tout ronds,
+    rangés du fond vers le devant ; la nuit tout autour, et la lumière du feu au milieu */
+function drawDogVillageTq(c, w, h, m, t, r, px, py) {
+  const P = CH.palette || {};
+  const fx = w * 0.5, fy = h * 0.56;
+  const dg = c.createRadialGradient(fx, fy, m * 0.05, fx, fy, m * 0.5);
+  dg.addColorStop(0, P.dirt || 'rgba(160, 130, 85, 0.6)');
+  dg.addColorStop(1, 'rgba(160, 130, 85, 0)');
+  c.fillStyle = dg;
+  c.beginPath();
+  c.ellipse(fx, fy, m * 0.5, m * 0.38, 0, 0, TAU);
+  c.fill();
+  const list = [];
+  for (const [hx, hy] of VILLAGE_HUTS) list.push({ y: h * hy, draw: () => drawHut(c, { x: w * hx, y: h * hy, r: m * 0.09 }, t, P) });
+  list.push({ y: fy, draw: () => drawHearth(c, { x: fx, y: fy, seed: 1 }, t, true, true) });
+  for (const [x, y, look, color, left] of FOLK) {
+    list.push({ y: h * y, draw: () => drawCreature(c, { sp: { look: `th-${look}`, color }, x: w * x, y: h * y, angle: left ? Math.PI : 0, face: left ? -1 : 1, size: r * 0.62, seed: x * 10, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: 0, speed: 0, spine: null }, t) });
+  }
+  if (t > 1.6) {
+    const kk = clamp((t - 1.6) / 2.2, 0, 1);
+    list.push({ y: py + r * 0.05, draw: () => drawCreature(c, { sp: { look: 'th-enfant', color: '#B08A5A' }, x: w * (0.62 - 0.1 * kk), y: py + r * 0.05, angle: Math.PI, face: -1, size: r * 0.62, seed: 3, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: kk < 1 ? t * 2 : 0, speed: kk < 1 ? 0.6 : 0, spine: null }, t) });
+  }
+  const k = clamp(t / 3.2, 0, 1);
+  list.push({ y: py, draw: () => drawPlayer(c, { x: px, y: py, angle: 0, face: 1, size: r, mouth: t > 4.4 && t < 4.9 ? 0.8 : 0, mood: 'happy', blink: 0, speed: 0.3, walk: k < 1 ? t * 3 : 0, spine: null }, CH.form, game.owned, t) });
+  list.sort((a, b) => a.y - b.y);
+  for (const u of list) u.draw();
+  // la nuit, sauf autour du feu
+  const v = c.createRadialGradient(fx, fy - m * 0.05, m * 0.22, fx, fy - m * 0.05, m * 0.85);
+  v.addColorStop(0, 'rgba(8, 16, 45, 0)');
+  v.addColorStop(1, 'rgba(8, 16, 45, 0.62)');
+  c.fillStyle = v;
+  c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = 'lighter';
+  const fl = c.createRadialGradient(fx, fy - 20, 0, fx, fy - 20, m * 0.3);
+  fl.addColorStop(0, `rgba(255, 150, 60, ${0.22 + Math.sin(t * 9) * 0.03})`);
+  fl.addColorStop(1, 'rgba(255, 120, 30, 0)');
+  c.fillStyle = fl;
+  c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = 'source-over';
+}
 
 function drawDogEnding(dt) {
   endT += dt;
@@ -5728,23 +5800,11 @@ function drawDogEnding(dt) {
     // le village, la nuit, autour du feu
     const T = 420;
     for (let x = 0; x < w + T; x += T) for (let y = 0; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
-    Object.assign(VILLAGE, { x: w * 0.5, y: h * 0.55, r: m * 0.42 });
-    drawDecor(c, VILLAGE, t);
-    c.fillStyle = 'rgba(8, 16, 45, 0.5)';
-    c.fillRect(0, 0, w, h);
-    campFire(c, VILLAGE.x, VILLAGE.y, VILLAGE.r * 0.07, t);
     const r = m * 0.075;
-    for (const [fx, fy, look, color, left] of FOLK) {
-      drawCreature(c, { sp: { look, color }, x: w * fx, y: h * fy, angle: left ? Math.PI : 0, face: left ? -1 : 1, size: r * 0.9, seed: fx * 10, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: 0, spine: null }, t);
-    }
     // toi : tu arrives… et tu t'arrêtes près de l'enfant
     const k = clamp(t / 3.2, 0, 1);
     const px = w * (-0.1 + 0.46 * (1 - (1 - k) ** 2)), py = h * 0.68;
-    if (t > 1.6) {
-      const kk = clamp((t - 1.6) / 2.2, 0, 1);
-      drawCreature(c, { sp: { look: 'enfant', color: '#B08A5A' }, x: w * (0.62 - 0.1 * kk), y: py + r * 0.05, angle: Math.PI, face: -1, size: r * 0.7, seed: 3, mood: 'happy', state: 'wander', mouth: 0, blink: 0, walk: kk < 1 ? t * 2 : 0, spine: null }, t);
-    }
-    drawPlayer(c, { x: px, y: py, angle: 0, size: r, mouth: t > 4.4 && t < 4.9 ? 0.8 : 0, mood: 'happy', blink: 0, speed: 0.3, walk: k < 1 ? t * 3 : 0, spine: null }, CH.form, game.owned, t);
+    drawDogVillageTq(c, w, h, m, t, r, px, py);
     // des cœurs qui montent
     if (t > 5) {
       c.textAlign = 'center';

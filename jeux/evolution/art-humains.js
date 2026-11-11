@@ -9,7 +9,11 @@
 //     personne à l'autre ; ils tiennent leur outil (torche, lance, hache,
 //     houe, jarre) et portent ce qu'ils transportent (le feu, l'eau, le bois).
 //   - Les animaux de l'âge de glace, debout sur le sol (dessinés de profil
-//     par art-profil.js, avec leur trompe, leurs défenses, leurs cornes…).
+//     par art-profil.js, avec leur trompe, leurs défenses, leurs cornes…),
+//     et ceux du niveau du loup, qui se dessine lui aussi de trois quarts
+//     (world.style = 'tqv', voir decor-tqv.js) : bison, cerf géant, saïga,
+//     bouquetin, rhinocéros laineux, lièvre, marmotte… ; le joueur louveteau,
+//     loup, chien et chien de berger ; la tente en peaux, le séchoir, les os.
 //   - Le décor et les constructions : les arbres, les rochers, le silex,
 //     l'ocre, le blé sauvage, la grotte, le foyer, les huttes, l'enclos, les
 //     champs, le grenier, la palissade, la porte, la tour de guet ; et les
@@ -540,6 +544,17 @@ function holdTool(ctx, hx, hy, r, f, t, o, c) {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+  } else if (tool === 'baton') {
+    // le bâton du berger, recourbé en crosse
+    const tx = hx + f * r * 0.22, ty = hy - r * 1.5, R = r * 0.15;
+    stick(hx - f * r * 0.05, hy + r * 0.85, tx, ty, r * 0.08);
+    for (const [w, col] of [[r * 0.08 + lw * 2, '#3A2414'], [r * 0.08, '#7A5434']]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.arc(tx + f * R, ty, R, f > 0 ? Math.PI : 0, f > 0 ? 0.35 : Math.PI - 0.35, f < 0);
+      ctx.stroke();
+    }
   } else if (tool === 'massue') {
     stick(hx, hy + r * 0.2, hx + f * r * 0.2, hy - r * 0.65, r * 0.12, '#6A4A2A');
     ctx.fillStyle = '#5A3A22';
@@ -663,6 +678,12 @@ const horn = (kind) => (ctx, L, D, c, col, dark, lw) => {
     ctx.moveTo(0.1 * L, -0.45 * D);
     ctx.quadraticCurveTo(-0.2 * L, -1.15 * D, -0.45 * L, -0.85 * D);
     ctx.quadraticCurveTo(-0.15 * L, -0.95 * D, 0.25 * L, -0.42 * D);
+  } else if (kind === 'bouquetin') {
+    // (le bouquetin) d'immenses cornes en arc, qui partent vers l'arrière
+    ctx.moveTo(0.02 * L, -0.42 * D);
+    ctx.quadraticCurveTo(-0.1 * L, -1.75 * D, -1.0 * L, -1.55 * D);
+    ctx.quadraticCurveTo(-0.95 * L, -1.42 * D, -0.88 * L, -1.38 * D);
+    ctx.quadraticCurveTo(-0.25 * L, -1.35 * D, 0.24 * L, -0.4 * D);
   } else {
     // (l'aurochs) des cornes en avant, en forme de lyre
     ctx.moveTo(0.05 * L, -0.42 * D);
@@ -672,7 +693,20 @@ const horn = (kind) => (ctx, L, D, c, col, dark, lw) => {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  if (kind === 'chevre') {
+  if (kind === 'bouquetin') {
+    // les gros bourrelets en travers de la corne
+    const q = (a, b, c2, u) => (1 - u) * (1 - u) * a + 2 * (1 - u) * u * b + u * u * c2;
+    ctx.strokeStyle = 'rgba(70, 50, 30, 0.55)';
+    ctx.lineWidth = Math.max(0.6, lw * 0.9);
+    ctx.beginPath();
+    for (let i = 1; i < 8; i++) {
+      const u = i / 8;
+      ctx.moveTo(q(0.02, -0.1, -1.0, u) * L, q(-0.42, -1.75, -1.55, u) * D);
+      ctx.lineTo(q(0.24, -0.25, -0.88, u) * L, q(-0.4, -1.35, -1.38, u) * D);
+    }
+    ctx.stroke();
+  }
+  if (kind === 'chevre' || kind === 'bouquetin') {
     // la barbichette
     ctx.fillStyle = shade(col, -0.2);
     ctx.beginPath();
@@ -724,6 +758,145 @@ function boarTusk(ctx, L, D) {
   ctx.quadraticCurveTo(0.7 * L, -0.25 * D, 0.62 * L, -0.32 * D);
   ctx.lineTo(0.66 * L, 0.12 * D);
   ctx.fill();
+}
+
+/* ---- Les bêtes de la steppe de l'âge de glace (le niveau du loup) ---- */
+/** La grande barbe du bison, la laine de son front, ses petites cornes recourbées */
+function bisonHead(ctx, L, D, c, col, dark, lw) {
+  ctx.fillStyle = shade(col, -0.32);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(-0.05 * L, 0.2 * D);
+  ctx.quadraticCurveTo(0.05 * L, 0.95 * D, 0.32 * L, 0.78 * D);
+  ctx.quadraticCurveTo(0.42 * L, 0.45 * D, 0.5 * L, 0.18 * D);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = shade(col, -0.25);
+  ctx.beginPath();
+  for (const [x, y, k] of [[-0.18, -0.42, 0.2], [0.02, -0.5, 0.18], [-0.3, -0.2, 0.2]]) {
+    ctx.moveTo((x + k) * L, y * D);
+    ctx.arc(x * L, y * D, k * L, 0, TAU);
+  }
+  ctx.fill();
+  ctx.fillStyle = '#3A3028';
+  ctx.strokeStyle = '#1E1814';
+  ctx.beginPath();
+  ctx.moveTo(-0.06 * L, -0.4 * D);
+  ctx.quadraticCurveTo(-0.16 * L, -0.92 * D, 0.14 * L, -1.02 * D);
+  ctx.quadraticCurveTo(0.0 * L, -0.74 * D, 0.12 * L, -0.42 * D);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+/** La laine épaisse de l'avant du bison : sa bosse et ses épaules */
+function bisonMane(ctx, r, pts, col, dark, lw) {
+  ctx.fillStyle = shade(col, -0.22);
+  ctx.strokeStyle = shade(col, -0.6);
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  for (let i = 3; i < pts.length; i++) {
+    const [x, y, top, bot] = pts[i];
+    const R = (top + bot) * 0.5, cy = y + (bot - top) * 0.5;
+    ctx.moveTo((x + R) * r, cy * r);
+    ctx.arc(x * r, cy * r, R * r, 0, TAU);
+  }
+  ctx.stroke();
+  ctx.fill();
+  // des boucles de laine
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.lineWidth = Math.max(0.6, lw * 0.8);
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const p = pts[3 + (i % (pts.length - 3))];
+    const xx = (p[0] + ((i * 0.37) % 0.3) - 0.15) * r, yy = (p[1] - p[2] * 0.5 + ((i * 0.53) % 0.8) * p[2]) * r;
+    ctx.moveTo(xx + r * 0.04, yy);
+    ctx.arc(xx, yy, r * 0.04, 0, Math.PI);
+  }
+  ctx.stroke();
+}
+/** Les bois immenses du cerf géant : une grande « main » plate, hérissée de pointes */
+function palmate(ctx, L, D, c, col, dark, lw) {
+  const pts = [[0.02, -0.55], [-0.12, -0.95], [-0.4, -1.2], [-0.45, -1.55], [-0.58, -1.3], [-0.72, -1.72], [-0.82, -1.38], [-1.0, -1.78], [-1.08, -1.4],
+    [-1.3, -1.62], [-1.28, -1.25], [-1.45, -1.2], [-1.2, -1.02], [-0.85, -1.0], [-0.5, -0.92], [-0.2, -0.7], [0.14, -0.5]];
+  for (const far of [true, false]) {
+    const bone = far ? '#B49C74' : '#D8C39A';
+    ctx.save();
+    if (far) ctx.translate(0.16 * L, -0.1 * L);
+    ctx.fillStyle = bone;
+    ctx.strokeStyle = '#4A3A28';
+    ctx.lineWidth = lw;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * L, y * L) : ctx.moveTo(x * L, y * L)));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // l'andouiller de devant, au-dessus des yeux
+    ctx.lineCap = 'round';
+    for (const [w, cc] of [[L * 0.07 + lw * 2, '#4A3A28'], [L * 0.07, bone]]) {
+      ctx.strokeStyle = cc;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(-0.02 * L, -0.7 * L);
+      ctx.quadraticCurveTo(0.2 * L, -0.85 * L, 0.32 * L, -1.05 * L);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+/** La saïga : son drôle de nez tout gonflé, et ses petites cornes annelées */
+function saigaHead(ctx, L, D, c, col, dark, lw) {
+  ctx.fillStyle = '#E8D0A0';
+  ctx.strokeStyle = '#6A5430';
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(-0.04 * L, -0.42 * D);
+  ctx.quadraticCurveTo(-0.12 * L, -1.1 * D, -0.02 * L, -1.45 * D);
+  ctx.quadraticCurveTo(0.06 * L, -1.0 * D, 0.1 * L, -0.42 * D);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90, 70, 40, 0.5)';
+  ctx.beginPath();
+  for (let i = 1; i < 6; i++) {
+    const y = (-0.45 - i * 0.16) * D;
+    ctx.moveTo(-0.08 * L, y);
+    ctx.lineTo((0.08 - i * 0.012) * L, y - 0.04 * D);
+  }
+  ctx.stroke();
+  // le grand nez mou, qui pend au bout du museau
+  ctx.fillStyle = shade(col, -0.08);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ell(ctx, 0.66 * L, 0, 0.2 * L, 0.3 * D, 0.3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#2A2024';
+  ell(ctx, 0.8 * L, 0.12 * D, 0.04 * L, 0.06 * D);
+  ctx.fill();
+}
+/** Les deux cornes du rhinocéros laineux, sur le nez : la grande devant */
+function rhinoHorns(ctx, L, D, c, col, dark, lw) {
+  ctx.fillStyle = '#5E4E3E';
+  ctx.strokeStyle = '#2A2018';
+  ctx.lineWidth = lw;
+  for (const [x0, x1, tx, ty, cx, cy] of [[0.42, 0.72, 0.95, -1.55, 0.62, -1.0], [0.12, 0.36, 0.32, -0.95, 0.2, -0.85]]) {
+    ctx.beginPath();
+    ctx.moveTo(x0 * L, -0.3 * D);
+    ctx.quadraticCurveTo(cx * L, cy * D, tx * L, ty * D);
+    ctx.quadraticCurveTo((cx + 0.2) * L, (cy + 0.2) * D, x1 * L, -0.14 * D);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255, 240, 220, 0.3)';
+  ctx.lineWidth = Math.max(0.6, lw);
+  ctx.beginPath();
+  ctx.moveTo(0.52 * L, -0.4 * D);
+  ctx.quadraticCurveTo(0.66 * L, -0.95 * D, 0.86 * L, -1.35 * D);
+  ctx.stroke();
 }
 
 const MAM = {
@@ -811,6 +984,72 @@ const MAM = {
     legW: 0.12, stride: 0.32, cadence: 1.8,
     tail: { len: 0.6, w: 0.05, droop: 1.0, type: 'fine' },
   },
+  // (le niveau du loup) les grandes bêtes de la steppe…
+  bison: {
+    ground: 1.0, hip: [-0.55, -0.26], shoulder: [0.32, -0.4], depth: 0.48, hump: 1.55, hipTop: 0.85, belly: 1.0,
+    neck: [[0.52, -0.34, 0.42], [0.64, -0.22, 0.38]],
+    head: { x: 0.74, y: -0.14, L: 0.55, D: 0.56, snout: 0.62, ear: 'pointe', earR: 0.35, eye: [0.08, -0.2], eyeR: 0.08, noseCol: '#2A2024', extra: bisonHead },
+    legW: 0.12, foreW: 1.08, stride: 0.3, cadence: 1.8,
+    tail: { len: 0.5, w: 0.05, droop: 1.0, type: 'fine' }, extra: bisonMane,
+  },
+  megaceros: {
+    ground: 1.15, hip: [-0.55, -0.32], shoulder: [0.42, -0.36], depth: 0.36, hump: 1.15,
+    neck: [[0.6, -0.54, 0.24], [0.72, -0.72, 0.21]],
+    head: { x: 0.84, y: -0.76, L: 0.6, D: 0.4, snout: 0.55, ear: 'pointe', earR: 0.65, eye: [0.14, -0.2], eyeR: 0.12, noseCol: '#3A2A20', extra: palmate },
+    legW: 0.08, stride: 0.44, cadence: 1.9,
+    tail: { len: 0.15, w: 0.07, droop: 0.2, type: 'touffue' },
+  },
+  'rhino-laineux': {
+    ground: 0.82, hip: [-0.58, -0.24], shoulder: [0.36, -0.3], depth: 0.5, hump: 1.3, belly: 1.05,
+    neck: [[0.56, -0.26, 0.4], [0.68, -0.16, 0.34]],
+    head: { x: 0.8, y: -0.06, L: 0.72, D: 0.5, snout: 0.5, ear: 'pointe', earR: 0.5, eye: [0.06, -0.16], eyeR: 0.07, noseCol: '#2A2024', extra: rhinoHorns },
+    legW: 0.15, foreW: 1.05, stride: 0.24, cadence: 1.7,
+    tail: { len: 0.25, w: 0.04, droop: 0.9, type: 'fine' }, extra: shaggy,
+  },
+  // … les plus légères…
+  saiga: {
+    ground: 0.95, hip: [-0.5, -0.26], shoulder: [0.38, -0.27], depth: 0.32,
+    neck: [[0.56, -0.4, 0.2], [0.66, -0.5, 0.18]],
+    head: { x: 0.78, y: -0.54, L: 0.58, D: 0.44, snout: 0.62, ear: 'pointe', earR: 0.5, eye: [0.12, -0.2], eyeR: 0.13, noseCol: '#3A2A20', muzzle: false, extra: saigaHead },
+    legW: 0.065, stride: 0.42, cadence: 2.3,
+    tail: { len: 0.14, w: 0.06, droop: 0.4, type: 'touffue' },
+  },
+  bouquetin: {
+    ground: 0.9, hip: [-0.48, -0.22], shoulder: [0.36, -0.26], depth: 0.38, hump: 1.1,
+    neck: [[0.54, -0.4, 0.24], [0.64, -0.5, 0.21]],
+    head: { x: 0.74, y: -0.54, L: 0.56, D: 0.42, snout: 0.5, ear: 'pointe', earR: 0.45, eye: [0.16, -0.16], eyeR: 0.13, noseCol: '#3A2A20', extra: horn('bouquetin') },
+    legW: 0.08, stride: 0.34, cadence: 2.3,
+    tail: { len: 0.14, w: 0.06, droop: -0.6, type: 'touffue' },
+  },
+  chevreuil: {
+    ground: 1.0, hip: [-0.5, -0.3], shoulder: [0.38, -0.3], depth: 0.3,
+    neck: [[0.56, -0.48, 0.18], [0.66, -0.62, 0.16]],
+    head: { x: 0.78, y: -0.66, L: 0.56, D: 0.4, snout: 0.55, ear: 'pointe', earR: 0.85, eye: [0.14, -0.2], eyeR: 0.14, noseCol: '#1E1614', extra: antlers(0.6) },
+    legW: 0.06, stride: 0.42, cadence: 2.2,
+    tail: { len: 0.08, w: 0.08, droop: 0, type: 'touffue' },
+  },
+  // … et les petites, que le louveteau attrape tout seul
+  lievre: {
+    ground: 0.62, hip: [-0.36, -0.1], shoulder: [0.3, 0.02], depth: 0.38, hipTop: 1.15, midTop: 1.1, belly: 0.9,
+    neck: [[0.48, -0.06, 0.27], [0.56, -0.14, 0.25]],
+    head: { x: 0.66, y: -0.24, L: 0.62, D: 0.52, snout: 0.3, dome: 0.3, ear: 'pointe', earR: 1.9, eye: [0.12, -0.18], eyeR: 0.15, noseCol: '#B8707A' },
+    legW: 0.085, stride: 0.34, cadence: 3,
+    tail: { len: 0.14, w: 0.13, droop: -1.4, type: 'touffue' },
+  },
+  marmotte: {
+    ground: 0.6, hip: [-0.42, -0.05], shoulder: [0.32, 0.0], depth: 0.46, hipTop: 1.1, midTop: 1.05, belly: 1.0,
+    neck: [[0.5, -0.06, 0.34], [0.6, -0.12, 0.31]],
+    head: { x: 0.7, y: -0.18, L: 0.56, D: 0.56, snout: 0.35, dome: 0.4, ear: 'rond', earR: 0.6, eye: [0.14, -0.2], eyeR: 0.12, noseCol: '#2A2024' },
+    legW: 0.1, stride: 0.22, cadence: 3,
+    tail: { len: 0.45, w: 0.1, droop: 0.5, type: 'touffue' },
+  },
+  campagnol: {
+    ground: 0.55, hip: [-0.4, -0.02], shoulder: [0.3, 0.02], depth: 0.42, hipTop: 1.1, midTop: 1.08,
+    neck: [[0.48, -0.02, 0.3], [0.56, -0.06, 0.28]],
+    head: { x: 0.66, y: -0.12, L: 0.6, D: 0.52, snout: 0.3, dome: 0.3, ear: 'rond', earR: 0.85, eye: [0.14, -0.18], eyeR: 0.14, noseCol: '#C9727E' },
+    legW: 0.08, stride: 0.22, cadence: 3.4,
+    tail: { len: 0.6, w: 0.04, droop: 0.3, curl: -0.2, type: 'fine' },
+  },
 };
 
 /* ============================================================================
@@ -881,6 +1120,30 @@ for (const id of ['corbeau', 'passereau']) {
 LOOKS['th-poule'] = drawChicken;
 FRAMES['th-poule'] = { r: 0.32, x: 0.5, y: 0.85 };
 
+// (le niveau du loup) les humains de l'âge de glace : en peaux de bêtes ; l'enfant qui joue ;
+// le berger du premier village, avec son bâton. (Un niveau peut les dessiner plus petits que
+// leur taille de jeu : species[].drawK)
+function iceFolk(c, child, more) {
+  const b = H0(c.seed);
+  const female = b.r() < 0.5;
+  return {
+    skin: b.skin, hair: b.hair, cloth: FURS[Math.floor(b.r() * 5)], child, style: female ? 'long' : b.r() < 0.5 ? 'hirsute' : 'court',
+    beard: !female && !child && b.r() < 0.4, necklace: !child && b.r() < 0.5, ...more,
+  };
+}
+LOOKS['th-humain'] = (ctx, c, t) => drawHuman(ctx, c, t, iceFolk(c, false, { tool: [null, 'hache', null][Math.floor((c.seed || 0) * 3) % 3] }));
+LOOKS['th-enfant'] = (ctx, c, t) => drawHuman(ctx, c, t, iceFolk(c, true, {}));
+LOOKS['th-berger-humain'] = (ctx, c, t) => drawHuman(ctx, c, t, { skin: '#B07A52', hair: '#4A2E1A', cloth: '#C2A878', woven: true, border: '#3A6A9A', style: 'court', beard: true, necklace: true, tool: 'baton' });
+for (const id of ['humain', 'enfant', 'berger-humain']) FRAMES[`th-${id}`] = { r: 0.28, x: 0.5, y: 0.9 };
+
+// l'os que les humains te lancent : posé dans l'herbe, il brille un peu
+LOOKS['th-os'] = (ctx, c, t) => {
+  const r = c.size;
+  groundShadow(ctx, c.x, c.y, r * 0.9, r * 0.25, 0.25);
+  if (LOOKS['os-jete']) LOOKS['os-jete'](ctx, { ...c, y: c.y - r * 0.35, seed: Math.sin(c.seed || 0) * 0.4 }, t);
+};
+FRAMES['th-os'] = { r: 0.3, x: 0.5, y: 0.62 };
+
 /* ---- Le joueur : sa forme à chaque époque, et ses inventions qui se voient ---- */
 const HERO = {
   'th-erectus': (P) => ({ bare: !P.vetements, cloth: P.vetements ? PLAYER.body : '#8A6440', brow: true, style: 'hirsute', beard: true, tool: P.feu ? 'torche' : null }),
@@ -896,6 +1159,61 @@ for (const [form, make] of Object.entries(HERO)) {
     drawHuman(ctx, { ...p, mood, seed: 0 }, t, {
       skin: PLAYER.tone || '#C68A5A', hair: PLAYER.hair || '#2A1C14', cute: true, cloth2: PLAYER.belly, ...make(parts || {}), carry: p.carry, front: p.front,
     });
+  };
+}
+
+/* ---- (le niveau du loup) Le joueur : le louveteau, le loup, le premier chien, le chien de berger.
+   Ses évolutions se voient : le pelage épais, les oreilles tombantes, la queue en tire-bouchon,
+   les taches. reach = la portée de sa gueule (la même que vu de dessus : rien ne change au jeu) ---- */
+const DOG_BASE = {
+  louveteau: {
+    ground: 0.66, hip: [-0.48, -0.08], shoulder: [0.36, -0.08], depth: 0.36, midTop: 1.05,
+    neck: [[0.54, -0.18, 0.28], [0.64, -0.26, 0.26]],
+    head: { x: 0.76, y: -0.34, L: 0.64, D: 0.56, snout: 0.36, ear: 'pointe', earR: 0.85, eye: [0.16, -0.16], eyeR: 0.13 },
+    legW: 0.1, stride: 0.3, cadence: 2.6,
+    tail: { len: 0.65, w: 0.1, droop: -0.5, curl: 0.2, type: 'touffue' },
+  },
+  loup: MAM.loup,
+  chien: {
+    ground: 0.85, hip: [-0.56, -0.18], shoulder: [0.4, -0.2], depth: 0.33,
+    neck: [[0.6, -0.3, 0.25], [0.72, -0.38, 0.23]],
+    head: { x: 0.86, y: -0.44, L: 0.68, D: 0.48, snout: 0.5, dome: 0.25, ear: 'pointe', earR: 0.8, eye: [0.16, -0.2], eyeR: 0.11, teeth: true },
+    legW: 0.1, stride: 0.36, cadence: 2.3,
+    tail: { len: 0.8, w: 0.1, droop: -0.3, curl: 0.4, type: 'touffue' },
+  },
+};
+DOG_BASE.berger = {
+  ...DOG_BASE.chien, depth: 0.35,
+  head: { ...DOG_BASE.chien.head, snout: 0.45, earR: 0.7 },
+  tail: { len: 0.9, w: 0.14, droop: 0.3, curl: 0.5, type: 'touffue' },
+};
+const DOG_REACH = { louveteau: 0.515, loup: 0.62, chien: 0.56, berger: 0.59 };
+const DOG_CACHE = new Map();
+function dogForm(id, P) {
+  const key = `${id}${P['pelage-epais'] ? 'e' : ''}${P['oreilles-tombantes'] ? 'o' : ''}${P['queue-tire-bouchon'] ? 'q' : ''}`;
+  let Q = DOG_CACHE.get(key);
+  if (!Q) {
+    const B = DOG_BASE[id];
+    Q = { ...B, head: { ...B.head }, tail: { ...B.tail } };
+    if (P['pelage-epais']) Q.depth = B.depth * 1.08;
+    if (P['oreilles-tombantes']) Object.assign(Q.head, { ear: 'tombante', earR: 0.85 });
+    if (P['queue-tire-bouchon']) Q.tail = { len: 0.6, w: 0.13, droop: 0.9, curl: 1.7, sway: 0.45, type: 'touffue' };
+    DOG_CACHE.set(key, Q);
+  }
+  return Q;
+}
+for (const id of Object.keys(DOG_BASE)) {
+  const form = `th-${id === 'loup' ? 'loup-joueur' : id}`;
+  FORM_SPINE[form] = null;
+  FRAMES[form] = { r: 0.27, x: 0.46, y: 0.82 };
+  SNOUT[form] = DOG_REACH[id];
+  FORMS[form] = (ctx, p, parts, t, mood) => {
+    const P = parts || {};
+    const Q = dogForm(id, P);
+    const o = { belly: PLAYER.belly, stripe: PLAYER.stripe || shade(PLAYER.body, -0.3), cute: true, fluffy: !!P['pelage-epais'] };
+    if (P['oreilles-tombantes']) Q.head.earCol = shade(PLAYER.body, -0.22);
+    if (P['pelage-tachete']) o.patches = { col: PLAYER.patch || '#FBF6EC', n: 3 };
+    drawMammal(ctx, { ...p, sp: { kind: 'player' }, mood: P['queue-tire-bouchon'] && mood !== 'scared' ? 'happy' : mood, seed: 0, y: p.y - Q.ground * p.size }, t, Q, PLAYER.body, o);
   };
 }
 
@@ -1736,6 +2054,178 @@ export function drawHut(ctx, b, t, pal) {
   ctx.moveTo(x + R * 0.12, y - R * 1.95);
   ctx.lineTo(x - R * 0.04, y - R * 1.62);
   ctx.stroke();
+}
+
+/* ---- (le niveau du loup) Le camp de l'âge de glace : la tente en peaux, le séchoir, les os ---- */
+/** Une tente conique en peaux de bêtes cousues, tenue par de longues perches */
+export function drawTent(ctx, b, t, pal) {
+  const { x, y } = b;
+  const R = b.r || 80;
+  const rnd = seeded(b.seed || 1);
+  const hide = ['#B08A5A', '#9A7448', '#C29A68'][Math.floor(rnd() * 3)];
+  groundShadow(ctx, x + R * 0.12, y + 2, R * 1.15, R * 0.34, 0.3);
+  const top = y - R * 2.0;
+  // les perches qui dépassent en haut
+  ctx.strokeStyle = '#4A3420';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (const k of [-0.32, -0.1, 0.14, 0.34]) {
+    ctx.moveTo(x + k * R * 0.5, top + R * 0.25);
+    ctx.lineTo(x + k * R * 1.1, top - R * 0.32);
+  }
+  ctx.stroke();
+  // la toile de peaux : un cône, plus clair du côté du soleil
+  const g = ctx.createLinearGradient(x - R, 0, x + R, 0);
+  g.addColorStop(0, shade(hide, 0.14));
+  g.addColorStop(0.55, hide);
+  g.addColorStop(1, shade(hide, -0.28));
+  ctx.fillStyle = g;
+  ctx.strokeStyle = shade(hide, -0.6);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, top);
+  ctx.quadraticCurveTo(x + R * 0.55, y - R * 1.0, x + R * 1.05, y - R * 0.05);
+  ctx.quadraticCurveTo(x, y + R * 0.28, x - R * 1.05, y - R * 0.05);
+  ctx.quadraticCurveTo(x - R * 0.55, y - R * 1.0, x, top);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // les coutures entre les peaux
+  ctx.strokeStyle = 'rgba(60, 36, 16, 0.4)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath();
+  for (const k of [-0.62, 0.62]) {
+    ctx.moveTo(x, top + R * 0.1);
+    ctx.quadraticCurveTo(x + k * R * 0.45, y - R * 0.9, x + k * R * 0.8, y + R * 0.02);
+  }
+  ctx.moveTo(x - R * 0.55, y - R * 0.9);
+  ctx.quadraticCurveTo(x, y - R * 0.78, x + R * 0.55, y - R * 0.9);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // un animal peint à l'ocre rouge
+  if (rnd() < 0.6) paintAnimal(ctx, x - R * 0.5, y - R * 0.45, R * 0.2, '#9A3A1E');
+  // un peu de neige, en haut (à l'âge de glace)
+  if (pal && pal.snow) {
+    ctx.fillStyle = pal.snow;
+    ctx.beginPath();
+    ctx.moveTo(x, top + 2);
+    ctx.quadraticCurveTo(x + R * 0.22, y - R * 1.6, x + R * 0.36, y - R * 1.3);
+    ctx.quadraticCurveTo(x + R * 0.05, y - R * 1.4, x - R * 0.36, y - R * 1.32);
+    ctx.quadraticCurveTo(x - R * 0.22, y - R * 1.6, x, top + 2);
+    ctx.fill();
+  }
+  // l'entrée : un rabat de peau relevé
+  ctx.fillStyle = '#24160C';
+  ctx.beginPath();
+  ctx.moveTo(x - R * 0.26, y + R * 0.16);
+  ctx.quadraticCurveTo(x - R * 0.08, y - R * 0.55, x + R * 0.05, y - R * 0.75);
+  ctx.quadraticCurveTo(x + R * 0.16, y - R * 0.3, x + R * 0.28, y + R * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = shade(hide, -0.15);
+  ctx.strokeStyle = shade(hide, -0.6);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x + R * 0.05, y - R * 0.75);
+  ctx.quadraticCurveTo(x + R * 0.36, y - R * 0.5, x + R * 0.5, y - R * 0.1);
+  ctx.lineTo(x + R * 0.28, y + R * 0.15);
+  ctx.quadraticCurveTo(x + R * 0.16, y - R * 0.3, x + R * 0.05, y - R * 0.75);
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** Un séchoir : deux perches, une traverse, une peau tendue… et des lanières de viande */
+export function drawRack(ctx, b) {
+  const { x, y } = b;
+  const R = b.r || 60;
+  groundShadow(ctx, x, y, R * 0.95, R * 0.2, 0.22);
+  ctx.lineCap = 'round';
+  for (const [w, col] of [[9, '#2A1A0C'], [5, '#7A5434']]) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x - R * 0.8, y);
+    ctx.lineTo(x - R * 0.7, y - R * 1.45);
+    ctx.moveTo(x + R * 0.8, y);
+    ctx.lineTo(x + R * 0.7, y - R * 1.45);
+    ctx.moveTo(x - R * 0.85, y - R * 1.3);
+    ctx.lineTo(x + R * 0.85, y - R * 1.32);
+    ctx.stroke();
+  }
+  // la peau tendue
+  ctx.fillStyle = '#D2AE7A';
+  ctx.strokeStyle = '#5A3A1E';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x - R * 0.6, y - R * 1.28);
+  ctx.lineTo(x + R * 0.1, y - R * 1.28);
+  ctx.quadraticCurveTo(x + R * 0.18, y - R * 0.9, x + R * 0.05, y - R * 0.5);
+  ctx.quadraticCurveTo(x - R * 0.25, y - R * 0.38, x - R * 0.55, y - R * 0.52);
+  ctx.quadraticCurveTo(x - R * 0.68, y - R * 0.9, x - R * 0.6, y - R * 1.28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // les lanières de viande
+  ctx.fillStyle = '#8A2A1E';
+  ctx.strokeStyle = '#4A140C';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    const xx = x + R * (0.28 + i * 0.17);
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(xx - 4, y - R * 1.28, 8, R * (0.42 + (i % 2) * 0.14), 3) : ctx.rect(xx - 4, y - R * 1.28, 8, R * 0.45);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+/** Les restes d'un grand repas : un crâne de mammouth et ses défenses, ou une cage de côtes */
+export function drawBones(ctx, d) {
+  const { x, y, r } = d;
+  const bone = '#EDE4CC', dark = '#7A6A4A';
+  groundShadow(ctx, x, y, r * 1.05, r * 0.26, 0.2);
+  ctx.lineCap = 'round';
+  if (d.seed % 2) {
+    // des côtes en arceaux, sur leur colonne
+    for (const [w, col] of [[r * 0.13 + 4, dark], [r * 0.13, bone]]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.85, y - r * 0.62);
+      ctx.quadraticCurveTo(x, y - r * 0.82, x + r * 0.85, y - r * 0.6);
+      for (let i = 0; i < 5; i++) {
+        const xx = x + (i - 2) * r * 0.36;
+        ctx.moveTo(xx, y - r * 0.72);
+        ctx.quadraticCurveTo(xx + r * 0.32, y - r * 0.45, xx + r * 0.16, y);
+      }
+      ctx.stroke();
+    }
+    return;
+  }
+  // les défenses, longues et recourbées
+  for (const [w, col] of [[r * 0.16 + 4, dark], [r * 0.16, bone]]) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    for (const k of [0, 0.14]) {
+      ctx.moveTo(x + r * 0.15, y - r * (0.25 + k));
+      ctx.quadraticCurveTo(x + r * (1.05 + k), y - r * 0.05, x + r * (0.9 + k), y - r * (0.85 + k));
+    }
+    ctx.stroke();
+  }
+  // le crâne, et ses trous
+  ctx.fillStyle = bone;
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 3;
+  ell(ctx, x - r * 0.15, y - r * 0.38, r * 0.5, r * 0.4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#4A3A2A';
+  ell(ctx, x - r * 0.02, y - r * 0.45, r * 0.11, r * 0.09);
+  ctx.fill();
+  ell(ctx, x + r * 0.18, y - r * 0.22, r * 0.12, r * 0.08);
+  ctx.fill();
 }
 
 /** Un piquet de l'enclos (avec la barrière qui le relie au suivant) */

@@ -20,6 +20,13 @@
 //      et seuls le joueur et les moutons la passent) ; at = à cet endroit
 //      précis ; clear = rien d'autre ne pousse dessus ; atStart = le premier
 //      est posé au point de départ). ground: 'land' = sur la terre ferme : la course et les vues en volume sont les mêmes partout (terre.js).
+//      style = 'tqv' : le même monde, avec les mêmes règles, mais DESSINÉ DE TROIS QUARTS comme
+//      la voie des humains (decor-tqv.js : le sol vu d'en haut, les bêtes, les humains, les arbres
+//      et les tentes debout ; le niveau du loup) ; les couleurs du décor sont dans chapters[].palette
+//      (pond, bank, sand, ice, snow, leaf, rock, bush, tallGrass, tuft, dirt, hideBase, pen, flowers…),
+//      la végétation en plus dans world.land (bushes, ferns, fernsFrom, decals). Ses espèces ont un
+//      look « th-… » (art-humains.js), reach = la portée de leur gueule (pour garder celle d'avant),
+//      drawK = elles sont dessinées plus petites que leur taille de jeu (les humains).
 //      noGrow = manger ne fait pas grandir ("size" fixe) ; mudSpeed = ce que
 //      strike = un coup qui assomme les adversaires proches 2 s (name, icon,
 //      type 'queue' / 'griffe', from = à partir de ce chapitre, intro = le texte
