@@ -1534,7 +1534,7 @@ function predatorDown(c, owner) {
 function drawSpearPips(c) {
   const n = spearKill();
   if (!n || !c.spearHits || c.sp.kind !== 'hunter' || c.dead) return;
-  const r = 6 / zoom, gap = 16 / zoom;
+  const r = (n > 6 ? 4.5 : 6) / zoom, gap = (n > 6 ? 11 : 16) / zoom;
   const y = c.y - c.size * 2.15 - 30 / zoom;
   for (let i = 0; i < n; i++) {
     const x = c.x + (i - (n - 1) / 2) * gap;
@@ -2427,7 +2427,7 @@ function updateScent(dt) {
   if (whiffCD > 0) return;
   whiffCD = (t.sp.lair.whiff || 30) * (stats.radar ? 0.6 : 1);
   whiffT = 5;
-  addFloater('Snif snif…', player.x, player.y - player.size * 2, '#FFE58A', 1);
+  addFloater(PT().whiff || 'Snif snif…', player.x, player.y - player.size * 2, '#FFE58A', 1);
   sayOnce('whiff', LINES.whiff, 90, 1);
 }
 
@@ -6082,7 +6082,7 @@ function botDir() {
   // (le loup et l'humain) un chasseur sur qui il faut aboyer : on ne le fuit pas tant qu'on peut aboyer
   const barkAt = stats.bark && p.barkT <= 0 ? CH.missions.filter((m) => m.type === 'bark' && !missionInfo(m).done).map((m) => m.species) : [];
   // (les requins) la cible d'une mission : on y va
-  for (const m of CH.missions) if ((m.type === 'stun' || m.type === 'hit') && !missionInfo(m).done) barkAt.push(m.species);
+  for (const m of CH.missions) if ((m.type === 'stun' || m.type === 'hit') && !missionInfo(m).done && canStrike()) barkAt.push(m.species);
   for (const m of CH.missions) if (m.type === 'eat' && SPECIES[m.species].hp && !missionInfo(m).done && packNear >= SPECIES[m.species].need) barkAt.push(m.species);
   for (const c of creatures) {
     if (!isThreat(c) || (barkAt.includes(c.id) && !c.barked && !(c.sp.kind === 'hunter' && p.strikeT > 1 && CH.power && !c.sp.tailBite))) continue;

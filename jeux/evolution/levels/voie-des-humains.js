@@ -35,7 +35,7 @@ const world = {
   maxChasers: 3,
   noise: 460,
   penalty: { adn: 0.25, growth: 0 },
-  spearKill: { hits: 5, from: 2 },  // à partir du chapitre 2 : 5 coups de lance abattent un prédateur ; les guerriers lancent aussi
+  spearKill: { hits: 10, from: 2 }, // à partir du chapitre 2 : 10 coups de lance abattent un prédateur ; les guerriers lancent aussi
   currency: {
     icon: '💡', name: 'idées', verb: 'Inventer', order: 'Invente', many: 'inventions', later: 'Plus tard',
     tag: 'Nouvelle invention !', sub: 'Choisis ce que ta tribu va inventer :', stat: 'inventions',
@@ -102,7 +102,9 @@ const species = {
   },
   'chasseur-seul': {
     name: 'Chasseur', plural: 'chasseurs', kind: 'stray', look: 'th-chasseur', color: '#7A5A3A', joins: 'chasseur-tribu', noEat: true, tag: '🤝 Un ami ?',
-    size: 27, speed: 70, sense: 0, adn: 10,
+    size: 27, speed: 70, sense: 0, adn: 10, shy: true,
+    // chacun se cache très loin, dans les hautes herbes ; un fauve monte la garde autour de lui
+    lair: { far: 2400, gap: 2400, scent: 800, whiff: 40, guards: ['hyene', 'lion', 'ours'] },
     fact: "À l'âge de glace, on ne chassait jamais seul : les chasseurs encerclaient les grands animaux, et chacun avait son rôle.",
   },
   'chasseur-tribu': {
@@ -124,7 +126,7 @@ const species = {
   },
   mammouth: {
     name: 'Mammouth laineux', plural: 'mammouths laineux', kind: 'defender', look: 'th-mammouth', color: '#6E4E32', noEat: true, hurt: 'BAOUM !',
-    hp: 240, need: 4, fights: true, spear: 25,
+    hp: 240, need: 3, fights: true, spear: 25,
     size: 118, speed: 170, sense: 260, adn: 45, eatLine: "Bravo ! Seul, personne n'aurait pu chasser un mammouth. Ensemble, avec vos lances, vous l'avez fait !",
     fact: "Avec un seul mammouth, toute une tribu pouvait manger pendant des semaines. Ses os servaient même à construire des huttes !",
   },
@@ -290,13 +292,13 @@ const chapters = [
     form: 'th-chasseur',
     skin: { body: '#9A6A3A', belly: '#7A5434', dark: '#3A2414', tone: '#C68A5A', hair: '#3A2618' },
     size: [30, 30],
-    pack: 5,                         // la troupe de chasseurs (la jauge en haut)
-    packText: { icon: '🏹', name: 'Troupe', word: 'chasseurs', join: 'Un chasseur te rejoint !', full: 'Ta troupe est au complet !', lost: 'Un chasseur s’enfuit !', sound: 'call' },
+    pack: 3,                         // la troupe de chasseurs (la jauge en haut)
+    packText: { icon: '🏹', name: 'Troupe', word: 'chasseurs', join: 'Un chasseur te rejoint !', full: 'Ta troupe est au complet !', lost: 'Un chasseur s’enfuit !', sound: 'call', whiff: 'Ouh-ouh… ?' },
     bark: TORCHE,
     power: { ...LANCE, intro: "Ta lance est prête ! Appuie sur F (ou sur le bouton orange) : tu la lances droit devant toi. Elle fait fuir les fauves… et avec ta troupe, elle permet de chasser les plus grosses bêtes." },
     vision: 1.25,
     palette: GLACE,
-    species: { 'tribu-chasseur': 5, 'chasseur-seul': 5, renne: 6, mammouth: 1, lion: 2, ours: 1, hyene: 2 },
+    species: { 'tribu-chasseur': 3, 'chasseur-seul': 3, renne: 6, mammouth: 1, lion: 2, ours: 1, hyene: 2 },
     unlock: ['silex', 'lance'],
     intro: "Il y a 40 000 ans, c'est l'âge de glace. Les humains sont devenus de grands chasseurs… mais les lions et les ours des cavernes sont encore plus forts qu'eux. Pour devenir le maître des chasseurs, il te faut une arme : une lance à pointe de silex. Et des amis : seul, personne ne peut chasser un mammouth !",
     missions: [
@@ -305,14 +307,14 @@ const chapters = [
       { type: 'evolve', part: 'lance' },
       { type: 'eat', species: 'renne', n: 3, text: 'Chasse 3 rennes avec ta lance' },
       { type: 'stun', species: 'lion', n: 3, text: 'Fais fuir 3 lions des cavernes avec ta lance' },
-      { type: 'pack', species: 'chasseur-seul', n: 4, text: 'Forme une troupe de 4 chasseurs' },
+      { type: 'pack', species: 'chasseur-seul', n: 3, text: 'Retrouve les 3 chasseurs cachés et forme ta troupe' },
       { type: 'eat', species: 'mammouth', n: 1, text: 'Chassez un mammouth tous ensemble' },
       { type: 'build', what: 'peinture', n: 1, img: 'ocre', text: 'Entre dans la grotte et peins vos exploits sur la paroi' },
     ],
     tips: [
       "Le silex se trouve au bord de la rivière et près de la grotte : il brille un peu.",
-      "Les chasseurs seuls ont un anneau doré : touche-les, ils te suivent. Chacun te donne des idées 💡 !",
-      "Cinq coups de lance, et un fauve est vaincu. Ta troupe et les guerriers du camp lancent leurs lances avec toi !",
+      "Trois chasseurs se cachent très loin, dans les hautes herbes, gardés par des fauves. Écoute leurs appels : la flèche apparaît un moment !",
+      "Dix coups de lance, et un fauve est vaincu. Ta troupe et les guerriers du camp lancent leurs lances avec toi !",
       "Le mammouth se défend ! Quand il baisse la tête, écarte-toi… puis lance ta lance.",
       "Pour peindre, il te faut de l'ocre : la terre rouge, au pied de la grotte. Puis entre dans la grotte par la grande arche !",
     ],
@@ -481,10 +483,12 @@ const lines = {
   raidLost: "Les pillards sont repartis avec du blé… Ils vont revenir ! La prochaine fois, repousse-les avant qu'ils arrivent au grenier.",
   looted: "Ils pillent le grenier ! Vite, repousse-les !",
   wallBroken: "La palissade est cassée ! Les pillards entrent… Répare-la vite : arrête-toi devant.",
-  spearHit: "Touché ! Regarde les points au-dessus de lui : au bout de 5 lances, il est vaincu. Tes guerriers lancent aussi !",
+  spearHit: "Touché ! Regarde les points au-dessus de lui : au bout de 10 lances, il est vaincu. Tes guerriers lancent aussi !",
   predatorDown: "Vaincu ! Seuls, les humains étaient des proies… Avec des lances, et tous ensemble, ils sont devenus plus forts que les fauves.",
   // la troupe de chasseurs (chapitre 2)
-  packTitle: "Ta troupe de chasseurs : touche les chasseurs entourés d'un anneau doré pour qu'ils te suivent",
+  packTitle: "Ta troupe : retrouve les 3 chasseurs cachés au loin (ils ont un anneau doré), touche-les pour qu'ils te suivent",
+  whiff: "Écoute ! Un appel de chasseur, très loin… Suis vite la flèche : l'appel ne dure pas.",
+  strayShy: "Tu as foncé : il a eu peur ! Ce chasseur ne te connaît pas : approche-toi tout doucement.",
   packJoin: "Un chasseur de plus dans ta troupe ! Ensemble, vous êtes plus forts que le plus gros des animaux.",
   packSmall: "Ce mammouth est bien trop fort pour toi tout seul ! Regarde au-dessus de lui : il vous faut plus de chasseurs.",
   huntGo: "Ouh-ouh ! Toute la troupe attaque : lancez vos lances, et attention quand il charge !",

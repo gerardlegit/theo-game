@@ -178,7 +178,8 @@
 //      Chapitre : night (on ne voit que près des feux), dry + world.meter (le
 //      froid), bark = la torche ({ icon, name, cry, sound, ring, sparks }), power
 //      type 'lance' (+ need = l'invention qui la donne), packText = les mots de
-//      la troupe ({ icon, name, word, join, full, lost, sound }), penned = les
+//      la troupe ({ icon, name, word, join, full, lost, sound, whiff = le mot de l'appel
+//      lointain d'un chasseur caché (sp.lair) }), penned = les
 //      bêtes déjà dans l'enclos, raids = les attaques ({ after = la mission après
 //      laquelle elles commencent, species, chief, waves, gap, first }), zoom.
 //      Missions : gather (res, n), build (what = un type de site, n), deliver
