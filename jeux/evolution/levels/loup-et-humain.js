@@ -50,12 +50,12 @@ const world = {
 
 /* Les êtres vivants (les options sont les mêmes qu'au niveau 2 : voir vers-les-dinosaures.js ;
    les nouvelles sont expliquées dans levels/index.js : ally, human, flock, play, trust…).
-   Dessinés de trois quarts (looks « th-… », art-humains.js) ; reach = la portée de leur gueule,
+   Dessinés de trois quarts (looks « th-… », art-humains.js) ; bite = la portée de leur gueule,
    la même que vus de dessus ; drawK = les humains sont dessinés plus petits que leur taille de jeu */
 const species = {
   /* ---- Ta meute : les loups seuls te rejoignent, et elle te suit partout ---- */
   'loup-solitaire': {
-    name: 'Loup solitaire', plural: 'loups solitaires', kind: 'stray', look: 'th-loup', reach: 0.62, color: '#A09C96', belly: '#EFEAE0', joins: 'loup-de-la-meute',
+    name: 'Loup solitaire', plural: 'loups solitaires', kind: 'stray', look: 'th-loup', bite: 0.62, color: '#A09C96', belly: '#EFEAE0', joins: 'loup-de-la-meute',
     size: 34, speed: 90, sense: 0, adn: 12, shy: true,
     // chacun se cache dans sa tanière, très loin des autres ; des hyènes ou un lion montent la garde
     lair: { far: 2300, gap: 2300, scent: 850, whiff: 35, call: 650,
@@ -63,57 +63,57 @@ const species = {
     fact: "Un jeune loup quitte parfois sa famille pour trouver une autre meute. Tout seul, il a du mal à se nourrir : il a besoin des autres !",
   },
   'loup-de-la-meute': {
-    name: 'Loup de ta meute', plural: 'loups de ta meute', kind: 'ally', look: 'th-loup', reach: 0.62, color: '#8E8C88', belly: '#E8E4DA',
+    name: 'Loup de ta meute', plural: 'loups de ta meute', kind: 'ally', look: 'th-loup', bite: 0.62, color: '#8E8C88', belly: '#E8E4DA',
     size: 40, speed: 200, sense: 0, adn: 0,
     fact: "Les loups vivent en meute : une famille de 5 à 10 loups qui chassent ensemble. Seul, un loup ne pourrait pas attraper un renne !",
   },
 
   /* ---- Les proies ---- */
   campagnol: {
-    name: 'Campagnol', plural: 'campagnols', kind: 'prey', look: 'th-campagnol', reach: 0.515, color: '#8A6E50',
+    name: 'Campagnol', plural: 'campagnols', kind: 'prey', look: 'th-campagnol', bite: 0.515, color: '#8A6E50',
     size: 8, speed: 80, sense: 100, adn: 2,
     fact: "Le campagnol est un petit rongeur. Il creuse des tunnels sous la neige… mais le loup l'entend quand même et bondit dessus !",
   },
   lievre: {
-    name: 'Lièvre variable', plural: 'lièvres variables', kind: 'prey', look: 'th-lievre', reach: 0.425, color: '#E6E4DE',
+    name: 'Lièvre variable', plural: 'lièvres variables', kind: 'prey', look: 'th-lievre', bite: 0.425, color: '#E6E4DE',
     size: 16, speed: 240, sense: 200, adn: 5,
     fact: "Le lièvre variable change de couleur : brun en été, tout blanc en hiver pour se cacher dans la neige !",
   },
   marmotte: {
-    name: 'Marmotte', plural: 'marmottes', kind: 'prey', look: 'th-marmotte', reach: 0.425, color: '#9A7A52',
+    name: 'Marmotte', plural: 'marmottes', kind: 'prey', look: 'th-marmotte', bite: 0.425, color: '#9A7A52',
     size: 22, speed: 160, sense: 200, adn: 7,
     fact: "La marmotte siffle très fort pour prévenir les autres d'un danger. L'hiver, elle dort six mois dans son terrier !",
   },
   renne: {
-    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'th-renne', reach: 0.5, color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !', noEat: true, hp: 100, need: 3,
+    name: 'Renne', plural: 'rennes', kind: 'prey', look: 'th-renne', bite: 0.5, color: '#9A8A74', barkLine: 'Les chasseurs l’ont vu !', noEat: true, hp: 100, need: 3,
     size: 85, speed: 240, sense: 360, adn: 40,
     eatLine: "Bravo ! Tout seul, tu n'aurais jamais attrapé un renne… mais en meute, tout est possible !",
     fact: "Chez les rennes, même les femelles ont des bois ! Les loups et les humains de l'âge de glace chassaient les mêmes troupeaux.",
   },
   bison: {
-    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'th-bison', reach: 0.5, color: '#6E4E36', noEat: true, hp: 170, need: 4,
+    name: 'Bison des steppes', plural: 'bisons des steppes', kind: 'prey', look: 'th-bison', bite: 0.5, color: '#6E4E36', noEat: true, hp: 170, need: 4,
     size: 105, speed: 260, sense: 360, adn: 60,
     eatLine: "Quel festin ! Un bison, ça nourrit toute la meute pendant des jours.",
     fact: "Le bison des steppes avait des cornes deux fois plus grandes que celles des bisons d'aujourd'hui. Les humains l'ont peint dans les grottes !",
   },
   'cerf-geant': {
-    name: 'Cerf géant', plural: 'cerfs géants', kind: 'prey', look: 'th-megaceros', reach: 0.515, color: '#8A6A44', noEat: true, hp: 130, need: 4,
+    name: 'Cerf géant', plural: 'cerfs géants', kind: 'prey', look: 'th-megaceros', bite: 0.515, color: '#8A6A44', noEat: true, hp: 130, need: 4,
     size: 125, speed: 300, sense: 360, adn: 50,
     eatLine: "Rattrapé ! Ses bois immenses ne l'ont pas aidé à s'enfuir…",
     fact: "Le cerf géant, ou mégacéros, avait les plus grands bois de tous les temps : plus de 3 mètres et demi d'un bout à l'autre, plus large qu'une voiture !",
   },
   saiga: {
-    name: 'Saïga', plural: 'saïgas', kind: 'prey', look: 'th-saiga', reach: 0.425, color: '#C9A877',
+    name: 'Saïga', plural: 'saïgas', kind: 'prey', look: 'th-saiga', bite: 0.425, color: '#C9A877',
     size: 48, speed: 310, sense: 340, adn: 16,
     fact: "La saïga est une antilope au drôle de nez tout gonflé : il réchauffe l'air glacé avant qu'il n'arrive dans ses poumons !",
   },
   bouquetin: {
-    name: 'Bouquetin', plural: 'bouquetins', kind: 'prey', look: 'th-bouquetin', reach: 0.44, color: '#8E7A60',
+    name: 'Bouquetin', plural: 'bouquetins', kind: 'prey', look: 'th-bouquetin', bite: 0.44, color: '#8E7A60',
     size: 52, speed: 310, sense: 340, adn: 18,
     fact: "Le bouquetin grimpe sur les rochers les plus raides grâce à ses sabots, durs dehors et souples dessous, comme des chaussons d'escalade !",
   },
   chevreuil: {
-    name: 'Chevreuil', plural: 'chevreuils', kind: 'prey', look: 'th-chevreuil', reach: 0.425, color: '#A8683A',
+    name: 'Chevreuil', plural: 'chevreuils', kind: 'prey', look: 'th-chevreuil', bite: 0.425, color: '#A8683A',
     size: 46, speed: 320, sense: 340, adn: 22,
     fact: "Quand la glace a fondu, les forêts ont poussé, et les chevreuils sont arrivés. Au moindre bruit, ils bondissent et disparaissent !",
   },
@@ -142,12 +142,12 @@ const species = {
 
   /* ---- Le troupeau (chapitre 5) : on le ramène dans l'enclos ---- */
   mouton: {
-    name: 'Mouton', plural: 'moutons', kind: 'flock', look: 'th-mouton', reach: 0.44, color: '#E8E2D4', pack: 4, near: 'pen',
+    name: 'Mouton', plural: 'moutons', kind: 'flock', look: 'th-mouton', bite: 0.44, color: '#E8E2D4', pack: 4, near: 'pen',
     size: 40, speed: 230, sense: 170, adn: 0,
     fact: "Le mouton descend d'un mouton sauvage, le mouflon. Il a été apprivoisé il y a environ 10 000 ans, avec la chèvre : ce sont les débuts de l'élevage !",
   },
   chevre: {
-    name: 'Chèvre', plural: 'chèvres', kind: 'flock', look: 'th-chevre', reach: 0.44, color: '#C9B08A', pack: 3, near: 'pen',
+    name: 'Chèvre', plural: 'chèvres', kind: 'flock', look: 'th-chevre', bite: 0.44, color: '#C9B08A', pack: 3, near: 'pen',
     size: 36, speed: 260, sense: 160, adn: 0,
     fact: "La chèvre a été l'un des tout premiers animaux de la ferme. Elle donne du lait, de la viande et des poils pour se tenir chaud.",
   },
@@ -161,35 +161,35 @@ const species = {
 
   /* ---- Les dangers ---- */
   'hyene-des-cavernes': {
-    name: 'Hyène des cavernes', plural: 'hyènes des cavernes', kind: 'hunter', look: 'th-hyene', reach: 0.59, color: '#8A7A5A', pack: 2, packFear: 3,
+    name: 'Hyène des cavernes', plural: 'hyènes des cavernes', kind: 'hunter', look: 'th-hyene', bite: 0.59, color: '#8A7A5A', pack: 2, packFear: 3,
     size: 95, speed: 290, sense: 340, cone: 2.4, adn: 25,
     fact: "Les hyènes des cavernes vivaient en groupe dans les grottes. Elles volaient souvent les proies des loups… et des humains !",
   },
   'lion-des-cavernes': {
-    name: 'Lion des cavernes', plural: 'lions des cavernes', kind: 'hunter', look: 'th-lion', reach: 0.515, color: '#C9A46E', roar: true, packFear: 5,
+    name: 'Lion des cavernes', plural: 'lions des cavernes', kind: 'hunter', look: 'th-lion', bite: 0.515, color: '#C9A46E', roar: true, packFear: 5,
     size: 150, speed: 340, sense: 420, cone: 2.3, adn: 40,
     fact: "Le lion des cavernes était plus grand que les lions d'aujourd'hui. Mais il avait peur du feu des humains… et des aboiements !",
   },
   'loup-sauvage': {
-    name: 'Loup sauvage', plural: 'loups sauvages', kind: 'hunter', look: 'th-loup', reach: 0.62, color: '#6E6A66', pack: 2, eatsFlock: true, noEat: true,
+    name: 'Loup sauvage', plural: 'loups sauvages', kind: 'hunter', look: 'th-loup', bite: 0.62, color: '#6E6A66', pack: 2, eatsFlock: true, noEat: true,
     size: 90, speed: 340, sense: 320, cone: 2.4, adn: 0,
     fact: "Les loups sauvages n'ont pas disparu : ce sont tes cousins ! Le chien de berger protège le troupeau… contre ses propres cousins.",
   },
   mammouth: {
-    name: 'Mammouth laineux', plural: 'mammouths laineux', kind: 'giant', look: 'th-mammouth', reach: 0.5, color: '#7A5A40', stomp: true,
+    name: 'Mammouth laineux', plural: 'mammouths laineux', kind: 'giant', look: 'th-mammouth', bite: 0.5, color: '#7A5A40', stomp: true,
     size: 250, speed: 130, sense: 0, adn: 120,
     fights: true, hp: 320, need: 5,
     eatLine: "Incroyable ! Toute la meute a vaincu le géant de la steppe. Personne ne l'oubliera !",
     fact: "Le mammouth laineux pesait autant que quatre voitures ! Dans la vraie vie, les loups s'attaquaient plutôt aux jeunes ou aux bêtes affaiblies, et les humains le chassaient en groupe, avec leurs lances.",
   },
   'rhino-laineux': {
-    name: 'Rhinocéros laineux', plural: 'rhinocéros laineux', kind: 'defender', look: 'th-rhino-laineux', reach: 0.635, color: '#7A6450', stomp: true, hurt: 'Aïe, la corne !', fights: true, hp: 220, need: 5,
+    name: 'Rhinocéros laineux', plural: 'rhinocéros laineux', kind: 'defender', look: 'th-rhino-laineux', bite: 0.635, color: '#7A6450', stomp: true, hurt: 'Aïe, la corne !', fights: true, hp: 220, need: 5,
     eatLine: "Ouf ! Il a chargé, mais à cinq, vous avez été les plus forts !",
     size: 190, speed: 190, sense: 260, adn: 80,
     fact: "Le rhinocéros laineux avait une corne de plus d'un mètre. Il fallait être nombreux pour l'approcher… et surtout ne pas rester devant lui !",
   },
   aurochs: {
-    name: 'Aurochs', plural: 'aurochs', kind: 'defender', look: 'th-aurochs', reach: 0.515, color: '#3E2E24', stomp: true, hurt: 'Aïe, les cornes !',
+    name: 'Aurochs', plural: 'aurochs', kind: 'defender', look: 'th-aurochs', bite: 0.515, color: '#3E2E24', stomp: true, hurt: 'Aïe, les cornes !',
     size: 190, speed: 170, sense: 260, adn: 0,
     fact: "L'aurochs était un bœuf sauvage géant, avec de grandes cornes. C'est l'ancêtre de toutes nos vaches !",
   },

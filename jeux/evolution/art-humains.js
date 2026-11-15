@@ -14,6 +14,11 @@
 //     (world.style = 'tqv', voir decor-tqv.js) : bison, cerf géant, saïga,
 //     bouquetin, rhinocéros laineux, lièvre, marmotte… ; le joueur louveteau,
 //     loup, chien et chien de berger ; la tente en peaux, le séchoir, les os.
+//     Et ceux de la voie des mammifères, dessinée elle aussi de trois quarts :
+//     de la musaraigne au tigre à dents de sabre (le joueur et ses rivaux),
+//     les petits chevaux, Andrewsarchus, Entelodon, Deinotherium… ; les
+//     reptiles, les oiseaux et les insectes (leurs profils d'art-cote.js, posés
+//     debout) ; les palmiers, les acacias, les terriers.
 //   - Le décor et les constructions : les arbres, les rochers, le silex,
 //     l'ocre, le blé sauvage, la grotte, le foyer, les huttes, l'enclos, les
 //     champs, le grenier, la palissade, la porte, la tour de guet ; et les
@@ -24,7 +29,7 @@
 
 import { INK, PLAYER, LOOKS, FORMS, FRAMES, FORM_SPINE, SNOUT, shade } from './art.js';
 import { drawMammal } from './art-profil.js';
-import './art-cote.js';
+import { STAND } from './art-cote.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -678,6 +683,11 @@ const horn = (kind) => (ctx, L, D, c, col, dark, lw) => {
     ctx.moveTo(0.1 * L, -0.45 * D);
     ctx.quadraticCurveTo(-0.2 * L, -1.15 * D, -0.45 * L, -0.85 * D);
     ctx.quadraticCurveTo(-0.15 * L, -0.95 * D, 0.25 * L, -0.42 * D);
+  } else if (kind === 'gazelle') {
+    // (l'antilope) de longues cornes fines, un peu recourbées vers l'arrière
+    ctx.moveTo(-0.02 * L, -0.42 * D);
+    ctx.quadraticCurveTo(-0.2 * L, -1.3 * D, -0.45 * L, -1.62 * D);
+    ctx.quadraticCurveTo(-0.08 * L, -1.22 * D, 0.12 * L, -0.4 * D);
   } else if (kind === 'bouquetin') {
     // (le bouquetin) d'immenses cornes en arc, qui partent vers l'arrière
     ctx.moveTo(0.02 * L, -0.42 * D);
@@ -758,6 +768,67 @@ function boarTusk(ctx, L, D) {
   ctx.quadraticCurveTo(0.7 * L, -0.25 * D, 0.62 * L, -0.32 * D);
   ctx.lineTo(0.66 * L, 0.12 * D);
   ctx.fill();
+}
+
+/* ---- (la voie des mammifères) ---- */
+/** La crinière des chevaux, le long du cou */
+function horseMane(ctx, r, pts, col) {
+  const n = pts.length;
+  const top = pts.slice(n - 3).map(([x, y, tp]) => [x * r, (y - tp * 0.92) * r]);
+  ctx.strokeStyle = shade(col, -0.5);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = r * 0.08;
+  ctx.beginPath();
+  top.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, r * 0.025);
+  ctx.beginPath();
+  for (let i = 0; i + 1 < top.length; i++) {
+    for (let k = 0; k < 4; k++) {
+      const u = k / 4, x = top[i][0] + (top[i + 1][0] - top[i][0]) * u, y = top[i][1] + (top[i + 1][1] - top[i][1]) * u;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - r * 0.08, y + r * 0.06);
+    }
+  }
+  ctx.stroke();
+}
+/** Les grosses bosses sous la mâchoire d'Entelodon, le « cochon de l'enfer » */
+function jawKnobs(ctx, L, D, c, col, dark, lw) {
+  ctx.fillStyle = shade(col, -0.1);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  for (const [x, y, k] of [[0.05, 0.36, 0.14], [0.4, 0.3, 0.11]]) {
+    ell(ctx, x * L, y * D, k * L, k * D * 1.4);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+/** La trompe de Deinotherium… et ses défenses, plantées dans la mâchoire du bas, recourbées vers le sol */
+function deinoHead(ctx, L, D, c, col, dark, lw) {
+  const sw = Math.sin((c.walk || 0) * 1.5 + (c.seed || 0)) * 0.05;
+  ctx.fillStyle = shade(col, 0.06);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw * 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0.48 * L, -0.12 * D);
+  ctx.quadraticCurveTo((0.95 + sw) * L, 0.1 * D, (0.9 + sw * 2) * L, 0.85 * D);
+  ctx.quadraticCurveTo((0.88 + sw * 2) * L, 1.1 * D, (1.02 + sw * 2) * L, 1.08 * D);
+  ctx.lineTo((1.02 + sw * 2) * L, 0.92 * D);
+  ctx.quadraticCurveTo((0.74 + sw) * L, 0.4 * D, 0.42 * L, 0.3 * D);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#F4ECD8';
+  ctx.strokeStyle = '#7A6A50';
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(0.3 * L, 0.3 * D);
+  ctx.quadraticCurveTo(0.42 * L, 0.85 * D, 0.12 * L, 1.0 * D);
+  ctx.quadraticCurveTo(0.26 * L, 0.78 * D, 0.14 * L, 0.32 * D);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 }
 
 /* ---- Les bêtes de la steppe de l'âge de glace (le niveau du loup) ---- */
@@ -1050,6 +1121,149 @@ const MAM = {
     legW: 0.08, stride: 0.22, cadence: 3.4,
     tail: { len: 0.6, w: 0.04, droop: 0.3, curl: -0.2, type: 'fine' },
   },
+  // (la voie des mammifères) le joueur et ses rivaux : de la musaraigne au tigre à dents de sabre…
+  musaraigne: {
+    ground: 0.6, hip: [-0.55, -0.02], shoulder: [0.38, 0.02], depth: 0.36, midTop: 1.05,
+    neck: [[0.56, -0.04, 0.3], [0.66, -0.08, 0.28]],
+    head: { x: 0.76, y: -0.13, L: 0.72, D: 0.5, snout: 0.32, ear: 'rond', earR: 0.85, noseCol: '#C9727E', eye: [0.12, -0.16], eyeR: 0.14, teeth: true },
+    legW: 0.09, stride: 0.3, cadence: 2.6,
+    tail: { len: 1.5, w: 0.05, droop: 0.25, curl: -0.25, type: 'fine' },
+  },
+  miacis: {
+    ground: 0.55, hip: [-0.62, -0.06], shoulder: [0.45, -0.06], depth: 0.28, midTop: 1.05,
+    neck: [[0.62, -0.12, 0.21], [0.72, -0.18, 0.19]],
+    head: { x: 0.84, y: -0.26, L: 0.62, D: 0.44, snout: 0.4, ear: 'rond', earR: 0.8, eye: [0.16, -0.18], eyeR: 0.13, teeth: true },
+    legW: 0.08, stride: 0.26, cadence: 2.8,
+    tail: { len: 1.2, w: 0.1, droop: 0.3, curl: 0.3, type: 'touffue' },
+  },
+  proailurus: {
+    ground: 0.75, hip: [-0.55, -0.12], shoulder: [0.4, -0.14], depth: 0.3, belly: 0.85,
+    neck: [[0.6, -0.22, 0.22], [0.7, -0.3, 0.2]],
+    head: { x: 0.82, y: -0.36, L: 0.55, D: 0.5, snout: 0.3, dome: 0.35, ear: 'pointe', earR: 0.75, eye: [0.18, -0.18], eyeR: 0.13, teeth: true, iris: '#9AC23A' },
+    legW: 0.085, stride: 0.34, cadence: 2.4,
+    tail: { len: 1.1, w: 0.07, droop: 0.2, curl: 0.5, type: 'fine' },
+  },
+  machairodus: {
+    ground: 0.85, hip: [-0.55, -0.18], shoulder: [0.42, -0.24], depth: 0.36, hump: 1.05, belly: 0.9,
+    neck: [[0.62, -0.32, 0.27], [0.74, -0.4, 0.25]],
+    head: { x: 0.86, y: -0.44, L: 0.6, D: 0.52, snout: 0.32, dome: 0.25, ear: 'pointe', earR: 0.55, eye: [0.16, -0.2], eyeR: 0.11, iris: '#D9A13A', saber: 0.32, teeth: true },
+    legW: 0.11, foreW: 1.1, stride: 0.36, cadence: 2.1,
+    tail: { len: 0.9, w: 0.08, droop: 0.4, curl: 0.3, type: 'fine' },
+  },
+  homotherium: {
+    ground: 0.9, hip: [-0.55, -0.08], shoulder: [0.42, -0.3], depth: 0.38, hump: 1.1,
+    neck: [[0.62, -0.4, 0.28], [0.74, -0.48, 0.26]],
+    head: { x: 0.86, y: -0.52, L: 0.62, D: 0.52, snout: 0.35, ear: 'pointe', earR: 0.5, eye: [0.16, -0.2], eyeR: 0.11, iris: '#D9A13A', saber: 0.42, teeth: true },
+    legW: 0.12, foreW: 1.15, stride: 0.36, cadence: 2,
+    tail: { len: 0.35, w: 0.08, droop: 0.5, type: 'fine' },
+  },
+  // … les petits chevaux, le primate, le lapin…
+  eohippus: {
+    ground: 0.7, hip: [-0.45, -0.18], shoulder: [0.36, -0.14], depth: 0.34, hipTop: 1.15,
+    neck: [[0.52, -0.24, 0.2], [0.6, -0.34, 0.18]],
+    head: { x: 0.7, y: -0.4, L: 0.52, D: 0.4, snout: 0.55, ear: 'pointe', earR: 0.6, eye: [0.14, -0.18], eyeR: 0.13, noseCol: '#3A2A20' },
+    legW: 0.065, stride: 0.3, cadence: 2.6, spots: 8, stripeCol: '#E8D2A8',
+    tail: { len: 0.35, w: 0.06, droop: 0.7, type: 'touffue' },
+  },
+  darwinius: {
+    ground: 0.55, hip: [-0.4, -0.16], shoulder: [0.32, -0.06], depth: 0.3, hipTop: 1.1,
+    neck: [[0.46, -0.12, 0.2], [0.54, -0.2, 0.19]],
+    head: { x: 0.64, y: -0.3, L: 0.46, D: 0.5, snout: 0.25, dome: 0.5, ear: 'rond', earR: 0.7, eye: [0.2, -0.15], eyeR: 0.2, noseCol: '#3A2A28' },
+    legW: 0.07, stride: 0.26, cadence: 2.6,
+    tail: { len: 1.5, w: 0.08, droop: -0.2, curl: 0.8, type: 'touffue' },
+  },
+  palaeolagus: {
+    ground: 0.6, hip: [-0.36, -0.1], shoulder: [0.3, 0.02], depth: 0.38, hipTop: 1.15, midTop: 1.1, belly: 0.9,
+    neck: [[0.48, -0.06, 0.27], [0.56, -0.14, 0.25]],
+    head: { x: 0.66, y: -0.24, L: 0.62, D: 0.52, snout: 0.3, dome: 0.3, ear: 'pointe', earR: 1.25, eye: [0.12, -0.18], eyeR: 0.15, noseCol: '#B8707A' },
+    legW: 0.085, stride: 0.3, cadence: 3,
+    tail: { len: 0.12, w: 0.12, droop: -1.4, type: 'touffue' },
+  },
+  mesohippus: {
+    ground: 0.9, hip: [-0.48, -0.24], shoulder: [0.38, -0.24], depth: 0.32,
+    neck: [[0.56, -0.38, 0.2], [0.66, -0.52, 0.18]],
+    head: { x: 0.76, y: -0.56, L: 0.56, D: 0.38, snout: 0.6, ear: 'pointe', earR: 0.65, eye: [0.12, -0.2], eyeR: 0.12, noseCol: '#3A2A20' },
+    legW: 0.065, stride: 0.38, cadence: 2.4, extra: horseMane,
+    tail: { len: 0.55, w: 0.07, droop: 1.0, type: 'touffue' },
+  },
+  hipparion: {
+    ground: 1.0, hip: [-0.5, -0.28], shoulder: [0.4, -0.28], depth: 0.35,
+    neck: [[0.58, -0.44, 0.22], [0.7, -0.6, 0.2]],
+    head: { x: 0.8, y: -0.64, L: 0.6, D: 0.4, snout: 0.62, ear: 'pointe', earR: 0.6, eye: [0.12, -0.2], eyeR: 0.11, noseCol: '#3A2A20' },
+    legW: 0.07, stride: 0.42, cadence: 2.3, extra: horseMane,
+    tail: { len: 0.7, w: 0.08, droop: 1.0, type: 'touffue' },
+  },
+  cheval: {
+    ground: 1.0, hip: [-0.52, -0.3], shoulder: [0.4, -0.3], depth: 0.4, belly: 1.0,
+    neck: [[0.58, -0.46, 0.25], [0.7, -0.62, 0.22]],
+    head: { x: 0.8, y: -0.66, L: 0.62, D: 0.42, snout: 0.62, ear: 'pointe', earR: 0.55, eye: [0.12, -0.2], eyeR: 0.1, noseCol: '#2A2024' },
+    legW: 0.08, stride: 0.4, cadence: 2.2, extra: horseMane,
+    tail: { len: 0.75, w: 0.1, droop: 1.0, type: 'touffue' },
+  },
+  gazelle: {
+    ground: 1.0, hip: [-0.5, -0.28], shoulder: [0.38, -0.28], depth: 0.3,
+    neck: [[0.56, -0.44, 0.18], [0.66, -0.56, 0.16]],
+    head: { x: 0.76, y: -0.6, L: 0.52, D: 0.4, snout: 0.55, ear: 'pointe', earR: 0.8, eye: [0.14, -0.2], eyeR: 0.15, noseCol: '#2A2024', extra: horn('gazelle') },
+    legW: 0.055, stride: 0.44, cadence: 2.4,
+    tail: { len: 0.14, w: 0.06, droop: 0.3, type: 'touffue' },
+  },
+  // … et les grands, les étranges, les terribles
+  andrewsarchus: {
+    ground: 0.85, hip: [-0.5, -0.24], shoulder: [0.32, -0.3], depth: 0.4, hump: 1.15,
+    neck: [[0.5, -0.32, 0.32], [0.6, -0.32, 0.3]],
+    head: { x: 0.82, y: -0.3, L: 1.0, D: 0.56, snout: 0.55, ear: 'pointe', earR: 0.35, eye: [0.0, -0.2], eyeR: 0.07, teeth: true, gape: 0.7, noseCol: '#2A2024' },
+    legW: 0.11, stride: 0.3, cadence: 2,
+    tail: { len: 0.6, w: 0.07, droop: 0.7, type: 'fine' },
+  },
+  ambulocetus: {
+    ground: 0.45, hip: [-0.55, 0], shoulder: [0.36, 0], depth: 0.32,
+    neck: [[0.54, -0.04, 0.26], [0.64, -0.06, 0.23]],
+    head: { x: 0.78, y: -0.1, L: 0.95, D: 0.38, snout: 0.5, ear: 'rond', earR: 0.3, eye: [0.05, -0.25], eyeR: 0.08, teeth: true, gape: 0.8 },
+    legW: 0.1, stride: 0.22, cadence: 2.2,
+    tail: { len: 1.0, w: 0.15, droop: 0.1, type: 'fine' },
+  },
+  hyaenodon: {
+    ground: 0.75, hip: [-0.56, -0.12], shoulder: [0.4, -0.18], depth: 0.32,
+    neck: [[0.6, -0.26, 0.25], [0.72, -0.3, 0.22]],
+    head: { x: 0.86, y: -0.34, L: 0.82, D: 0.48, snout: 0.45, ear: 'rond', earR: 0.5, eye: [0.06, -0.22], eyeR: 0.09, teeth: true, gape: 0.7, iris: '#C99A3A' },
+    legW: 0.09, stride: 0.32, cadence: 2.3,
+    tail: { len: 0.8, w: 0.08, droop: 0.5, type: 'fine' },
+  },
+  entelodon: {
+    ground: 1.0, hip: [-0.5, -0.3], shoulder: [0.32, -0.4], depth: 0.42, hump: 1.4, belly: 0.9,
+    neck: [[0.5, -0.36, 0.34], [0.62, -0.28, 0.3]],
+    head: { x: 0.76, y: -0.22, L: 0.78, D: 0.58, snout: 0.55, ear: 'pointe', earR: 0.4, eye: [0.0, -0.22], eyeR: 0.07, teeth: true, gape: 0.7, noseCol: '#3A2A28', extra: jawKnobs },
+    legW: 0.09, stride: 0.36, cadence: 2,
+    tail: { len: 0.3, w: 0.04, droop: 0.6, type: 'fine' }, extra: bristles,
+  },
+  chalicothere: {
+    ground: 1.05, hip: [-0.5, 0.0], shoulder: [0.36, -0.4], depth: 0.4, hump: 1.1,
+    neck: [[0.54, -0.52, 0.26], [0.66, -0.62, 0.23]],
+    head: { x: 0.78, y: -0.66, L: 0.6, D: 0.42, snout: 0.55, ear: 'pointe', earR: 0.6, eye: [0.12, -0.2], eyeR: 0.1, noseCol: '#2A2024' },
+    legW: 0.1, foreW: 1.15, stride: 0.3, cadence: 1.8,
+    tail: { len: 0.25, w: 0.05, droop: 0.8, type: 'fine' },
+  },
+  amphicyon: {
+    ground: 0.85, hip: [-0.52, -0.24], shoulder: [0.36, -0.3], depth: 0.44, hump: 1.15, belly: 1.0,
+    neck: [[0.54, -0.32, 0.34], [0.66, -0.36, 0.3]],
+    head: { x: 0.8, y: -0.42, L: 0.74, D: 0.5, snout: 0.45, ear: 'rond', earR: 0.6, eye: [0.12, -0.22], eyeR: 0.09, teeth: true, gape: 0.6 },
+    legW: 0.14, foreW: 1.05, stride: 0.28, cadence: 1.8,
+    tail: { len: 0.5, w: 0.08, droop: 0.7, type: 'touffue' },
+  },
+  paraceratherium: {
+    ground: 1.25, hip: [-0.55, -0.32], shoulder: [0.36, -0.4], depth: 0.42, hump: 1.1,
+    neck: [[0.55, -0.6, 0.26], [0.68, -0.85, 0.22]],
+    head: { x: 0.82, y: -0.95, L: 0.6, D: 0.4, snout: 0.6, ear: 'pointe', earR: 0.5, eye: [0.1, -0.2], eyeR: 0.08, noseCol: '#2A2024' },
+    legW: 0.11, stride: 0.36, cadence: 1.5,
+    tail: { len: 0.4, w: 0.04, droop: 0.9, type: 'fine' },
+  },
+  deinotherium: {
+    ground: 1.15, hip: [-0.48, -0.3], shoulder: [0.3, -0.5], depth: 0.6, hump: 1.2, hipTop: 0.9, belly: 1.0, pillar: true,
+    neck: [[0.5, -0.56, 0.48], [0.6, -0.54, 0.46]],
+    head: { x: 0.64, y: -0.6, L: 0.6, D: 0.92, snout: 0.85, dome: 0.8, ear: 'rond', earR: 0.45, eye: [0.22, -0.08], eyeR: 0.06, muzzle: false, extra: deinoHead },
+    legW: 0.15, foreW: 1.05, stride: 0.22, cadence: 1.3,
+    tail: { len: 0.3, w: 0.05, droop: 1.1, type: 'fine' },
+  },
 };
 
 /* ============================================================================
@@ -1144,6 +1358,83 @@ LOOKS['th-os'] = (ctx, c, t) => {
 };
 FRAMES['th-os'] = { r: 0.3, x: 0.5, y: 0.62 };
 
+/* ---- (la voie des mammifères) les reptiles, les oiseaux et les insectes : leurs dessins de profil
+   (art-cote.js), posés debout sur le sol ; ceux qui vivent dans l'eau (c.inWater) y sont à moitié plongés ---- */
+/** Dans l'eau : on ne voit que le haut du corps, et des ronds autour */
+function swimming(ctx, c, s, draw) {
+  const wl = c.y - s * 0.12;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(c.x - s * 6, wl - s * 6, s * 12, s * 6);
+  ctx.clip();
+  draw(s * 0.32);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.lineWidth = Math.max(1.5, s * 0.04);
+  for (let i = 0; i < 2; i++) {
+    const k = ((c.walk || 0) * 0.15 + i * 0.5) % 1;
+    ctx.globalAlpha = 1 - k;
+    ell(ctx, c.x, wl, s * (0.8 + k * 0.9), s * (0.18 + k * 0.2));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+/** Un look « vc-… » (vue de côté), debout sur le sol ; k = sa taille dessinée */
+function standing(vc, k = 1) {
+  return (ctx, c, t) => {
+    const face = c.face || (Math.cos(c.angle || 0) >= 0 ? 1 : -1);
+    const s = c.size * k;
+    const draw = (sink = 0) => LOOKS[vc](ctx, { ...c, size: s, y: c.y + sink - (STAND[vc] ?? 0.5) * s, loco: 'sol', face, angle: face > 0 ? 0 : Math.PI, pitch: 0 }, t);
+    if (c.inWater) { swimming(ctx, c, s, draw); return; }
+    groundShadow(ctx, c.x, c.y, s * 0.9, s * 0.22, 0.22);
+    draw();
+  };
+}
+for (const [id, vc, k] of [['lezard', 'vc-lezard', 1], ['titanoboa', 'vc-titanoboa', 0.8], ['crocodile', 'vc-crocodile', 0.9], ['crocodile-coureur', 'vc-megalania', 0.9],
+  ['oiseau-terreur', 'vc-phorusrhacos', 1], ['gastornis', 'vc-genyornis', 0.55], ['insecte', 'vc-grillon', 1.3]]) {
+  LOOKS[`th-${id}`] = standing(vc, k);
+  FRAMES[`th-${id}`] = { r: 0.24, x: 0.5, y: 0.78 };
+}
+// (Ambulocetus, la baleine qui marchait) lui aussi se plonge dans l'eau
+{
+  const walk = LOOKS['th-ambulocetus'], P = MAM.ambulocetus;
+  LOOKS['th-ambulocetus'] = (ctx, c, t) => (c.inWater ? swimming(ctx, c, c.size, (sink) => walk(ctx, { ...c, y: c.y + sink }, t)) : walk(ctx, c, t));
+  SNOUT['th-ambulocetus'] = P.head.x + P.head.L * 0.7;
+}
+/** Le mille-pattes, de profil : un long corps en anneaux, et plein de petites pattes qui ondulent */
+LOOKS['th-millepattes'] = (ctx, c, t) => {
+  const r = c.size, face = c.face || (Math.cos(c.angle || 0) >= 0 ? 1 : -1), col = c.sp.color;
+  groundShadow(ctx, c.x, c.y, r * 1.5, r * 0.25, 0.2);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.scale(face, 1);
+  const n = 11, ph = (c.walk || 0) * 4;
+  ctx.strokeStyle = shade(col, -0.45);
+  ctx.lineWidth = Math.max(0.8, r * 0.08);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1) - 0.55) * r * 2.6, sw = Math.sin(ph - i * 0.9) * r * 0.12;
+    ctx.moveTo(x, -r * 0.3);
+    ctx.lineTo(x + sw, 0);
+  }
+  ctx.stroke();
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1) - 0.55) * r * 2.6, y = -r * 0.42 + Math.sin(ph * 0.5 - i * 0.6) * r * 0.04;
+    ctx.fillStyle = i % 2 ? col : shade(col, -0.12);
+    ctx.strokeStyle = shade(col, -0.5);
+    ctx.lineWidth = Math.max(0.6, r * 0.05);
+    ell(ctx, x, y, r * 0.2, r * 0.22);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#1E1612';
+  circle(ctx, r * 0.95, -r * 0.48, r * 0.05);
+  ctx.fill();
+  ctx.restore();
+};
+FRAMES['th-millepattes'] = { r: 0.22, x: 0.5, y: 0.7 };
+
 /* ---- Le joueur : sa forme à chaque époque, et ses inventions qui se voient ---- */
 const HERO = {
   'th-erectus': (P) => ({ bare: !P.vetements, cloth: P.vetements ? PLAYER.body : '#8A6440', brow: true, style: 'hirsute', beard: true, tool: P.feu ? 'torche' : null }),
@@ -1217,6 +1508,72 @@ for (const id of Object.keys(DOG_BASE)) {
   };
 }
 
+/* ---- (la voie des mammifères) Le joueur : la musaraigne, Miacis, Proailurus, Machairodus,
+   Homotherium. Ses évolutions se voient : les moustaches, la fourrure, les grandes oreilles, les
+   pattes plus longues, les dents de sabre qui grandissent. Ses rayures sont celles du chapitre
+   (skin.stripe). La portée de sa gueule est la même que vue de dessus. ---- */
+const MAM_REACH = { musaraigne: 0.515, miacis: 0.5, proailurus: 0.463, machairodus: 0.485, homotherium: 0.515 };
+/** Les moustaches, de chaque côté du museau */
+function whiskers(ctx, L, D) {
+  ctx.strokeStyle = 'rgba(40, 30, 20, 0.7)';
+  ctx.lineWidth = Math.max(0.6, D * 0.025);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const [dy, ey] of [[-0.02, -0.18], [0.04, 0.02], [0.1, 0.2]]) {
+    ctx.moveTo(0.58 * L, dy * D);
+    ctx.quadraticCurveTo(0.85 * L, (dy + ey * 0.4) * D, 1.08 * L, (dy + ey) * D);
+  }
+  ctx.stroke();
+}
+/** Des rayures sur le dos (la couleur du chapitre) */
+function backStripes(ctx, r, pts, col, dark, lw, fine) {
+  if (!fine || !PLAYER.stripe) return;
+  ctx.strokeStyle = PLAYER.stripe;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = r * 0.05;
+  ctx.beginPath();
+  const x0 = pts[1][0] + 0.05, x1 = pts[4][0];
+  for (let i = 0; i < 6; i++) {
+    const x = x0 + (x1 - x0) * (i + 0.5) / 6;
+    let a = pts[0], b = pts[pts.length - 1];
+    for (let j = 1; j < pts.length; j++) if (pts[j][0] >= x) { a = pts[j - 1]; b = pts[j]; break; }
+    const k = (x - a[0]) / ((b[0] - a[0]) || 1);
+    const y = a[1] + (b[1] - a[1]) * k, tp = a[2] + (b[2] - a[2]) * k;
+    ctx.moveTo(x * r, (y - tp * 0.9) * r);
+    ctx.quadraticCurveTo((x - 0.04) * r, (y - tp * 0.4) * r, (x + 0.02) * r, (y - tp * 0.05) * r);
+  }
+  ctx.stroke();
+}
+const MAM_CACHE = new Map();
+function mamForm(id, P) {
+  const key = `${id}${['pattes-agiles', 'moustaches', 'oreilles', 'dents-de-sabre', 'grands-sabres', 'fourrure-epaisse'].map((k) => (P[k] ? 1 : 0)).join('')}`;
+  let Q = MAM_CACHE.get(key);
+  if (!Q) {
+    const B = MAM[id];
+    Q = { ...B, head: { ...B.head }, extra: backStripes };
+    if (P['pattes-agiles']) Q.stride = B.stride * 1.15;
+    if (P.oreilles) Q.head.earR = B.head.earR * 1.45;
+    if (P.moustaches) Q.head.extra = whiskers;
+    if (B.head.saber) Q.head.saber = B.head.saber * (P['dents-de-sabre'] ? 1.3 : 1) * (P['grands-sabres'] ? 1.45 : 1);
+    if (P['fourrure-epaisse']) Q.depth = B.depth * 1.08;
+    MAM_CACHE.set(key, Q);
+  }
+  return Q;
+}
+for (const id of Object.keys(MAM_REACH)) {
+  const form = `th-${id}`;
+  FORM_SPINE[form] = null;
+  FRAMES[form] = { r: 0.27, x: 0.46, y: 0.82 };
+  SNOUT[form] = MAM_REACH[id];
+  FORMS[form] = (ctx, p, parts, t, mood) => {
+    const P = parts || {};
+    const Q = mamForm(id, P);
+    drawMammal(ctx, { ...p, sp: { kind: 'player' }, mood, seed: 0, y: p.y - Q.ground * p.size }, t, Q, PLAYER.body, {
+      belly: PLAYER.belly, stripe: PLAYER.stripe || shade(PLAYER.body, -0.3), cute: true, fluffy: !!(P.fourrure || P['fourrure-epaisse']),
+    });
+  };
+}
+
 /* ============================================================================
    LE DÉCOR, debout (les arbres, les rochers, les ressources)
    d : { type, x, y, r, seed, amount, max } ; pal : les couleurs du chapitre
@@ -1251,6 +1608,32 @@ export function drawTree(ctx, d, t, pal) {
     for (let i = 0; i < 5; i++) ctx.fillRect(x - tw * 0.6 + rnd() * tw * 0.8, y - r * (0.2 + i * 0.25), tw * 0.5, r * 0.04);
   }
   const leaf = pal.leaf || ['#2E5E2A', '#3E7A34', '#5E9A44'];
+  if (kind === 'acacia') {
+    // (la savane) un acacia : des branches en V, et un grand toit de feuilles tout plat
+    ctx.strokeStyle = shade(bark, -0.6);
+    ctx.lineCap = 'round';
+    for (const [w, col] of [[tw * 1.1 + 5, shade(bark, -0.6)], [tw * 1.1, bark]]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(x, y - H * 0.9);
+      ctx.quadraticCurveTo(x - r * 0.2, y - H * 1.2, x - r * 0.7 + sw, y - H * 1.42);
+      ctx.moveTo(x, y - H * 0.9);
+      ctx.quadraticCurveTo(x + r * 0.25, y - H * 1.15, x + r * 0.75 + sw, y - H * 1.4);
+      ctx.stroke();
+    }
+    const cy = y - H * 1.5;
+    for (const [dy, k, col] of [[0, 1, leaf[0]], [-r * 0.12, 0.85, leaf[1]], [-r * 0.22, 0.55, leaf[2]]]) {
+      ctx.fillStyle = col;
+      ctx.strokeStyle = shade(leaf[0], -0.4);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(x + sw, cy + dy, r * 1.35 * k, r * 0.32 * k, 0, 0, TAU);
+      ctx.fill();
+      if (k === 1) ctx.stroke();
+    }
+    return;
+  }
   if (kind === 'pin') {
     // un sapin : des étages de branches, un peu de neige à l'âge de glace
     for (let i = 0; i < 4; i++) {
@@ -1309,6 +1692,93 @@ export function drawTree(ctx, d, t, pal) {
       circle(ctx, b.x + Math.cos(i * 2.4) * b.r * 0.5, b.y + Math.sin(i * 2.4) * b.r * 0.4, 5);
       ctx.fill();
     }
+  }
+}
+
+/** Un palmier : un tronc souple, tout en anneaux, et un bouquet de grandes palmes */
+export function drawPalm(ctx, d, t, pal) {
+  const { x, y, r } = d;
+  const rnd = seeded(d.seed);
+  const lean = (rnd() - 0.5) * r * 0.9, H = r * 2.6;
+  const sw = Math.sin(t * 0.9 + d.seed) * r * 0.05;
+  groundShadow(ctx, x + lean * 0.5, y, r * 0.9, r * 0.25, 0.22);
+  const tx = x + lean + sw, ty = y - H;
+  for (const [w, col] of [[r * 0.24 + 5, '#4A3424'], [r * 0.24, '#8A6A44']]) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + lean * 0.1, y - H * 0.55, tx, ty);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(50, 30, 15, 0.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 1; i < 9; i++) {
+    const u = i / 9, bx = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * (x + lean * 0.1) + u * u * tx, by = (1 - u) * (1 - u) * y + 2 * (1 - u) * u * (y - H * 0.55) + u * u * ty;
+    ctx.moveTo(bx - r * 0.12, by);
+    ctx.lineTo(bx + r * 0.12, by - r * 0.04);
+  }
+  ctx.stroke();
+  // les palmes, qui retombent tout autour
+  const leaf = pal.leaf || ['#2E5E2A', '#3E7A34', '#5E9A44'];
+  for (let i = 0; i < 8; i++) {
+    const a = -Math.PI / 2 + (i - 3.5) * 0.42 + Math.sin(t * 1.2 + i + d.seed) * 0.04;
+    const L = r * (1.25 + (i % 2) * 0.25), ex = tx + Math.cos(a) * L * 1.1, ey = ty + Math.sin(a) * L * 0.5 + L * 0.55;
+    const cx = tx + Math.cos(a) * L * 0.6, cy = ty - L * 0.35;
+    ctx.strokeStyle = shade(leaf[0], -0.35);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(cx, cy, ex, ey);
+    ctx.stroke();
+    ctx.fillStyle = leaf[i % 3];
+    for (let k = 1; k <= 7; k++) {
+      const u = k / 8;
+      const px = (1 - u) * (1 - u) * tx + 2 * (1 - u) * u * cx + u * u * ex, py = (1 - u) * (1 - u) * ty + 2 * (1 - u) * u * cy + u * u * ey;
+      ell(ctx, px, py + r * 0.06, r * 0.07, r * 0.2 * (1 - u * 0.5), a + Math.PI / 2);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#6A4A2A';
+  for (let i = 0; i < 3; i++) {
+    circle(ctx, tx + (i - 1) * r * 0.12, ty + r * 0.12, r * 0.09);
+    ctx.fill();
+  }
+}
+
+/** Un terrier : un petit tas de terre, et son trou tout noir */
+export function drawBurrow(ctx, d, pal) {
+  const { x, y, r } = d;
+  const dirt = pal.burrow || '#8A6A44';
+  groundShadow(ctx, x, y + 2, r * 1.0, r * 0.3, 0.25);
+  ctx.fillStyle = dirt;
+  ctx.strokeStyle = shade(dirt, -0.5);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x - r, y);
+  ctx.quadraticCurveTo(x - r * 0.75, y - r * 0.62, x, y - r * 0.66);
+  ctx.quadraticCurveTo(x + r * 0.75, y - r * 0.62, x + r, y);
+  ctx.quadraticCurveTo(x, y + r * 0.22, x - r, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = shade(dirt, 0.15);
+  ell(ctx, x - r * 0.2, y - r * 0.45, r * 0.4, r * 0.12);
+  ctx.fill();
+  ctx.fillStyle = '#1E140C';
+  ctx.beginPath();
+  ctx.ellipse(x + r * 0.05, y - r * 0.1, r * 0.34, r * 0.24, 0, Math.PI, 0);
+  ctx.lineTo(x + r * 0.39, y + r * 0.02);
+  ctx.lineTo(x - r * 0.29, y + r * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  // quelques cailloux
+  ctx.fillStyle = shade(dirt, -0.2);
+  for (let i = 0; i < 4; i++) {
+    circle(ctx, x + (i - 1.5) * r * 0.42, y + r * 0.04 + (i % 2) * r * 0.06, r * 0.06);
+    ctx.fill();
   }
 }
 

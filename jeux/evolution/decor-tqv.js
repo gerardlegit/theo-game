@@ -1,7 +1,8 @@
 // ============================================================================
 // Évolution — un niveau « vu de dessus » redessiné en VUE DE TROIS QUARTS
-// (world.style === 'tqv' : le niveau du loup). Le moteur ne change pas : les
-// mares, la neige, les camps, l'enclos, les hautes herbes et les arbres sont
+// (world.style === 'tqv' : le niveau du loup, la voie des mammifères). Le
+// moteur ne change pas : les mares, la neige, la boue, les camps, l'enclos,
+// les hautes herbes, les terriers et les arbres sont
 // ceux de world.decor (voir script.js), aux mêmes places et avec les mêmes
 // règles ; seul leur dessin change, dans le style de la voie des humains :
 //   - à plat, sur le sol : la neige, l'eau des mares (gelée sur les bords à
@@ -11,7 +12,8 @@
 //     les arbres, les rochers, les hautes herbes où l'on se cache, les
 //     roseaux, les buissons, les os des grands repas, les tentes en peaux, le
 //     séchoir et le feu des camps, les huttes des villages, la barrière de
-//     l'enclos.
+//     l'enclos ; et pour la voie des mammifères : la boue, les fougères, les
+//     terriers, les palmiers, les acacias de la savane.
 // Un grand objet planté devant le joueur devient transparent : on le voit
 // toujours. (Les dessins sont dans art-humains.js ; les couleurs, dans
 // chapters[].palette ; la végétation en plus, dans world.land.)
@@ -20,7 +22,7 @@
 import { shade } from './art.js';
 import {
   drawTree, drawRock, drawBush, drawGrass, drawFern, drawFlowers, drawReeds, drawDecal, drawHearth, drawHut, drawPost,
-  drawTent, drawRack, drawBones,
+  drawTent, drawRack, drawBones, drawPalm, drawBurrow,
 } from './art-humains.js';
 
 const TAU = Math.PI * 2;
@@ -120,6 +122,16 @@ export function createDecorTqv(api) {
         case 'neige':
           flats.push({ k: 'neige', x: d.x, y: d.y, r: d.r, seed: d.seed, edge: wobble(d.seed, 12), ...s });
           break;
+        case 'boue':
+          flats.push({ k: 'boue', x: d.x, y: d.y, r: d.r, seed: d.seed, edge: wobble(d.seed, 12), ...s });
+          break;
+        case 'palmier':
+          add({ type: 'palmier', x: d.x, y: d.y, r: d.r * 0.75, seed: d.seed, tall: true, ...s });
+          break;
+        case 'terrier':
+          // le terrier, où se cache le petit mammifère
+          add({ type: 'terrier', x: d.x, y: d.y, r: d.r * 0.7, seed: d.seed, ...s });
+          break;
         case 'camp': {
           // le camp de l'âge de glace : le feu au milieu, trois tentes en peaux, le séchoir
           flats.push({ k: 'terre', x: d.x, y: d.y, r: d.r, ...s });
@@ -169,12 +181,13 @@ export function createDecorTqv(api) {
           break;
         default:
           if (d.hide) {
-            // les hautes herbes où l'on se cache : des touffes serrées, sur une tache d'herbe sèche
+            // les hautes herbes (ou les fougères) où l'on se cache : des touffes serrées, sur une tache d'herbe
             flats.push({ k: 'herbe', x: d.x, y: d.y, r: d.r, ...s });
-            const n = Math.max(6, Math.round((d.r / 36) ** 2 * 0.85));
+            const fern = d.type === 'fougeres';
+            const n = Math.max(6, Math.round((d.r / (fern ? 44 : 36)) ** 2 * 0.85));
             for (let i = 0; i < n; i++) {
               const a = rnd() * TAU, k = Math.sqrt(rnd()) * 0.86;
-              add({ type: 'herbes', x: d.x + Math.cos(a) * d.r * k, y: d.y + Math.sin(a) * d.r * k, r: R(44, 60), seed: sd(), ...s });
+              add({ type: fern ? 'fougere' : 'herbes', x: d.x + Math.cos(a) * d.r * k, y: d.y + Math.sin(a) * d.r * k, r: fern ? R(48, 68) : R(44, 60), seed: sd(), ...s });
             }
           }
       }
@@ -223,6 +236,7 @@ export function createDecorTqv(api) {
     for (const f of flats) {
       if (f.k === 'mare' || !vis(f, 40)) continue;
       if (f.k === 'neige') drawDrift(ctx, f, t, P);
+      else if (f.k === 'boue') drawMud(ctx, f, t, P);
       else {
         // la terre battue des camps, l'herbe foulée de l'enclos, l'herbe sèche des cachettes
         const col = f.k === 'terre' ? P.dirt : f.k === 'pre' ? P.pen : P.hideBase;
@@ -237,6 +251,28 @@ export function createDecorTqv(api) {
       }
     }
     for (const f of flats) if (f.k === 'mare' && vis(f, 40)) drawPond(ctx, f, t, P);
+  }
+
+  /** Une flaque de boue : brune et mouillée, qui brille un peu */
+  function drawMud(ctx, f, t, P) {
+    const mud = P.mud || '#5A4630';
+    ctx.fillStyle = shade(mud, 0.12);
+    blob(ctx, f.x, f.y, f.r, f.edge, 0.95, 0.85);
+    ctx.fill();
+    ctx.fillStyle = mud;
+    blob(ctx, f.x, f.y, f.r, f.edge, 0.8, 0.8);
+    ctx.fill();
+    ctx.fillStyle = shade(mud, -0.18);
+    blob(ctx, f.x + f.r * 0.05, f.y + f.r * 0.05, f.r, f.edge, 0.5, 0.75);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    const rnd = mulberry32(f.seed);
+    for (let i = 0; i < 5; i++) {
+      const a = rnd() * TAU, d = Math.sqrt(rnd()) * f.r * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.8, f.r * 0.12, f.r * 0.04, 0, 0, TAU);
+      ctx.fill();
+    }
   }
 
   /** Une congère : un tas de neige tout doux, avec son ombre bleutée et ses paillettes */
@@ -320,8 +356,10 @@ export function createDecorTqv(api) {
      ============================================================================ */
   function uprights(x0, x1, y0, y1) {
     const out = [];
-    inCells(grid, x0 - 250, x1 + 250, y0 - 100, y1 + 450, (o) => {
-      if (now(o) && o.x + o.r * 1.6 > x0 && o.x - o.r * 1.6 < x1) out.push({ y: o.y, deco: o });
+    const k = pal().decorK || 1;
+    inCells(grid, x0 - 250 * k, x1 + 250 * k, y0 - 100, y1 + 450 * k, (o) => {
+      const r = o.r * (pal().decorK || 1);
+      if (now(o) && o.x + r * 1.6 > x0 && o.x - r * 1.6 < x1) out.push({ y: o.y, deco: o });
     });
     return out;
   }
@@ -330,14 +368,20 @@ export function createDecorTqv(api) {
   function box(o) {
     switch (o.type) {
       case 'arbre': return [o.r * (o.kind === 'pin' ? 3.0 : 3.1), o.r * 1.05];
+      case 'palmier': return [o.r * 3.2, o.r * 1.4];
       case 'tente': return [o.r * 2.3, o.r];
       case 'hutte': return [o.r * 1.9, o.r * 1.1];
       default: return [o.r * 1.1, o.r];
     }
   }
 
+  /* (palette.decorK) quand le joueur grandit beaucoup (de la musaraigne au tigre géant), la
+     végétation et les rochers de son époque sont dessinés plus grands */
+  const GROWS = new Set(['arbre', 'palmier', 'herbes', 'fougere', 'buisson', 'roseaux', 'fleurs', 'rocher', 'os']);
+
   function drawUpright(ctx, u, t) {
-    const o = u.deco, P = pal();
+    const P = pal();
+    const o = P.decorK && GROWS.has(u.deco.type) ? { ...u.deco, r: u.deco.r * P.decorK } : u.deco;
     const p = api.player();
     let fade = false;
     if (p && !p.dead && (o.tall || o.type === 'tente' || o.type === 'hutte')) {
@@ -347,7 +391,10 @@ export function createDecorTqv(api) {
     }
     if (fade) ctx.globalAlpha = 0.42;
     switch (o.type) {
-      case 'arbre': drawTree(ctx, o, t, P); break;
+      // (palette.acacia) dans la savane, les arbres sont des acacias
+      case 'arbre': drawTree(ctx, P.acacia && o.kind !== 'pin' ? { ...o, kind: 'acacia' } : o, t, P); break;
+      case 'palmier': drawPalm(ctx, o, t, P); break;
+      case 'terrier': drawBurrow(ctx, o, P); break;
       case 'rocher': drawRock(ctx, o, P); break;
       case 'herbes': drawGrass(ctx, o, t, P); break;
       case 'buisson': drawBush(ctx, o, t, P); break;

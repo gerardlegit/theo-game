@@ -26,7 +26,7 @@ import { createCote } from './cote.js';
 import { createSideIntro, drawSideEnding } from './intro-cote.js';
 import { createTqv } from './tqv.js';
 import { createDecorTqv } from './decor-tqv.js';
-import { resIconUrl, drawHut, drawHearth } from './art-humains.js';
+import { resIconUrl, drawHut, drawHearth, drawTree, drawGrass, drawRock, drawHuman as drawRoundHuman } from './art-humains.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES as BASE_LINES } from './data.js';
 import { createHumanIntro, drawHumanEnding } from './intro-humains.js';
@@ -431,8 +431,8 @@ function mouthPoint(e, k = 0.8) {
     const m = sideMouth(e, e === player ? CH.form : e.sp.look);
     if (m) return m;
   }
-  // (species[].reach) la portée de sa gueule, quand le niveau la fixe lui-même
-  k = (e === player ? null : e.sp.reach) ?? SNOUT[e === player ? CH.form : e.sp.look] ?? k;
+  // (species[].bite) la portée de sa gueule, quand le niveau la fixe lui-même
+  k = (e === player ? null : e.sp.bite) ?? SNOUT[e === player ? CH.form : e.sp.look] ?? k;
   return { x: e.x + Math.cos(e.angle) * e.size * k, y: e.y + Math.sin(e.angle) * e.size * k };
 }
 
@@ -482,7 +482,7 @@ function targetZoom() {
   if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
   if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1);
   // (world.style = 'tqv') les bêtes sont debout : la caméra est un peu plus près
-  if (LV.world.style === 'tqv') return baseZoom() * 1.1 * clamp(Math.pow(30 / player.size, 0.5), 0.6, 1.3);
+  if (LV.world.style === 'tqv') return baseZoom() * 1.25 * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
 }
 
@@ -1704,7 +1704,11 @@ function drawTqvView() {
   const shown = (c) => (c.sp.drawK ? { ...c, size: c.size * c.sp.drawK } : c);
   for (const u of list) {
     if (u.c) {
-      if (!trois()) faceOf(u.c);
+      if (!trois()) {
+        faceOf(u.c);
+        // (habitat 'water') dans sa mare, il est à moitié dans l'eau
+        if (u.c.sp.habitat === 'water') u.c.inWater = zoneAt(u.c.x, u.c.y) === 'water';
+      }
       drawCreature(ctx, shown(u.c), worldT + u.c.seed);
     } else if (u.me) {
       if (!trois()) faceOf(player);
@@ -5343,7 +5347,11 @@ function drawMeteorEnding(dt) {
 const FIRE_TEXT_AT = 15;
 const CAVE_AT = 11.8;
 const SNOWFLAKES = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2.2, v: 0.03 + Math.random() * 0.05 }));
-const HUMANS = [{ y: 0.5, d: 0, k: 1 }, { y: 0.64, d: 0.45, k: 0.9 }, { y: 0.8, d: 0.9, k: 1.05 }];
+const HUMANS = [
+  { y: 0.5, d: 0, k: 1, skin: '#A8704A', cloth: '#9A6A3A', style: 'hirsute', beard: true, tool: 'torche' },
+  { y: 0.64, d: 0.45, k: 0.9, skin: '#C68A5A', cloth: '#7A5A3A', style: 'long', beard: false, tool: 'torche' },
+  { y: 0.8, d: 0.9, k: 1.05, skin: '#8D5A3A', cloth: '#B08A5A', style: 'court', beard: true, tool: 'lance' },
+];
 /* Les peintures de la grotte : [espèce, x, y, taille, couleur, apparition, tournée vers la gauche] */
 const PAINTINGS = [
   ['mammouth', 0.3, 0.42, 0.085, '#8E2F1C', 12.2, false],
@@ -5378,51 +5386,6 @@ function drawFlame(c, x, y, s, t) {
   }
 }
 
-/** Un humain de l'âge de glace, à contre-jour, une torche à la main */
-function drawHuman(c, x, y, s, t) {
-  const step = Math.sin(t * 6);
-  c.fillStyle = '#1C1411';
-  c.strokeStyle = '#1C1411';
-  c.lineCap = 'round';
-  c.lineWidth = s * 0.17;
-  c.beginPath();
-  c.moveTo(x, y - s * 0.9);
-  c.lineTo(x + step * s * 0.25, y);
-  c.moveTo(x, y - s * 0.9);
-  c.lineTo(x - step * s * 0.25, y);
-  c.stroke();
-  // une tunique en fourrure
-  c.beginPath();
-  c.moveTo(x - s * 0.26, y - s * 0.8);
-  c.lineTo(x + s * 0.26, y - s * 0.8);
-  c.lineTo(x + s * 0.17, y - s * 1.7);
-  c.lineTo(x - s * 0.17, y - s * 1.7);
-  c.closePath();
-  c.fill();
-  c.beginPath();
-  c.arc(x, y - s * 1.92, s * 0.21, 0, TAU);
-  c.fill();
-  // un bras levé tient la torche, l'autre une lance
-  c.lineWidth = s * 0.12;
-  c.beginPath();
-  c.moveTo(x - s * 0.08, y - s * 1.6);
-  c.lineTo(x - s * 0.38, y - s * 2.05);
-  c.moveTo(x + s * 0.08, y - s * 1.6);
-  c.lineTo(x + s * 0.3, y - s * 1.15);
-  c.stroke();
-  c.lineWidth = s * 0.05;
-  c.beginPath();
-  c.moveTo(x + s * 0.45, y - s * 0.3);
-  c.lineTo(x + s * 0.15, y - s * 2.5);
-  c.stroke();
-  c.strokeStyle = '#5A3A20';
-  c.lineWidth = s * 0.08;
-  c.beginPath();
-  c.moveTo(x - s * 0.34, y - s * 1.98);
-  c.lineTo(x - s * 0.46, y - s * 2.4);
-  c.stroke();
-  drawFlame(c, x - s * 0.47, y - s * 2.42, s * 0.2, t + x);
-}
 
 /** Les peintures et les mains de la grotte, préparées une fois (couleur unie, comme de l'ocre) */
 function buildPaintings(m) {
@@ -5487,14 +5450,23 @@ function drawFireEnding(dt) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   if (t < CAVE_AT) {
-    // la steppe enneigée, ses sapins, et le troupeau
+    // la steppe enneigée, ses sapins, et le troupeau : de trois quarts, comme le niveau, tout ce qui
+    // est debout rangé du fond vers le devant
     const T = 420;
     for (let x = 0; x < w + T; x += T) for (let y = 0; y < h + T; y += T) c.drawImage(floorTile, x, y, T + 1, T + 1);
+    const P = CH.palette || {};
+    const list = [];
     for (const d of endDecor) {
-      d.x = d.fx * w;
-      d.y = d.fy * h;
-      d.r = d.fr * m;
-      drawDecor(c, d, t);
+      const x = d.fx * w, y = d.fy * h, r = d.fr * m;
+      if (d.type === 'sapin-neige') list.push({ y, draw: () => drawTree(c, { x, y, r: r * 0.7, kind: 'pin', seed: d.seed }, t, P) });
+      else if (d.type === 'rocher') list.push({ y, draw: () => drawRock(c, { x, y, r: r * 0.7, seed: d.seed }, P) });
+      else {
+        // une touffe de hautes herbes gelées
+        for (let i = 0; i < 4; i++) {
+          const a = d.seed + i * 1.7, ty = y + Math.sin(a) * r * 0.4;
+          list.push({ y: ty, draw: () => drawGrass(c, { x: x + Math.cos(a) * r * 0.6, y: ty, r: r * 0.45, seed: d.seed + i }, t, P) });
+        }
+      }
     }
     const fire = { x: w * 0.84, y: h * 0.62 };
     const scare = t > 7.6;
@@ -5512,21 +5484,22 @@ function drawFireEnding(dt) {
         f.y += Math.sin(f.ang) * dt * 0.006;
       }
       const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
-      drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: scare ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (scare ? 4 : 1) + f.seed, spine: null }, t + f.seed);
+      list.push({ y, draw: () => drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: scare ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (scare ? 4 : 1) + f.seed, spine: null }, t + f.seed) });
     }
     // toi, le roi de l'âge de glace… qui recule devant le feu
     const size = m * 0.07;
     const back = scare ? Math.min(1, (t - 7.6) / 3) : 0;
     const px = w * (0.5 - back * 0.14), py = h * 0.6;
     const roaring = t < 1.8 || (t > 3 && t < 3.6);
-    drawPlayer(c, { x: px, y: py, angle: 0, size, mouth: roaring ? 0.9 : 0.15, mood: scare ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t * (scare ? 2 : 0.6), spine: null }, CH.form, game.owned, t);
+    list.push({ y: py, draw: () => drawPlayer(c, { x: px, y: py, angle: 0, face: 1, size, mouth: roaring ? 0.9 : 0.15, mood: scare ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t * (scare ? 2 : 0.6), spine: null }, CH.form, game.owned, t) });
+    list.sort((a, b) => a.y - b.y);
+    for (const u of list) u.draw();
     const fall = t > 8.6 ? Math.min(1, (t - 8.6) / 1) : 0;
     c.globalAlpha = 1 - clamp((t - 9.8) / 1, 0, 1);
     // (la couronne sur la tête : en trois quarts, la tête est moins loin devant et moins haut qu'en profil)
     const hx = formLook() ? 0.5 : 0.9, hy = formLook() ? 0.95 : 1.35;
     drawCrown(c, px + size * hx - fall * size * 0.6, py - size * hy + fall * size * 1.9, size * 0.55);
     c.globalAlpha = 1;
-    for (const d of endDecor) if (d.type !== 'rocher') drawCover(c, d, t);
     // la nuit tombe
     const night = clamp((t - 4.2) / 2.5, 0, 1);
     if (night > 0) {
@@ -5571,7 +5544,10 @@ function drawFireEnding(dt) {
       for (const hm of HUMANS) {
         const k = clamp((t - 7 - hm.d) / 2.6, 0, 1);
         const x = w * (1.1 - 0.2 * (k * k * (3 - 2 * k))) + hm.d * m * 0.06;
-        drawHuman(c, x, h * hm.y, m * 0.055 * hm.k, k < 1 ? t : 0);
+        // (les humains tout ronds de la voie des humains, avec leur torche ou leur lance)
+        drawRoundHuman(c, { x, y: h * hm.y, size: m * 0.034 * hm.k, angle: Math.PI, face: -1, speed: k < 1 ? 0.8 : 0, walk: k < 1 ? t * 2.5 : 0, mood: 'happy', seed: hm.d }, t, {
+          skin: hm.skin, hair: '#2A1C14', cloth: hm.cloth, style: hm.style, beard: hm.beard, necklace: true, tool: hm.tool,
+        });
       }
     }
     // il neige
