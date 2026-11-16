@@ -15,6 +15,8 @@
 //     l'enclos ; et pour la voie des mammifères : la boue, les fougères, les
 //     terriers, les palmiers, les acacias de la savane ; pour les dinosaures :
 //     les arbres anciens, les conifères, les prêles, les cycas, les nids.
+// Tout ce décor immobile est dessiné une seule fois dans de petites images
+// (sprite()), puis collé : des centaines de plantes à l'écran sans ralentir.
 // Un grand objet planté devant le joueur devient transparent : on le voit
 // toujours. (Les dessins sont dans art-humains.js et art-dinos-tq.js ; les couleurs, dans
 // chapters[].palette ; la végétation en plus, dans world.land.)
@@ -78,13 +80,16 @@ export function createDecorTqv(api) {
   let flats = [];                  // ce qui se dessine à plat (mares, neige, terre battue…)
   let grid = new Map();            // ce qui est debout, rangé par case
   let decalGrid = new Map();       // les touffes et les fleurs du sol, rangées par case
-  let palFor = null, palNow = DEFAULTS;
+  let palFor = null, palNow = DEFAULTS, palId = 0;
+  const sprites = new Map();       // le décor immobile, dessiné une fois pour toutes (voir sprite())
 
   const pal = () => {
     const CH = api.chapter();
     if (CH !== palFor) {
       palFor = CH;
       palNow = { ...DEFAULTS, ...(CH.palette || {}) };
+      palId++;
+      sprites.clear();
     }
     return palNow;
   };
@@ -199,13 +204,15 @@ export function createDecorTqv(api) {
           break;
         default:
           if (d.hide) {
-            // les hautes herbes (ou les fougères) où l'on se cache : des touffes serrées, sur une tache d'herbe
+            // les hautes herbes (ou les fougères) où l'on se cache : des touffes serrées, sur une tache
+            // d'herbe (14 au plus par bosquet, plus grandes dans les grands bosquets : le jeu reste fluide)
             flats.push({ k: 'herbe', x: d.x, y: d.y, r: d.r, ...s });
             const fern = d.type === 'fougeres';
-            const n = Math.max(6, Math.round((d.r / (fern ? 44 : 36)) ** 2 * 0.85));
+            const n = Math.min(14, Math.max(6, Math.round((d.r / (fern ? 44 : 36)) ** 2 * 0.5)));
+            const big = Math.max(1, d.r / 260);
             for (let i = 0; i < n; i++) {
               const a = rnd() * TAU, k = Math.sqrt(rnd()) * 0.86;
-              add({ type: fern ? 'fougere' : 'herbes', x: d.x + Math.cos(a) * d.r * k, y: d.y + Math.sin(a) * d.r * k, r: fern ? R(48, 68) : R(44, 60), seed: sd(), ...s });
+              add({ type: fern ? 'fougere' : 'herbes', x: d.x + Math.cos(a) * d.r * k, y: d.y + Math.sin(a) * d.r * k, r: (fern ? R(48, 68) : R(44, 60)) * big, seed: sd(), ...s });
             }
           }
       }
@@ -398,6 +405,43 @@ export function createDecorTqv(api) {
      végétation et les rochers de son époque sont dessinés plus grands */
   const GROWS = new Set(['arbre', 'palmier', 'herbes', 'fougere', 'buisson', 'roseaux', 'fleurs', 'rocher', 'os', 'ancien', 'prele', 'cycas', 'nid']);
 
+  /* ----------------------------------------------------------------------------
+     Le cache d'images : dessiner une fougère, c'est une centaine de petites feuilles ; avec des
+     centaines de plantes à l'écran, le jeu ramait. Chaque chose immobile est donc dessinée une
+     fois dans une petite image (par type, variante, taille et zoom), puis simplement collée.
+     SPRITE_BOX : la place qu'il lui faut, en × r : [au-dessus du sol, demi-largeur, au-dessous].
+     (Le feu, qui bouge, et les piquets, reliés entre eux, se dessinent toujours en direct.)
+     ---------------------------------------------------------------------------- */
+  const SPRITE_BOX = {
+    arbre: [2.9, 1.6, 0.5], palmier: [3.4, 2.3, 0.5], ancien: [4.5, 1.5, 0.5], fougere: [1.4, 1.3, 0.4],
+    herbes: [1.8, 1.4, 0.3], buisson: [1.6, 1.3, 0.5], cycas: [1.9, 1.8, 0.5], prele: [2.7, 1.0, 0.4],
+    rocher: [1.4, 1.3, 0.5], fleurs: [1.4, 1.1, 0.3], roseaux: [2.3, 1.0, 0.3], os: [1.4, 1.4, 0.4],
+    nid: [0.8, 1.4, 0.5], terrier: [0.9, 1.2, 0.5], tente: [2.6, 1.3, 0.5], hutte: [2.2, 1.4, 0.5], sechoir: [1.7, 1.1, 0.4],
+  };
+  const half = (v) => Math.pow(2, Math.round(Math.log2(v) * 2) / 2);    // arrondi au demi-octave
+  function sprite(o, P, scale) {
+    const bx = SPRITE_BOX[o.type];
+    if (!bx) return null;
+    const [up, hw, down] = bx;
+    const rb = half(o.r), sc = half(scale * o.r / rb);
+    const w = Math.ceil(hw * 2 * rb * sc), h = Math.ceil((up + down) * rb * sc);
+    if (w * h > 3e6 || w < 2 || h < 2) return null;
+    const v = (o.seed || 0) % 8;
+    const key = `${o.type}|${o.kind || ''}|${v}|${rb}|${sc}|${palId}`;
+    let cv = sprites.get(key);
+    if (!cv) {
+      if (sprites.size > 900) sprites.clear();
+      cv = document.createElement('canvas');
+      cv.width = w;
+      cv.height = h;
+      const g = cv.getContext('2d');
+      g.scale(sc, sc);
+      paint(g, { ...o, x: hw * rb, y: up * rb, r: rb, seed: v * 7919 + 13 }, 0, P);
+      sprites.set(key, cv);
+    }
+    return cv;
+  }
+
   function drawUpright(ctx, u, t) {
     const P = pal();
     const o = P.decorK && GROWS.has(u.deco.type) ? { ...u.deco, r: u.deco.r * P.decorK } : u.deco;
@@ -409,6 +453,17 @@ export function createDecorTqv(api) {
       fade = o.y > p.y + 4 && o.y - H < p.y - p.size * 0.3 && Math.abs(o.x - p.x) < w + p.size * 0.6;
     }
     if (fade) ctx.globalAlpha = 0.42;
+    const m = ctx.getTransform();
+    const cv = sprite(o, P, Math.hypot(m.a, m.b));
+    if (cv) {
+      const [up, hw, down] = SPRITE_BOX[o.type];
+      ctx.drawImage(cv, o.x - hw * o.r, o.y - up * o.r, hw * 2 * o.r, (up + down) * o.r);
+    } else paint(ctx, o, t, P);
+    if (fade) ctx.globalAlpha = 1;
+  }
+
+  /** Le dessin lui-même (dans le cache, ou en direct) */
+  function paint(ctx, o, t, P) {
     switch (o.type) {
       // (palette.acacia) dans la savane, les arbres sont des acacias
       case 'arbre': drawTree(ctx, P.acacia && o.kind !== 'pin' ? { ...o, kind: 'acacia' } : o, t, P); break;
@@ -432,7 +487,6 @@ export function createDecorTqv(api) {
       case 'piquet': drawPost(ctx, o); break;
       default: break;
     }
-    if (fade) ctx.globalAlpha = 1;
   }
 
   return { on, build, drawGround, uprights, drawUpright };

@@ -510,8 +510,8 @@ function foreLeg(ctx, top, gy, w, ph, stride, col, dark, lw) {
 }
 
 /** Les quatre pattes d'un côté (far = le côté caché, plus sombre) : elles avancent en diagonale */
-function mamLegs(ctx, P, r, gy, ph, col, dark, lw, far) {
-  const stride = (P.stride || 0.3) * r;
+function mamLegs(ctx, P, r, gy, ph, col, dark, lw, far, amp = 1) {
+  const stride = (P.stride || 0.3) * r * amp;
   const hip = { x: (P.hip[0] + 0.04) * r, y: (P.hip[1] + P.depth * 0.25) * r };
   const sh = { x: (P.shoulder[0] - 0.02) * r, y: (P.shoulder[1] + P.depth * 0.3) * r };
   const wH = P.legW * r, wF = P.legW * r * (P.foreW || 0.9);
@@ -731,13 +731,15 @@ function drawMammal(ctx, c, t, P, col, o = {}) {
   const gy = P.ground + bob;
   const pts = mamBody(P);
   const legCol = col;
+  // (c.speed) à l'arrêt, les pattes se rapprochent ; à fond, les enjambées sont les plus longues
+  const amp = c.speed == null ? 1 : Math.max(0.15, Math.min(1, 0.2 + c.speed * 1.1));
   // derrière : la queue, puis les pattes du côté caché
   mamTail(ctx, P, r, t, c, col, dark, lw);
   // (P.behind) ce qui dépasse du dos, derrière le corps : les plaques du stégosaure, la voile…
   if (P.behind) P.behind(ctx, r, pts, col, dark, lw, fine, c, t);
-  mamLegs(ctx, P, r, gy, ph, shade(legCol, -0.3), dark, lw, true);
+  mamLegs(ctx, P, r, gy, ph, shade(legCol, -0.3), dark, lw, true, amp);
   if (P.biped) mamArm(ctx, P, r, ph, shade(legCol, -0.3), dark, lw, true);
-  const near = mamLegs(ctx, P, r, gy, ph, shade(legCol, 0.04), dark, lw, false);
+  const near = mamLegs(ctx, P, r, gy, ph, shade(legCol, 0.04), dark, lw, false, amp);
   paintBody(ctx, pts, r, col, belly, dark, lw, P, stripe);
   const patches = o.patches || P.patches;
   if (patches && fine) {

@@ -6622,6 +6622,8 @@ async function init() {
       ending: startEnding,
       level: goToLevel,
       simulate,
+      // (debug) le temps de dessin : n images, en ms par image
+      bench(n = 30) { const t0 = performance.now(); for (let i = 0; i < n; i++) draw(); return +((performance.now() - t0) / n).toFixed(2); },
     };
   }
 }

@@ -23,7 +23,7 @@
 const world = {
   ground: 'land',
   style: 'tqv',                    // dessiné de trois quarts, comme la voie des humains (decor-tqv.js)
-  land: { bushes: 260, ferns: 160, fernsFrom: 1 },  // la végétation en plus, pour le plaisir des yeux
+  land: { bushes: 200, ferns: 100, fernsFrom: 1 },  // la végétation en plus, pour le plaisir des yeux
   w: 12000,
   h: 8000,
   start: { x: 2200, y: 4000 },
@@ -49,7 +49,8 @@ const world = {
 };
 
 /* Les êtres vivants. look 'th-…' = debout, de profil (art-dinos-tq.js, art-humains.js) ; les poissons
-   et le phytosaure, dans les mares, restent vus de dessus ; bite = la portée de la gueule à garder.
+   et le phytosaure, dans les mares, restent vus de dessus ; bite = la portée de la gueule à garder ;
+   drawK = les géants sont dessinés un peu plus petits que leur taille de jeu (sinon ils remplissent l'écran).
    hits = les coups qu'encaisse un géant (sa barre de vie) ; tailBite = on le touche
    en lui mordant la queue ; breachHit = le pouvoir du chapitre le touche (le
    rugissement) ; buried = caché dans les fougères ; fierce = il attaque même plus
@@ -128,7 +129,7 @@ const species = {
     fact: "Coelophysis, un des premiers dinosaures, était fin et très rapide. On a retrouvé des centaines de squelettes ensemble : ils vivaient sans doute en groupe.",
   },
   postosuchus: {
-    name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'th-postosuchus', color: '#6E6A44', noEat: true, roar: true, maxTurn: 2.4, stomp: true,
+    name: 'Postosuchus', plural: 'Postosuchus', proper: true, kind: 'hunter', look: 'th-postosuchus', drawK: 0.85, color: '#6E6A44', noEat: true, roar: true, maxTurn: 2.4, stomp: true,
     size: 115, speed: 385, sense: 480, cone: 2.8, adn: 0, hitLine: 'Ouille !',
     fact: "Postosuchus n'était pas un dinosaure, mais un cousin des crocodiles. Au Trias, c'était lui le grand chasseur, et les premiers dinosaures en avaient peur !",
   },
@@ -170,12 +171,12 @@ const species = {
     fact: "Les pointes de la queue de Stegosaurus étaient redoutables : on a retrouvé un os d'Allosaurus percé par l'une d'elles !",
   },
   brachiosaure: {
-    name: 'Brachiosaurus', plural: 'Brachiosaurus', proper: true, kind: 'giant', look: 'th-brachiosaure', color: '#8A8A6E', stomp: true, maxTurn: 0.6,
+    name: 'Brachiosaurus', plural: 'Brachiosaurus', proper: true, kind: 'giant', look: 'th-brachiosaure', drawK: 0.66, color: '#8A8A6E', stomp: true, maxTurn: 0.6,
     size: 330, speed: 130, sense: 0, adn: 0,
     fact: "Brachiosaurus pesait autant que 10 éléphants, et sa tête montait à la hauteur d'un immeuble de 4 étages. Rien ne pouvait l'attaquer…",
   },
   diplodocus: {
-    name: 'Diplodocus', plural: 'Diplodocus', proper: true, kind: 'giant', look: 'th-diplodocus', color: '#8A7A62', stomp: true, maxTurn: 0.6,
+    name: 'Diplodocus', plural: 'Diplodocus', proper: true, kind: 'giant', look: 'th-diplodocus', drawK: 0.72, color: '#8A7A62', stomp: true, maxTurn: 0.6,
     tailBite: true, hits: 3, hitLine: 'FLAAAC !',
     size: 300, speed: 140, sense: 0, adn: 0,
     fact: "Diplodocus mesurait plus de 25 mètres, dont une queue immense. Elle claquait peut-être comme un fouet… assez fort pour faire un bang !",
@@ -224,7 +225,7 @@ const species = {
     fact: "Les jeunes T. rex étaient fins et rapides : ils chassaient de plus petites proies que les adultes. Mais un vieux T. rex n'aurait pas hésité à en croquer un !",
   },
   'trex-rival': {
-    name: 'Le T. rex rival', plural: 'T. rex', proper: true, kind: 'hunter', look: 'th-trex-rival', color: '#6A5234', noEat: true, roar: true, stomp: true, maxTurn: 1.6,
+    name: 'Le T. rex rival', plural: 'T. rex', proper: true, kind: 'hunter', look: 'th-trex-rival', drawK: 0.9, color: '#6A5234', noEat: true, roar: true, stomp: true, maxTurn: 1.6,
     breachHit: true, hits: 4, hitLine: 'GRRRR… !',
     size: 205, speed: 620, sense: 760, cone: 2.8, adn: 0,
     fact: "La morsure du T. rex est la plus forte de tous les animaux terrestres connus : assez pour broyer les os. Deux T. rex ne se laissaient pas le territoire sans se battre !",
