@@ -444,7 +444,10 @@ function drawMamHead(ctx, H, r, c, col, belly, dark, lw, o = {}) {
    Le corps, les pattes et la queue
    P : { ground, hip, shoulder, depth, hipTop, midTop, hump, belly, sag, neck
          [[x, y, épaisseur]…], head (voir drawMamHead), legW, foreW, stride,
-         cadence, tail { len, w, droop, curl, sway, type ('fine', 'touffue') },
+         cadence, tail { len, w, droop, curl, sway, base, type ('fine', 'touffue',
+         'pointe'), end ('piquants', 'massue', 'nageoire') }, biped ({ L, w, claws } : deux
+         pattes et deux petits bras), longNeck ({ pts, w0, w1 }), behind (ce qui dépasse
+         du dos), extra (ce qui se dessine sur le corps),
          spots, stripeCol, patches ({ col, n } : de grandes taches), wool (la
          couleur de la laine) }
    ============================================================================ */
@@ -519,6 +522,11 @@ function mamLegs(ctx, P, r, gy, ph, col, dark, lw, far) {
     pillarLeg(ctx, sh, gy * r, wF, ph + Math.PI + a, stride, col, dark, lw);
     return { hip, sh, wH, wF };
   }
+  if (P.biped) {
+    // (P.biped) deux pattes seulement (les bras sont dessinés à part : mamArm)
+    hindLeg(ctx, hip, gy * r, wH, ph + a, stride, col, dark, lw);
+    return { hip, sh, wH, wF };
+  }
   hindLeg(ctx, hip, gy * r, wH, ph + a, stride, col, dark, lw);
   foreLeg(ctx, sh, gy * r, wF, ph + Math.PI + a, stride, col, dark, lw);
   return { hip, sh, wH, wF };
@@ -549,7 +557,7 @@ function mamTail(ctx, P, r, t, c, col, dark, lw) {
   const T = P.tail;
   if (!T) return;
   const d = P.depth;
-  const base = { x: (P.hip[0] - d * 0.82) * r, y: (P.hip[1] - d * 0.4) * r };
+  const base = { x: (P.hip[0] - d * 0.82) * r, y: (P.hip[1] - d * (T.base ?? 0.4)) * r };
   const sw = Math.sin(t * 2.2 + (c.seed || 0) * 2) * (T.sway ?? 0.22);
   const len = T.len * r;
   const a0 = Math.PI + (T.droop ?? 0.6);          // vers l'arrière, en descendant
@@ -563,9 +571,106 @@ function mamTail(ctx, P, r, t, c, col, dark, lw) {
   ctx.lineWidth = lw;
   ctx.fillStyle = col;
   if (T.type === 'touffue') taper(ctx, base, p1, p2, tip, w * 0.8, w * 1.2, 10);
+  else if (T.type === 'pointe') taper(ctx, base, p1, p2, tip, w, w * 0.1, 12);   // (les dinosaures) épaisse, puis pointue
   else taper(ctx, base, p1, p2, tip, w, w * 0.4, 10);
   ctx.fill();
   ctx.stroke();
+  if (T.end) tailEnd(ctx, T.end, p2, tip, r, col, dark, lw);
+}
+
+/** Le bout de la queue : 'piquants' (le stégosaure), 'massue' (l'ankylosaure), 'nageoire' (le tétrapode) */
+function tailEnd(ctx, kind, p2, tip, r, col, dark, lw) {
+  const a = Math.atan2(tip.y - p2.y, tip.x - p2.x);
+  ctx.save();
+  ctx.translate(tip.x, tip.y);
+  ctx.rotate(a);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  if (kind === 'piquants') {
+    ctx.fillStyle = '#EDE2C6';
+    for (const [x, up, L] of [[-0.3, -1, 0.42], [-0.12, -1, 0.36], [-0.3, 1, 0.3], [-0.12, 1, 0.26]]) {
+      ctx.beginPath();
+      ctx.moveTo((x - 0.05) * r, 0);
+      ctx.lineTo((x - 0.16) * r, up * L * r);
+      ctx.lineTo((x + 0.05) * r, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (kind === 'massue') {
+    ctx.fillStyle = shade(col, -0.12);
+    ctx.beginPath();
+    ctx.ellipse(-0.04 * r, 0, 0.2 * r, 0.14 * r, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.beginPath();
+    ctx.ellipse(-0.08 * r, -0.05 * r, 0.1 * r, 0.05 * r, 0, 0, TAU);
+    ctx.fill();
+  } else if (kind === 'nageoire') {
+    ctx.fillStyle = shade(col, 0.15);
+    ctx.beginPath();
+    ctx.moveTo(-0.5 * r, 0);
+    ctx.quadraticCurveTo(-0.2 * r, -0.28 * r, 0.12 * r, -0.12 * r);
+    ctx.lineTo(0.1 * r, 0.12 * r);
+    ctx.quadraticCurveTo(-0.2 * r, 0.24 * r, -0.5 * r, 0);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** (P.biped) Un petit bras (les dinosaures qui marchent sur deux pattes), avec ses griffes */
+function mamArm(ctx, P, r, ph, col, dark, lw, far) {
+  const A = P.biped;
+  const sh = { x: (P.shoulder[0] + 0.04) * r, y: (P.shoulder[1] + P.depth * 0.45) * r };
+  const sw = Math.sin(ph + (far ? Math.PI : 0)) * 0.12;
+  const L = (A.L || 0.35) * r, w = (A.w || 0.06) * r;
+  const elbow = { x: sh.x + L * (0.2 + sw), y: sh.y + L * 0.55 };
+  const hand = { x: elbow.x + L * 0.55, y: elbow.y + L * (0.05 - sw) };
+  limb(ctx, [[sh.x, sh.y, w * 1.35], [elbow.x, elbow.y, w], [hand.x, hand.y, w * 0.85]], col, dark, lw);
+  ctx.strokeStyle = '#F2EAD8';
+  ctx.lineWidth = Math.max(0.8, w * 0.45);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const k of [-0.6, 0, 0.6]) {
+    ctx.moveTo(hand.x + w * 0.6, hand.y + k * w * 0.6);
+    ctx.quadraticCurveTo(hand.x + w * 1.4, hand.y + k * w * 0.6, hand.x + w * 1.5, hand.y + k * w * 0.6 + w * 0.9 * (A.claws || 1));
+  }
+  ctx.stroke();
+}
+
+/** (P.longNeck) Le long cou des sauropodes : une courbe épaisse, des épaules jusqu'à la tête
+    ({ pts : 4 points de Bézier, w0 / w1 : sa demi-épaisseur à la base, sous la tête }) */
+function longNeck(ctx, N, r, col, belly, dark, lw) {
+  const [a, b, c2, d] = N.pts.map(([x, y]) => ({ x: x * r, y: y * r }));
+  const n = 16, L = [], R = [];
+  for (let i = 0; i <= n; i++) {
+    const p = bez(a, b, c2, d, i / n), q = bez(a, b, c2, d, Math.min(1, (i + 1) / n)), o = bez(a, b, c2, d, Math.max(0, (i - 1) / n));
+    const dx = q.x - o.x, dy = q.y - o.y, dl = Math.hypot(dx, dy) || 1;
+    const w = (N.w0 + (N.w1 - N.w0) * (i / n)) * r;
+    L.push({ x: p.x - dy / dl * w, y: p.y + dx / dl * w });
+    R.push({ x: p.x + dy / dl * w, y: p.y - dx / dl * w });
+  }
+  const g = ctx.createLinearGradient(a.x, a.y - N.w0 * r, a.x + N.w0 * r, a.y + N.w0 * r);
+  g.addColorStop(0, shade(col, -0.12));
+  g.addColorStop(0.6, col);
+  g.addColorStop(1, belly);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  L.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  for (let i = n; i >= 0; i--) ctx.lineTo(R[i].x, R[i].y);
+  ctx.closePath();
+  ctx.fill();
+  // le contour, des deux côtés seulement (la base se fond dans le corps)
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round';
+  for (const side of [L, R]) {
+    ctx.beginPath();
+    side.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.stroke();
+  }
 }
 
 /** Des petits traits de poils le long du dos (fluffy = fourrure ébouriffée) */
@@ -628,7 +733,10 @@ function drawMammal(ctx, c, t, P, col, o = {}) {
   const legCol = col;
   // derrière : la queue, puis les pattes du côté caché
   mamTail(ctx, P, r, t, c, col, dark, lw);
+  // (P.behind) ce qui dépasse du dos, derrière le corps : les plaques du stégosaure, la voile…
+  if (P.behind) P.behind(ctx, r, pts, col, dark, lw, fine, c, t);
   mamLegs(ctx, P, r, gy, ph, shade(legCol, -0.3), dark, lw, true);
+  if (P.biped) mamArm(ctx, P, r, ph, shade(legCol, -0.3), dark, lw, true);
   const near = mamLegs(ctx, P, r, gy, ph, shade(legCol, 0.04), dark, lw, false);
   paintBody(ctx, pts, r, col, belly, dark, lw, P, stripe);
   const patches = o.patches || P.patches;
@@ -652,6 +760,8 @@ function drawMammal(ctx, c, t, P, col, o = {}) {
   if (fine) furTicks(ctx, pts, r, lw, o.fluffy);
   // (P.extra) ce qu'une espèce ajoute à son corps : la longue toison du mammouth, la crinière…
   if (P.extra) P.extra(ctx, r, pts, col, dark, lw, fine, c, t);
+  if (P.biped) mamArm(ctx, P, r, ph, shade(legCol, 0.04), dark, lw, false);
+  if (P.longNeck) longNeck(ctx, P.longNeck, r, col, belly, dark, lw);
   drawMamHead(ctx, H, r, c, col, belly, dark, lw, o);
   ctx.restore();
 }

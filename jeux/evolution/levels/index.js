@@ -22,7 +22,7 @@
 //      est posé au point de départ). ground: 'land' = sur la terre ferme : la course et les vues en volume sont les mêmes partout (terre.js).
 //      style = 'tqv' : le même monde, avec les mêmes règles, mais DESSINÉ DE TROIS QUARTS comme
 //      la voie des humains (decor-tqv.js : le sol vu d'en haut, les bêtes, les humains, les arbres
-//      et les tentes debout ; le niveau du loup, la voie des mammifères) ; les couleurs du décor sont dans chapters[].palette
+//      et les tentes debout ; le niveau des dinosaures, la voie des mammifères, le niveau du loup) ; les couleurs du décor sont dans chapters[].palette
 //      (pond, bank, sand, ice, snow, leaf, rock, bush, tallGrass, tuft, dirt, hideBase, pen, flowers…),
 //      la végétation en plus dans world.land (bushes, ferns, fernsFrom, decals) ; palette.acacia = les
 //      arbres sont des acacias (la savane), palette.decorK = le décor de ce chapitre est dessiné plus
@@ -78,11 +78,12 @@
 //      faut "need" loups pour l'attaquer ; fights : au lieu de fuir, il se retourne et charge), packFear (assez de loups : il fuit).
 //      eatLine = ce que dit Ammo la première fois qu'on en croque un.
 //      Leur dessin ("look") est dans art.js (océan), art-terre.js (insectes,
-//      scorpions, libellules, ptérosaures), art-dessus.js (tous les animaux des
-//      niveaux 2, 3 et 4, et les humains, vus de dessus : look 'vd-trex',
-//      'vd-mammouth', 'vd-humain'…), art-mer.js et art-requins.js (la mer),
-//      art-mammiferes.js (titanoboa, oiseau) ou art-loup.js (l'os lancé).
-//      (art-profil.js : les dessins de profil des intros et des fins seulement.)
+//      scorpions, libellules, ptérosaures, vus de dessus), art-mer.js et
+//      art-requins.js (la mer). Les niveaux sur la terre ferme (2, 3 et 4) sont
+//      dessinés de trois quarts (world.style = 'tqv', voir plus bas) : looks
+//      « th-… » dans art-dinos-tq.js (les dinosaures) et art-humains.js (les
+//      mammifères, les humains), debout, de profil (art-profil.js : drawMammal).
+//      (art-dessus.js garde les anciens dessins vus de dessus, look 'vd-…'.)
 //   4. "evolutions" : les parties du corps à acheter avec l'ADN, et leur effet
 //      ("effect" : speed, ratio, reach, vision, shield, armored, dash,
 //      dry = on sèche moins vite, cones = voir les regards, radar ; et pour le

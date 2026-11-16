@@ -26,7 +26,8 @@ import { createCote } from './cote.js';
 import { createSideIntro, drawSideEnding } from './intro-cote.js';
 import { createTqv } from './tqv.js';
 import { createDecorTqv } from './decor-tqv.js';
-import { resIconUrl, drawHut, drawHearth, drawTree, drawGrass, drawRock, drawHuman as drawRoundHuman } from './art-humains.js';
+import { TAIL_TIP, drawCycad } from './art-dinos-tq.js';
+import { resIconUrl, drawHut, drawHearth, drawTree, drawGrass, drawRock, drawFern, drawBurrow, drawHuman as drawRoundHuman } from './art-humains.js';
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES as BASE_LINES } from './data.js';
 import { createHumanIntro, drawHumanEnding } from './intro-humains.js';
@@ -447,6 +448,15 @@ function tailPoint(c) {
   return c.spine ? c.spine[c.spine.length - 1] : c;
 }
 
+/** Là où l'on mord la queue d'un géant (tailBite) : au bout de sa colonne, vu de dessus ;
+    (world.style = 'tqv') derrière lui, de profil (TAIL_TIP, art-dinos-tq.js) */
+function tailBitePoint(c) {
+  if (c.spine) return c.spine[c.spine.length - 2];
+  if (!tqStyle() || TAIL_TIP[c.sp.look] == null) return null;
+  faceOf(c);
+  return { x: c.x + c.face * TAIL_TIP[c.sp.look] * c.size * 0.85, y: c.y };
+}
+
 /** Petit écart d'angle (de -π à π) */
 function angleDiff(a, b) {
   return ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
@@ -476,13 +486,19 @@ function nearestZone(x, y, kind) {
 }
 
 /* ---------- Taille de l'écran ---------- */
+/* (world.style = 'tqv') les bêtes sont debout : la caméra est TQ_ZOOM fois plus près que vue de dessus.
+   Mais pour le jeu (où les bêtes apparaissent, jusqu'où on entend les grands pas…), on garde la
+   taille de la vue de dessus : playW() et playH(). Rien ne change aux règles. */
+const TQ_ZOOM = 1.25;
+const playW = () => viewW * (tqStyle() ? TQ_ZOOM : 1);
+const playH = () => viewH * (tqStyle() ? TQ_ZOOM : 1);
 function baseZoom() { return clamp(cssW / 950, 0.58, 1.1); }
 /** Plus on est gros, plus la caméra recule (on voit plus loin) */
 function targetZoom() {
   if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
   if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1);
   // (world.style = 'tqv') les bêtes sont debout : la caméra est un peu plus près
-  if (LV.world.style === 'tqv') return baseZoom() * 1.25 * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
+  if (LV.world.style === 'tqv') return baseZoom() * TQ_ZOOM * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
 }
 
@@ -682,7 +698,7 @@ function followSpine(e, look) {
 function spawnCreature(id, initial = false) {
   const sp = SPECIES[id];
   const W = LV.world;
-  const half = Math.hypot(viewW, viewH) / 2;
+  const half = Math.hypot(playW(), playH()) / 2;
   const far = half * 1.7;
   const hunter = sp.kind === 'hunter' || sp.kind === 'stinger';
   const minD = initial ? (hunter ? half * 1.05 : sp.size + 120) : half + sp.size * 2;
@@ -840,7 +856,7 @@ function maintainPopulation(dt) {
   spawnT -= dt;
   if (spawnT > 0) return;
   spawnT = 0.3;
-  const half = Math.hypot(viewW, viewH) / 2;
+  const half = Math.hypot(playW(), playH()) / 2;
   const far = half * 1.7;
   creatures = creatures.filter((c) => c.state === 'chase' || c.sp.kind === 'ally' || c.sp.kind === 'shepherd' || c.sp.kind === 'tribu' || c.sp.kind === 'chien' || c.sp.kind === 'poule' || c.sp.kind === 'pillard' || c.penned || c.led || c.post || c.sp.lair || c === huntTarget || dist(c, player) < far * 1.35);
   const counts = {};
@@ -1675,6 +1691,28 @@ function faceOf(c) {
   if (Math.abs(k) > 0.25 || !c.face) c.face = k >= 0 ? 1 : -1;
 }
 
+/** (world.style = 'tqv') Dans l'eau : on ne voit que le haut du corps, et des ronds tout autour */
+function drawWading(c, draw, g = ctx) {
+  const s = c.size, wl = c.y - s * 0.12;
+  g.save();
+  g.beginPath();
+  g.rect(c.x - s * 8, wl - s * 10, s * 16, s * 10);
+  g.clip();
+  g.translate(0, s * 0.3);
+  draw();
+  g.restore();
+  g.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  g.lineWidth = Math.max(1.5, s * 0.04);
+  for (let i = 0; i < 2; i++) {
+    const k = ((c.walk || 0) * 0.15 + worldT * 0.3 + i * 0.5) % 1;
+    g.globalAlpha = 1 - k;
+    g.beginPath();
+    g.ellipse(c.x, wl, s * (0.8 + k * 0.9), s * (0.18 + k * 0.2), 0, 0, TAU);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
 /** Le dessin, vu de trois quarts : le sol, puis tout ce qui est debout, du fond vers le devant */
 function drawTqvView() {
   const W = LV.world;
@@ -1706,13 +1744,31 @@ function drawTqvView() {
     if (u.c) {
       if (!trois()) {
         faceOf(u.c);
-        // (habitat 'water') dans sa mare, il est à moitié dans l'eau
-        if (u.c.sp.habitat === 'water') u.c.inWater = zoneAt(u.c.x, u.c.y) === 'water';
+        // dans une mare, ce qui est debout est à moitié dans l'eau (les poissons, vus de dessus, y nagent)
+        if (!u.c.sp.flying && u.c.sp.look.startsWith('th-') && zoneAt(u.c.x, u.c.y) === 'water') {
+          const c = shown(u.c);
+          drawWading(c, () => drawCreature(ctx, c, worldT + u.c.seed));
+          continue;
+        }
+        if (u.c.sp.flying && !u.c.sp.look.startsWith('th-')) {
+          // ce qui vole (dessiné vu de dessus : on voit son dos) passe haut au-dessus du sol, son ombre en dessous
+          const c = u.c, lift = c.size * 2.6 + Math.sin(worldT * 1.5 + c.seed) * c.size * 0.3;
+          ctx.fillStyle = 'rgba(20, 30, 10, 0.18)';
+          ctx.beginPath();
+          ctx.ellipse(c.x, c.y, c.size * 0.9, c.size * 0.28, 0, 0, TAU);
+          ctx.fill();
+          ctx.save();
+          ctx.translate(0, -lift);
+          drawCreature(ctx, c, worldT + c.seed);
+          ctx.restore();
+          continue;
+        }
       }
       drawCreature(ctx, shown(u.c), worldT + u.c.seed);
     } else if (u.me) {
       if (!trois()) faceOf(player);
-      drawThePlayer();
+      if (!trois() && zoneAt(player.x, player.y) === 'water') drawWading(player, drawThePlayer);
+      else drawThePlayer();
     } else V.drawUpright(ctx, u, worldT);
   }
   if (trois()) tqv.drawTop(ctx, worldT, zoom);
@@ -2041,7 +2097,7 @@ function updateCreatures(dt) {
   const p = player;
   const W = LV.world;
   const maxChasers = W.maxChasers || MAX_CHASERS;
-  const hearR = Math.hypot(viewW, viewH) * 0.9;     // on entend les grands pas jusque-là
+  const hearR = Math.hypot(playW(), playH()) * 0.9;     // on entend les grands pas jusque-là
   let chasers = creatures.filter((c) => c.state === 'chase' || c.state === 'alert').length;
   packNear = p.dead ? 0 : creatures.filter((c) => c.sp.kind === 'ally' && dist(c, p) < PACK_RANGE).length;
   if (CH.pack) { updateHunt(); updateScent(dt); }
@@ -2314,8 +2370,8 @@ function stageRivalHunt(dt) {
   if (rivalHuntT > 0 || p.dead) return;
   rivalHuntT = rand(H.every[0], H.every[1]);
   // pas pendant que le joueur se fait poursuivre : il ne pourrait pas regarder
-  if (creatures.some((c) => c.state === 'chase' && dist(c, p) < viewW) || creatures.some((c) => c.huntLock)) { rivalHuntT = 4; return; }
-  const minV = Math.min(viewW, viewH);
+  if (creatures.some((c) => c.state === 'chase' && dist(c, p) < playW()) || creatures.some((c) => c.huntLock)) { rivalHuntT = 4; return; }
+  const minV = Math.min(playW(), playH());
   // le rival : un qui est déjà à l'écran, sinon il arrive tout près
   let rival = creatures.find((c) => c.id === H.rival && !c.dead && onScreen(c, -40));
   if (!rival) {
@@ -2330,11 +2386,11 @@ function stageRivalHunt(dt) {
   // le chasseur : il arrive du bord de l'écran, du côté opposé au joueur
   const away = Math.atan2(rival.y - p.y, rival.x - p.x) + rand(-0.5, 0.5);
   const id = pick(H.by);
-  let hunter = creatures.find((c) => c.id === id && !c.dead && dist(c, rival) < Math.hypot(viewW, viewH));
+  let hunter = creatures.find((c) => c.id === id && !c.dead && dist(c, rival) < Math.hypot(playW(), playH()));
   if (!hunter) hunter = spawnCreature(id, true);
   if (!hunter) return;
   if (!onScreen(hunter, 0)) {
-    const D = Math.hypot(viewW, viewH) * 0.34 + hunter.size * 0.6;
+    const D = Math.hypot(playW(), playH()) * 0.34 + hunter.size * 0.6;
     hunter.x = clamp(rival.x + Math.cos(away) * D, 100, LV.world.w - 100);
     hunter.y = clamp(rival.y + Math.sin(away) * D, 100, LV.world.h - 100);
     hunter.angle = away + Math.PI;
@@ -3190,10 +3246,8 @@ function updateContacts() {
   for (const c of creatures) {
     if (c.dead || c.buried) continue;
     // mordre la queue d'un boss
-    if (c.sp.tailBite && c.spine && !(c.hitT > 0)) {
-      const tp = c.spine[c.spine.length - 2];
-      if (mouthDist(p, tp.x, tp.y) < p.size * 0.6 + c.size * 0.4) hitBoss(c);
-    }
+    const tp = c.sp.tailBite && !(c.hitT > 0) ? tailBitePoint(c) : null;
+    if (tp && mouthDist(p, tp.x, tp.y) < p.size * 0.6 + c.size * 0.4) hitBoss(c);
     let dm = mouthDist(p, c.x, c.y);
     // (vue de côté) posé, on picore aussi ce qui est par terre, juste devant ses pieds
     if (side() && p.loco === 'sol') dm = Math.min(dm, Math.hypot(c.x - (p.x + (p.face || 1) * p.size * 0.7), c.y - (p.y + cote.standOf(p) * 0.75)));
@@ -4371,7 +4425,7 @@ function drawMinimap() {
   mctx.clip();
   mctx.fillStyle = 'rgba(6, 38, 56, 0.78)';
   mctx.fillRect(0, 0, S, S);
-  const range = Math.max(viewW, viewH) * 1.3;
+  const range = Math.max(playW(), playH()) * 1.3;
   const k = (R - 6) / range;
   const toM = (x, y) => ({ x: R + (x - player.x) * k, y: R + (y - player.y) * k });
   // bords du monde
@@ -4888,9 +4942,17 @@ function playIntro() {
       drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'calm', ...o }, performance.now() / 1000),
     });
   } else if (LV.intro === 'terre') {
+    // (world.style = 'tqv') le tétrapode de profil, à moitié dans l'eau puis sur la plage, et des fougères debout
+    const tq = LV.world.style === 'tqv';
+    const hero = (c, x, y, r, angle, t, walk) => (tq
+      ? drawPlayer(c, { x, y: y + r * 0.4, angle: 0, face: 1, size: r, mouth: 0, mood: t > 9.6 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: null }, CHAPTERS[0].form, {}, t)
+      : drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 9.6 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: makeSpine(x, y, angle, r, 'tetrapode') }, 'tetrapode', {}, t));
     intro = createLandIntro({
       sfx,
-      drawHero: (c, x, y, r, angle, t, walk) => drawPlayer(c, { x, y, angle, size: r, mouth: 0, mood: t > 9.6 ? 'scared' : 'happy', blink: (t % 3) < 0.12 ? 1 : 0, speed: 0.3, walk, spine: makeSpine(x, y, angle, r, 'tetrapode') }, 'tetrapode', {}, t),
+      drawHero: (c, x, y, r, angle, t, walk, wet) => (tq && wet
+        ? drawWading({ x, y: y + r * 0.4, size: r, walk }, () => hero(c, x, y, r, angle, t, walk), c)
+        : hero(c, x, y, r, angle, t, walk)),
+      drawPlant: tq ? (c, x, y, r, t) => drawFern(c, { x, y, r, seed: Math.round(x * 7 + y) }, t, CHAPTERS[0].palette || {}) : null,
     });
   } else {
     intro = createIntro({
@@ -5160,6 +5222,19 @@ function cueEnd(name, at, fn) {
   if (endT >= at && !endCues.has(name)) { endCues.add(name); fn(); }
 }
 
+/** (la fin de la météorite) les grands dinosaures broutent… puis fuient loin de l'impact */
+function stepMeteorHerd(f, t, dt) {
+  if (t > IMPACT) {
+    f.ang = turnToward(f.ang, Math.atan2(f.y - 0.3, f.x - 0.85), dt * 4);
+    f.x += Math.cos(f.ang) * dt * 0.09;
+    f.y += Math.sin(f.ang) * dt * 0.09;
+  } else {
+    f.ang += Math.sin(t * 0.7 + f.seed) * dt * 0.4;
+    f.x += Math.cos(f.ang) * dt * 0.008;
+    f.y += Math.sin(f.ang) * dt * 0.008;
+  }
+}
+
 function drawMeteorEnding(dt) {
   endT += dt;
   const t = endT;
@@ -5191,43 +5266,74 @@ function drawMeteorEnding(dt) {
   }
   const pond = sea ? null : { type: 'mare', zone: 'water', x: w * 0.8, y: h * 0.8, r: m * 0.14, seed: 4242 };
   if (pond) drawDecor(c, pond, t);
-  for (const d of endDecor) {
-    d.x = d.fx * w;
-    d.y = d.fy * h;
-    d.r = d.fr * m;
-    drawDecor(c, d, t);
-  }
-
-  // les grands dinosaures : ils broutent… puis fuient et disparaissent
   const dying = clamp((t - IMPACT - 0.5) / 2.8, 0, 1);
-  for (const f of endFx) {
-    const sp = SPECIES[f.sp];
-    if (!sp) continue;
-    if (t > IMPACT) {
-      f.ang = turnToward(f.ang, Math.atan2(f.y - 0.3, f.x - 0.85), dt * 4);
-      f.x += Math.cos(f.ang) * dt * 0.09;
-      f.y += Math.sin(f.ang) * dt * 0.09;
-    } else {
-      f.ang += Math.sin(t * 0.7 + f.seed) * dt * 0.4;
-      f.x += Math.cos(f.ang) * dt * 0.008;
-      f.y += Math.sin(f.ang) * dt * 0.008;
-    }
-    const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
-    c.globalAlpha = 1 - dying;
-    drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: t > IMPACT ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (t > IMPACT ? 5 : 1), spine: makeSpine(x, y, f.ang, r, sp.look) }, t + f.seed);
-  }
-  // toi, le roi… qui disparaît aussi
   const size = m * 0.085;
   const px = w * 0.45, py = h * 0.6;
   const a = t > IMPACT ? -0.5 : Math.sin(t * 0.7) * 0.25 - 0.2;
   const roaring = t < 1.8 || (t > 3 && t < 3.6);
-  drawPlayer(c, { x: px, y: py, angle: a, size, mouth: roaring ? 0.9 : 0.15, mood: t > IMPACT ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t, spine: makeSpine(px, py, a, size, formLook()) }, CH.form, game.owned, t);
-  // la couronne tombe au moment de l'impact
   const fall = t > IMPACT ? Math.min(1, (t - IMPACT) / 1.2) : 0;
-  c.globalAlpha = Math.max(0, 1 - clamp((t - IMPACT - 1.5) / 1.5, 0, 1));
-  drawCrown(c, px + Math.cos(a) * size * 0.2 + fall * size, py - size * 1.2 + fall * size * 1.6, size * 0.6);
-  c.globalAlpha = 1;
-  for (const d of endDecor) if (['fougeres', 'conifere', 'algues'].includes(d.type)) drawCover(c, d, t);
+  for (const f of endFx) stepMeteorHerd(f, t, dt);
+  if (tqStyle() && !sea) {
+    // (vue de trois quarts) les plantes, les grands dinosaures et toi, debout, rangés du fond vers le devant
+    const P = CH.palette || {};
+    const list = [];
+    for (const d of endDecor) {
+      const x = d.fx * w, y = d.fy * h, r = d.fr * m;
+      if (d.type === 'conifere') list.push({ y, draw: () => drawTree(c, { x, y, r: r * 0.6, kind: 'pin', seed: d.seed }, t, P) });
+      else if (d.type === 'cycas') list.push({ y, draw: () => drawCycad(c, { x, y, r: r * 0.7, seed: d.seed }, t, P) });
+      else {
+        for (let i = 0; i < 3; i++) {
+          const fy = y + (i - 1) * r * 0.25;
+          list.push({ y: fy, draw: () => drawFern(c, { x: x + (i - 1) * r * 0.5, y: fy, r: r * 0.55, seed: d.seed + i }, t, P) });
+        }
+      }
+    }
+    for (const f of endFx) {
+      const sp = SPECIES[f.sp];
+      if (!sp) continue;
+      const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
+      list.push({ y, draw: () => {
+        c.globalAlpha = 1 - dying;
+        drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: t > IMPACT ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (t > IMPACT ? 5 : 1), spine: null }, t + f.seed);
+        c.globalAlpha = 1;
+      } });
+    }
+    // toi, le roi… qui disparaît aussi
+    list.push({ y: py, draw: () => {
+      c.globalAlpha = 1 - dying;
+      drawPlayer(c, { x: px, y: py, angle: 0, face: t > IMPACT ? -1 : 1, size, mouth: roaring ? 0.9 : 0.15, mood: t > IMPACT ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t, spine: null }, CH.form, game.owned, t);
+      c.globalAlpha = 1;
+    } });
+    list.sort((u, v) => u.y - v.y);
+    for (const u of list) u.draw();
+    // la couronne, sur sa tête… qui tombe au moment de l'impact
+    c.globalAlpha = Math.max(0, 1 - clamp((t - IMPACT - 1.5) / 1.5, 0, 1));
+    const hx = t > IMPACT ? -1.1 : 1.1;
+    drawCrown(c, px + size * hx + fall * size * 0.6, py - size * 1.9 + fall * size * 2.0, size * 0.6);
+    c.globalAlpha = 1;
+  } else {
+    for (const d of endDecor) {
+      d.x = d.fx * w;
+      d.y = d.fy * h;
+      d.r = d.fr * m;
+      drawDecor(c, d, t);
+    }
+    // les grands dinosaures : ils broutent… puis fuient et disparaissent
+    for (const f of endFx) {
+      const sp = SPECIES[f.sp];
+      if (!sp) continue;
+      const x = f.x * w, y = f.y * h, r = m * 0.04 * (0.8 + f.s * 0.4);
+      c.globalAlpha = 1 - dying;
+      drawCreature(c, { sp, x, y, angle: f.ang, size: r, seed: f.seed, mood: t > IMPACT ? 'scared' : 'calm', mouth: 0, blink: 0, walk: t * (t > IMPACT ? 5 : 1), spine: makeSpine(x, y, f.ang, r, sp.look) }, t + f.seed);
+    }
+    // toi, le roi… qui disparaît aussi
+    drawPlayer(c, { x: px, y: py, angle: a, size, mouth: roaring ? 0.9 : 0.15, mood: t > IMPACT ? 'scared' : 'happy', blink: 0, speed: 0.3, walk: t, spine: makeSpine(px, py, a, size, formLook()) }, CH.form, game.owned, t);
+    // la couronne tombe au moment de l'impact
+    c.globalAlpha = Math.max(0, 1 - clamp((t - IMPACT - 1.5) / 1.5, 0, 1));
+    drawCrown(c, px + Math.cos(a) * size * 0.2 + fall * size, py - size * 1.2 + fall * size * 1.6, size * 0.6);
+    c.globalAlpha = 1;
+    for (const d of endDecor) if (['fougeres', 'conifere', 'algues'].includes(d.type)) drawCover(c, d, t);
+  }
 
   // pluie de débris en feu
   for (const db of DEBRIS) {
@@ -5881,8 +5987,16 @@ function drawSurvivors(c, w, h, m, t, pond) {
   c.ellipse(mx - mr * 1.2, my + mr * 0.4, mr * 1.4, mr * 0.9, 0, 0, TAU);
   c.fill();
   c.globalAlpha = k;
-  const furry = { look: 'lezard', color: '#A0785A', kind: 'prey', body: { fur: true } };
-  drawCreature(c, { sp: furry, x: mx, y: my, angle: -0.4, size: mr, seed: 5, mood: 'calm', mouth: 0, blink: (t % 2.5) < 0.12 ? 1 : 0, walk: 0, spine: makeSpine(mx, my, -0.4, mr, 'lezard') }, t);
+  if (tqStyle()) {
+    // (vue de trois quarts) une petite musaraigne, debout devant son terrier
+    c.globalAlpha = 1;
+    drawBurrow(c, { x: mx - mr * 1.3, y: my + mr * 0.2, r: mr * 1.3 }, CH.palette || {});
+    c.globalAlpha = k;
+    drawCreature(c, { sp: { look: 'th-musaraigne', color: '#A0785A', belly: '#F2E2C8' }, x: mx, y: my + mr * 0.3, angle: 0, face: 1, size: mr, seed: 5, mood: 'happy', mouth: 0, blink: (t % 2.5) < 0.12 ? 1 : 0, walk: 0, spine: null }, t);
+  } else {
+    const furry = { look: 'lezard', color: '#A0785A', kind: 'prey', body: { fur: true } };
+    drawCreature(c, { sp: furry, x: mx, y: my, angle: -0.4, size: mr, seed: 5, mood: 'calm', mouth: 0, blink: (t % 2.5) < 0.12 ? 1 : 0, walk: 0, spine: makeSpine(mx, my, -0.4, mr, 'lezard') }, t);
+  }
   // le petit oiseau, qui s'envole
   const bx = w * (0.1 + (t - 11.8) * 0.1), by = h * (0.42 - Math.sin((t - 11.8) * 0.8) * 0.06), br = m * 0.05;
   c.globalAlpha = 1;
@@ -6263,9 +6377,9 @@ function botJob() {
     if (missionInfo(m).done) continue;
     if (m.type === 'stun' || m.type === 'hit') {
       const t = nearestCreature((c) => c.id === m.species && !c.stunNoted);
-      if (t && t.sp.tailBite) {
+      const tp = t && t.sp.tailBite ? tailBitePoint(t) : null;
+      if (tp) {
         // on file vers le bout de sa queue
-        const tp = t.spine[t.spine.length - 2];
         return go(tp.x, tp.y);
       }
       // (la queue-leurre) on l'attire de loin, puis on le laisse croquer la queue

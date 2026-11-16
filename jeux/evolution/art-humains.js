@@ -1359,47 +1359,20 @@ LOOKS['th-os'] = (ctx, c, t) => {
 FRAMES['th-os'] = { r: 0.3, x: 0.5, y: 0.62 };
 
 /* ---- (la voie des mammifères) les reptiles, les oiseaux et les insectes : leurs dessins de profil
-   (art-cote.js), posés debout sur le sol ; ceux qui vivent dans l'eau (c.inWater) y sont à moitié plongés ---- */
-/** Dans l'eau : on ne voit que le haut du corps, et des ronds autour */
-function swimming(ctx, c, s, draw) {
-  const wl = c.y - s * 0.12;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(c.x - s * 6, wl - s * 6, s * 12, s * 6);
-  ctx.clip();
-  draw(s * 0.32);
-  ctx.restore();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.lineWidth = Math.max(1.5, s * 0.04);
-  for (let i = 0; i < 2; i++) {
-    const k = ((c.walk || 0) * 0.15 + i * 0.5) % 1;
-    ctx.globalAlpha = 1 - k;
-    ell(ctx, c.x, wl, s * (0.8 + k * 0.9), s * (0.18 + k * 0.2));
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-}
+   (art-cote.js), posés debout sur le sol (dans une mare, script.js les dessine à moitié dans l'eau) ---- */
 /** Un look « vc-… » (vue de côté), debout sur le sol ; k = sa taille dessinée */
 function standing(vc, k = 1) {
   return (ctx, c, t) => {
     const face = c.face || (Math.cos(c.angle || 0) >= 0 ? 1 : -1);
     const s = c.size * k;
-    const draw = (sink = 0) => LOOKS[vc](ctx, { ...c, size: s, y: c.y + sink - (STAND[vc] ?? 0.5) * s, loco: 'sol', face, angle: face > 0 ? 0 : Math.PI, pitch: 0 }, t);
-    if (c.inWater) { swimming(ctx, c, s, draw); return; }
     groundShadow(ctx, c.x, c.y, s * 0.9, s * 0.22, 0.22);
-    draw();
+    LOOKS[vc](ctx, { ...c, size: s, y: c.y - (STAND[vc] ?? 0.5) * s, loco: 'sol', face, angle: face > 0 ? 0 : Math.PI, pitch: 0 }, t);
   };
 }
 for (const [id, vc, k] of [['lezard', 'vc-lezard', 1], ['titanoboa', 'vc-titanoboa', 0.8], ['crocodile', 'vc-crocodile', 0.9], ['crocodile-coureur', 'vc-megalania', 0.9],
   ['oiseau-terreur', 'vc-phorusrhacos', 1], ['gastornis', 'vc-genyornis', 0.55], ['insecte', 'vc-grillon', 1.3]]) {
   LOOKS[`th-${id}`] = standing(vc, k);
   FRAMES[`th-${id}`] = { r: 0.24, x: 0.5, y: 0.78 };
-}
-// (Ambulocetus, la baleine qui marchait) lui aussi se plonge dans l'eau
-{
-  const walk = LOOKS['th-ambulocetus'], P = MAM.ambulocetus;
-  LOOKS['th-ambulocetus'] = (ctx, c, t) => (c.inWater ? swimming(ctx, c, c.size, (sink) => walk(ctx, { ...c, y: c.y + sink }, t)) : walk(ctx, c, t));
-  SNOUT['th-ambulocetus'] = P.head.x + P.head.L * 0.7;
 }
 /** Le mille-pattes, de profil : un long corps en anneaux, et plein de petites pattes qui ondulent */
 LOOKS['th-millepattes'] = (ctx, c, t) => {

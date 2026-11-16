@@ -304,7 +304,9 @@ const ease = (k) => k * k * (3 - 2 * k);
    0 → 4,5 s   un poisson aux nageoires musclées nage vers la rive
    4,5 → 9 s   il se hisse hors de l'eau et rampe sur la terre
    9 → 14 s    le sol tremble, une ombre immense passe… seuls les malins survivront
-   drawHero(ctx, x, y, r, angle, t, walk) dessine le joueur en tétrapode.
+   drawHero(ctx, x, y, r, angle, t, walk, wet) dessine le joueur en tétrapode (wet : il est encore
+   dans l'eau) ; drawPlant(ctx, x, y, r, t), si le niveau est dessiné de trois quarts, dessine
+   une fougère debout (sinon, les fougères sont vues d'en haut).
    ============================================================================ */
 const LAND_DURATION = 14;
 const LAND_CAPTIONS = [
@@ -313,7 +315,7 @@ const LAND_CAPTIONS = [
   [9.2, 14, "Mais sur la terre, tout est dangereux. Seuls les plus malins survivront !"],
 ];
 
-export function createLandIntro({ sfx, drawHero }) {
+export function createLandIntro({ sfx, drawHero, drawPlant }) {
   let t = 0;
   const cues = new Set();
   const prints = [];
@@ -369,8 +371,16 @@ export function createLandIntro({ sfx, drawHero }) {
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      // fougères et prêles sur la terre
-      for (const p of plants) {
+      // fougères et prêles sur la terre (de trois quarts : debout, devant ou derrière le héros)
+      const heroY = h * 0.58;
+      const upright = (front) => {
+        for (const p of plants) {
+          const x = p.x * w, y = p.y * h;
+          if (x >= shore + 80 && (y > heroY) === front) drawPlant(ctx, x, y, p.r * m * 1.6, t);
+        }
+      };
+      if (drawPlant) upright(false);
+      for (const p of drawPlant ? [] : plants) {
         const x = p.x * w, y = p.y * h, r = p.r * m;
         if (x < shore + 80) continue;
         ctx.strokeStyle = '#3E8E41';
@@ -405,7 +415,8 @@ export function createLandIntro({ sfx, drawHero }) {
         ctx.arc(p.x, p.y, r * 0.12, 0, TAU);
         ctx.fill();
       }
-      drawHero(ctx, x, y, r, -0.05, t, t > 4.5 && t < 9 ? t * 3 : t * 1.5);
+      drawHero(ctx, x, y, r, -0.05, t, t > 4.5 && t < 9 ? t * 3 : t * 1.5, x < shore - r * 0.5);
+      if (drawPlant) upright(true);
       // une ombre immense passe…
       if (t > 10.2) {
         const k = clamp01((t - 10.2) / 3.5);

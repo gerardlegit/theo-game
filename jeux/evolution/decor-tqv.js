@@ -1,8 +1,8 @@
 // ============================================================================
 // Évolution — un niveau « vu de dessus » redessiné en VUE DE TROIS QUARTS
-// (world.style === 'tqv' : le niveau du loup, la voie des mammifères). Le
-// moteur ne change pas : les mares, la neige, la boue, les camps, l'enclos,
-// les hautes herbes, les terriers et les arbres sont
+// (world.style === 'tqv' : le niveau du loup, la voie des mammifères, le
+// niveau des dinosaures). Le moteur ne change pas : les mares, la neige, la
+// boue, les camps, l'enclos, les hautes herbes, les terriers et les arbres sont
 // ceux de world.decor (voir script.js), aux mêmes places et avec les mêmes
 // règles ; seul leur dessin change, dans le style de la voie des humains :
 //   - à plat, sur le sol : la neige, l'eau des mares (gelée sur les bords à
@@ -13,9 +13,10 @@
 //     roseaux, les buissons, les os des grands repas, les tentes en peaux, le
 //     séchoir et le feu des camps, les huttes des villages, la barrière de
 //     l'enclos ; et pour la voie des mammifères : la boue, les fougères, les
-//     terriers, les palmiers, les acacias de la savane.
+//     terriers, les palmiers, les acacias de la savane ; pour les dinosaures :
+//     les arbres anciens, les conifères, les prêles, les cycas, les nids.
 // Un grand objet planté devant le joueur devient transparent : on le voit
-// toujours. (Les dessins sont dans art-humains.js ; les couleurs, dans
+// toujours. (Les dessins sont dans art-humains.js et art-dinos-tq.js ; les couleurs, dans
 // chapters[].palette ; la végétation en plus, dans world.land.)
 // ============================================================================
 
@@ -24,6 +25,7 @@ import {
   drawTree, drawRock, drawBush, drawGrass, drawFern, drawFlowers, drawReeds, drawDecal, drawHearth, drawHut, drawPost,
   drawTent, drawRack, drawBones, drawPalm, drawBurrow,
 } from './art-humains.js';
+import { drawAncientTree, drawHorsetail, drawCycad, drawDinoNest } from './art-dinos-tq.js';
 
 const TAU = Math.PI * 2;
 const CELL = 500;                  // la grille qui range le décor (pour ne dessiner que ce qu'on voit)
@@ -124,6 +126,22 @@ export function createDecorTqv(api) {
           break;
         case 'boue':
           flats.push({ k: 'boue', x: d.x, y: d.y, r: d.r, seed: d.seed, edge: wobble(d.seed, 12), ...s });
+          break;
+        // (le niveau des dinosaures) les arbres anciens, les conifères, les prêles, les cycas, les nids
+        case 'arbre-ancien':
+          add({ type: 'ancien', x: d.x, y: d.y, r: d.r * 0.6, seed: d.seed, tall: true, ...s });
+          break;
+        case 'conifere':
+          add({ type: 'arbre', kind: 'pin', x: d.x, y: d.y, r: d.r * 0.5, seed: d.seed, tall: true, ...s });
+          break;
+        case 'prele':
+          add({ type: 'prele', x: d.x, y: d.y, r: d.r * 1.2, seed: d.seed, ...s });
+          break;
+        case 'cycas':
+          add({ type: 'cycas', x: d.x, y: d.y, r: d.r * 1.1, seed: d.seed, ...s });
+          break;
+        case 'nid':
+          add({ type: 'nid', x: d.x, y: d.y, r: d.r * 1.1, seed: d.seed, ...s });
           break;
         case 'palmier':
           add({ type: 'palmier', x: d.x, y: d.y, r: d.r * 0.75, seed: d.seed, tall: true, ...s });
@@ -369,6 +387,7 @@ export function createDecorTqv(api) {
     switch (o.type) {
       case 'arbre': return [o.r * (o.kind === 'pin' ? 3.0 : 3.1), o.r * 1.05];
       case 'palmier': return [o.r * 3.2, o.r * 1.4];
+      case 'ancien': return [o.r * 3.9, o.r * 1.2];
       case 'tente': return [o.r * 2.3, o.r];
       case 'hutte': return [o.r * 1.9, o.r * 1.1];
       default: return [o.r * 1.1, o.r];
@@ -377,7 +396,7 @@ export function createDecorTqv(api) {
 
   /* (palette.decorK) quand le joueur grandit beaucoup (de la musaraigne au tigre géant), la
      végétation et les rochers de son époque sont dessinés plus grands */
-  const GROWS = new Set(['arbre', 'palmier', 'herbes', 'fougere', 'buisson', 'roseaux', 'fleurs', 'rocher', 'os']);
+  const GROWS = new Set(['arbre', 'palmier', 'herbes', 'fougere', 'buisson', 'roseaux', 'fleurs', 'rocher', 'os', 'ancien', 'prele', 'cycas', 'nid']);
 
   function drawUpright(ctx, u, t) {
     const P = pal();
@@ -394,6 +413,10 @@ export function createDecorTqv(api) {
       // (palette.acacia) dans la savane, les arbres sont des acacias
       case 'arbre': drawTree(ctx, P.acacia && o.kind !== 'pin' ? { ...o, kind: 'acacia' } : o, t, P); break;
       case 'palmier': drawPalm(ctx, o, t, P); break;
+      case 'ancien': drawAncientTree(ctx, o, t, P); break;
+      case 'prele': drawHorsetail(ctx, o, t, P); break;
+      case 'cycas': drawCycad(ctx, o, t, P); break;
+      case 'nid': drawDinoNest(ctx, o); break;
       case 'terrier': drawBurrow(ctx, o, P); break;
       case 'rocher': drawRock(ctx, o, P); break;
       case 'herbes': drawGrass(ctx, o, t, P); break;
