@@ -87,7 +87,7 @@ export function createVilles(api, T) {
       for (let x = -h; x < h - 1; x += 125) {
         const a = x, b = Math.min(h, x + 125);
         const parts = b <= -gt || a >= gt ? [[a, b]] : [a < -gt ? [a, -gt] : null, b > gt ? [gt, b] : null].filter(Boolean);
-        for (const [s0, s1] of parts) if (s1 - s0 > 8) C.walls.push({ kind: 'h', x: V.x + (s0 + s1) / 2, y, len: s1 - s0 });
+        for (const [s0, s1] of parts) if (s1 - s0 > 8) C.walls.push({ kind: 'h', x: V.x + (s0 + s1) / 2, y, len: s1 - s0, side });
       }
       C.arches.push({ x: V.x, y, w: C.gateW });
     }
@@ -96,7 +96,7 @@ export function createVilles(api, T) {
       const x = V.x + side * h;
       for (let y = -h + 60; y <= h + 0.5; y += 60) {
         if (Math.abs(y - 30) < gt + 30) continue;
-        C.walls.push({ kind: 'v', x, y: V.y + y, len: 60 });
+        C.walls.push({ kind: 'v', x, y: V.y + y, len: 60, side });
       }
     }
     // les tours : aux quatre coins, et de chaque côté des portes
@@ -240,6 +240,9 @@ export function createVilles(api, T) {
     if (Math.abs(x - C.yard.x) < 380 + m && Math.abs(y - C.yard.y - 100) < 360 + m) return true;
     if (Math.abs(x - C.port.x - 80) < 300 + m && Math.abs(y - C.port.y) < 300 + m) return true;
     for (const t of C.towns) if (Math.hypot(x - t.x, y - t.y) < t.r + 200 + m) return true;
+    // (le pont et ses abords : pas de roseaux devant ses arches)
+    const B = C.bridge;
+    if (x > B.x0 - 120 - m && x < B.x1 + 120 + m && y > B.y - B.hw - 160 - m && y < B.y + B.hw + 260 + m) return true;
     for (const [a, b] of C.parts) if (segDist(x, y, a.x, a.y, b.x, b.y) < 130 + m) return true;
     const M = T.M();
     for (const s of M ? M.W.sites || [] : []) {

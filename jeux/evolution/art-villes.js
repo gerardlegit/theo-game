@@ -151,31 +151,9 @@ for (const id of ['citadin', 'habitant', 'soldat', 'negociant', 'ouvrier', 'tour
    LES ICÔNES (le compteur en haut de l'écran, le coût des plans, les missions)
    ============================================================================ */
 EXTRA_ICONS.pierre = (ctx, s) => {
-  // un bloc de pierre taillée, vu de trois quarts
-  ctx.strokeStyle = '#4A4236';
-  ctx.fillStyle = '#C8BCA4';
-  ctx.beginPath();
-  ctx.rect(-s * 0.75, -s * 0.2, s * 1.2, s * 0.8);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#E2D8C2';
-  ctx.beginPath();
-  ctx.moveTo(-s * 0.75, -s * 0.2);
-  ctx.lineTo(-s * 0.4, -s * 0.6);
-  ctx.lineTo(s * 0.8, -s * 0.6);
-  ctx.lineTo(s * 0.45, -s * 0.2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#A89C84';
-  ctx.beginPath();
-  ctx.moveTo(s * 0.45, -s * 0.2);
-  ctx.lineTo(s * 0.8, -s * 0.6);
-  ctx.lineTo(s * 0.8, s * 0.2);
-  ctx.lineTo(s * 0.45, s * 0.6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  // deux blocs de pierre taillée, l'un sur l'autre
+  cutBlock(ctx, -s * 0.08, s * 0.82, s * 1.6, s * 0.62, s * 0.36, '#CEC2A6', 3);
+  cutBlock(ctx, s * 0.12, s * 0.02, s * 1.05, s * 0.5, s * 0.3, '#D8CCB0', 5);
 };
 EXTRA_ICONS.laine = (ctx, s) => {
   ctx.fillStyle = '#F8F4EA';
@@ -410,6 +388,10 @@ export function drawCityGround(ctx, C, t) {
     ell(ctx, x + (r() * 2 - 1) * half, y + (r() * 2 - 1) * half, 30 + r() * 70, 14 + r() * 30);
     ctx.fill();
   }
+  // l'ombre des remparts, par terre : au pied du rempart ouest (dedans) et du rempart nord (dedans)
+  ctx.fillStyle = 'rgba(40, 32, 14, 0.16)';
+  ctx.fillRect(x - half + 26, y - half, 40, half * 2);
+  ctx.fillRect(x - half, y - half + 4, half * 2, 34);
   // les rues : du marché jusqu'aux quatre portes
   ctx.fillStyle = cobblePattern(ctx);
   const sw = C.street || 150;
@@ -423,147 +405,310 @@ export function drawCityGround(ctx, C, t) {
   ctx.stroke();
 }
 
-/** Un morceau de rempart (est-ouest) : sa face de pierre, son chemin de ronde et ses créneaux */
-const WALL_H = 150, WALL_T = 44;
-function paintWallH(g, ox, oy, len) {
-  const x0 = ox - len / 2;
-  // le chemin de ronde (le dessus du mur)
-  g.fillStyle = shade(STONE, 0.1);
-  g.strokeStyle = INKS;
-  g.lineWidth = 3;
-  g.beginPath();
-  g.rect(x0, oy - WALL_H - WALL_T * 0.55, len, WALL_T * 0.55);
+/* ---------- La pierre, bloc par bloc ----------
+   Chaque pierre a sa couleur, sa lumière en haut et à gauche, son ombre en bas, parfois une
+   fissure, de petits trous ou une tache de lichen ; entre les pierres, le mortier. (Tout cela
+   est dessiné une seule fois, dans les petites toiles de cached().) */
+const STONES = ['#D3C6AA', '#C8BA9C', '#DCD0B4', '#C0B294', '#CEC2A6', '#BCAE92', '#D6C8A8'];
+const DARK_STONES = ['#A89A7E', '#9C8E74', '#B0A286', '#968A70'];
+const FLAGS = ['#DDD2B8', '#D4C8AC', '#E2D8C0', '#D8CCB2'];
+const MORTAR = '#7E705A';
+
+/** Une pierre (x, y, w, h), aux coins arrondis, éclairée d'en haut à gauche */
+function stone(g, x, y, w, h, col, r) {
+  if (w < 3 || h < 3) return;
+  const rad = Math.min(5, h * 0.3, w * 0.3);
+  g.save();
+  rrect(g, x, y, w, h, rad);
+  g.fillStyle = col;
   g.fill();
-  g.stroke();
-  // la face
-  const gr = g.createLinearGradient(0, oy - WALL_H, 0, oy);
-  gr.addColorStop(0, STONE);
-  gr.addColorStop(1, shade(STONE, -0.14));
-  g.fillStyle = gr;
-  g.beginPath();
-  g.rect(x0, oy - WALL_H, len, WALL_H);
-  g.fill();
-  g.stroke();
-  // les pierres
-  g.strokeStyle = 'rgba(70, 58, 40, 0.45)';
-  g.lineWidth = 1.6;
-  g.beginPath();
-  for (let row = 0, yy = oy - WALL_H + 22; yy < oy - 4; yy += 22, row++) {
-    g.moveTo(x0 + 2, yy);
-    g.lineTo(x0 + len - 2, yy);
-    for (let xx = x0 + (row % 2 ? 18 : 40); xx < x0 + len - 6; xx += 46) {
-      g.moveTo(xx, yy);
-      g.lineTo(xx, yy - 22);
+  g.clip();
+  g.fillStyle = 'rgba(255, 252, 238, 0.38)';
+  g.fillRect(x, y, w, Math.max(1.5, h * 0.2));
+  g.fillStyle = 'rgba(255, 252, 238, 0.16)';
+  g.fillRect(x, y, Math.max(1.5, w * 0.08), h);
+  g.fillStyle = 'rgba(60, 44, 24, 0.24)';
+  g.fillRect(x, y + h * 0.74, w, h * 0.26);
+  const u = r();
+  if (u < 0.2) {
+    // une fissure
+    g.strokeStyle = 'rgba(70, 54, 32, 0.5)';
+    g.lineWidth = 1;
+    g.beginPath();
+    const cx = x + w * (0.25 + r() * 0.5);
+    g.moveTo(cx, y);
+    g.lineTo(cx + (r() - 0.5) * 6, y + h * 0.45);
+    g.lineTo(cx + (r() - 0.5) * 10, y + h);
+    g.stroke();
+  } else if (u < 0.5) {
+    // de petits trous
+    g.fillStyle = 'rgba(80, 64, 40, 0.35)';
+    for (let k = 0; k < 3; k++) {
+      g.beginPath();
+      g.arc(x + r() * w, y + h * (0.3 + r() * 0.5), 0.8 + r() * 1.2, 0, TAU);
+      g.fill();
     }
-  }
-  g.stroke();
-  // les créneaux
-  for (let xx = x0 + 6; xx < x0 + len - 20; xx += 34) {
-    g.fillStyle = shade(STONE, 0.05);
-    g.strokeStyle = INKS;
-    g.lineWidth = 2.5;
-    g.beginPath();
-    g.rect(xx, oy - WALL_H - 22, 20, 22);
-    g.fill();
-    g.stroke();
-    g.fillStyle = shade(STONE, 0.2);
-    g.fillRect(xx + 1, oy - WALL_H - 30, 18, 8);
-  }
-  // la mousse, au pied du mur
-  g.fillStyle = 'rgba(80, 110, 50, 0.35)';
-  for (let xx = x0 + 10; xx < x0 + len - 10; xx += 57) {
-    ell(g, xx, oy - 4, 16, 6);
+  } else if (u > 0.93) {
+    // une tache de lichen
+    g.fillStyle = 'rgba(150, 160, 90, 0.45)';
+    ell(g, x + r() * w, y + h * 0.4, w * 0.18, h * 0.22);
     g.fill();
   }
-}
-export function drawWallH(ctx, w) {
-  cached(ctx, `murH|${Math.round(w.len)}`, w.x, w.y, WALL_H + 40, w.len / 2 + 4, 10, (g, ox, oy) => paintWallH(g, ox, oy, w.len));
-}
-/** Un bloc du rempart nord-sud (vu par le bout : on voit surtout son chemin de ronde) */
-function paintWallV(g, ox, oy, len) {
-  const x0 = ox - WALL_T / 2 - 6, w = WALL_T + 12;
-  const gr = g.createLinearGradient(x0, 0, x0 + w, 0);
-  gr.addColorStop(0, shade(STONE, -0.1));
-  gr.addColorStop(0.5, STONE);
-  gr.addColorStop(1, shade(STONE, -0.2));
-  g.fillStyle = gr;
-  g.strokeStyle = INKS;
-  g.lineWidth = 3;
-  g.beginPath();
-  g.rect(x0, oy - WALL_H - len, w, WALL_H + len);
-  g.fill();
+  g.restore();
+  rrect(g, x, y, w, h, rad);
+  g.strokeStyle = 'rgba(58, 46, 30, 0.55)';
+  g.lineWidth = 1;
   g.stroke();
-  g.strokeStyle = 'rgba(70, 58, 40, 0.45)';
-  g.lineWidth = 1.6;
-  g.beginPath();
-  for (let yy = oy - 22; yy > oy - WALL_H; yy -= 22) {
-    g.moveTo(x0 + 2, yy);
-    g.lineTo(x0 + w - 2, yy);
-  }
-  g.moveTo(ox, oy - 2);
-  g.lineTo(ox, oy - 22);
-  g.stroke();
-  // les créneaux, des deux côtés du chemin de ronde
-  for (const s of [-1, 1]) {
-    g.fillStyle = shade(STONE, 0.12);
-    g.strokeStyle = INKS;
-    g.lineWidth = 2.5;
-    g.beginPath();
-    g.rect(ox + s * (w / 2 - 6) - 7, oy - WALL_H - len - 18, 14, 22);
-    g.fill();
-    g.stroke();
-  }
-}
-export function drawWallV(ctx, w) {
-  cached(ctx, `murV|${Math.round(w.len)}`, w.x, w.y, WALL_H + w.len + 30, WALL_T / 2 + 10, 6, (g, ox, oy) => paintWallV(g, ox, oy, w.len));
 }
 
-/** Une tour ronde du rempart (r = son rayon) */
-function paintTower(g, ox, oy, r, H, flag) {
-  groundShadow(g, ox, oy, r * 1.1, r * 0.35, 0.3);
-  const gr = g.createLinearGradient(ox - r, 0, ox + r, 0);
-  gr.addColorStop(0, shade(STONE, 0.12));
-  gr.addColorStop(0.55, STONE);
-  gr.addColorStop(1, shade(STONE, -0.28));
-  g.fillStyle = gr;
-  g.strokeStyle = INKS;
-  g.lineWidth = 3;
+/** Un pan de mur en pierres taillées, rang par rang (du bas vers le haut), dans le rectangle (x, y, w, h)
+    o : { row (la hauteur d'un rang), wide (des pierres plus longues), cols, seed, mortar, shadeDown } */
+function masonry(g, x, y, w, h, o = {}) {
+  const r = seeded(o.seed ?? 7);
+  const rowH = o.row || 22, cols = o.cols || STONES, gap = o.gap ?? 2.4;
+  g.save();
   g.beginPath();
-  g.moveTo(ox - r, oy - H);
-  g.lineTo(ox - r, oy);
-  g.ellipse(ox, oy, r, r * 0.35, 0, Math.PI, 0, true);
-  g.lineTo(ox + r, oy - H);
-  g.closePath();
-  g.fill();
-  g.stroke();
-  g.strokeStyle = 'rgba(70, 58, 40, 0.45)';
-  g.lineWidth = 1.6;
-  g.beginPath();
-  for (let yy = oy - 22; yy > oy - H + 6; yy -= 22) {
-    g.moveTo(ox - r + 2, yy);
-    g.ellipse(ox, yy, r - 2, r * 0.33, 0, Math.PI, 0, true);
+  g.rect(x, y, w, h);
+  g.clip();
+  g.fillStyle = o.mortar || MORTAR;
+  g.fillRect(x, y, w, h);
+  let row = 0;
+  for (let yy = y + h; yy > y; yy -= rowH, row++) {
+    let xx = x - r() * rowH * 1.2 - (row % 2) * rowH * 0.6;
+    while (xx < x + w) {
+      const bw = rowH * (o.wide || 1) * (1.2 + r() * 1.6);
+      stone(g, xx + gap / 2, yy - rowH + gap / 2, bw - gap, rowH - gap, shade(cols[Math.floor(r() * cols.length)], (r() - 0.5) * 0.08), r);
+      xx += bw;
+    }
   }
-  g.stroke();
-  // une meurtrière
-  g.fillStyle = '#2A2218';
-  rrect(g, ox - 5, oy - H * 0.62, 10, 28, 4);
-  g.fill();
-  // le haut : le chemin de ronde, et ses créneaux
-  g.fillStyle = shade(STONE, 0.15);
+  if (o.shadeDown !== false) {
+    // un peu plus sombre vers le bas
+    const gr = g.createLinearGradient(0, y, 0, y + h);
+    gr.addColorStop(0, 'rgba(255, 245, 220, 0.06)');
+    gr.addColorStop(1, 'rgba(40, 30, 15, 0.16)');
+    g.fillStyle = gr;
+    g.fillRect(x, y, w, h);
+  }
+  g.restore();
+}
+
+/** Un créneau : une grosse pierre debout sur le bord du chemin de ronde ((x, y) = le bas de sa face, à gauche) */
+function merlon(g, x, y, w, h, d, seed) {
+  // son ombre, sur les dalles derrière lui
+  g.fillStyle = 'rgba(40, 30, 15, 0.22)';
+  g.fillRect(x + w, y - d - 2, 7, d + 2);
+  masonry(g, x, y - h, w, h, { row: h / 2, wide: 1.4, seed, shadeDown: false });
+  g.fillStyle = '#E6DCC4';
+  g.fillRect(x, y - h - d, w, d);
+  g.fillStyle = 'rgba(255, 255, 245, 0.5)';
+  g.fillRect(x + 1, y - h - d + 1, w - 2, 2);
   g.strokeStyle = INKS;
-  g.lineWidth = 3;
-  ell(g, ox, oy - H, r * 1.08, r * 0.38);
+  g.lineWidth = 2;
+  g.strokeRect(x, y - h - d, w, h + d);
+  g.beginPath();
+  g.moveTo(x, y - h);
+  g.lineTo(x + w, y - h);
+  g.stroke();
+}
+
+/** Une meurtrière, encadrée de pierres claires */
+function arrowSlit(g, x, y) {
+  g.fillStyle = '#E2D7BE';
+  g.strokeStyle = 'rgba(58, 46, 30, 0.6)';
+  g.lineWidth = 1.2;
+  rrect(g, x - 9, y - 22, 18, 46, 4);
   g.fill();
   g.stroke();
-  for (let i = 0; i < 7; i++) {
-    const a = Math.PI + (i + 0.5) * (Math.PI / 7);
-    const mx = ox + Math.cos(a) * r * 1.02, my = oy - H - Math.sin(a) * -r * 0.36;
-    g.fillStyle = shade(STONE, 0.04);
-    g.beginPath();
-    g.rect(mx - 8, my - 22, 16, 22);
+  g.fillStyle = '#1E1810';
+  rrect(g, x - 3, y - 16, 6, 34, 3);
+  g.fill();
+}
+
+/** Au pied d'un mur : de la mousse, des touffes d'herbe */
+function wallFoot(g, x0, len, oy, r) {
+  for (let xx = x0 + r() * 30; xx < x0 + len - 8; xx += 30 + r() * 40) {
+    g.fillStyle = 'rgba(88, 118, 52, 0.55)';
+    ell(g, xx, oy - 3, 10 + r() * 10, 4 + r() * 3);
     g.fill();
+    g.strokeStyle = '#5E8A36';
+    g.lineWidth = 2;
+    g.lineCap = 'round';
+    g.beginPath();
+    for (const k of [-1, 0, 1]) {
+      g.moveTo(xx + k * 4, oy);
+      g.lineTo(xx + k * 6 + (r() - 0.5) * 3, oy - 8 - r() * 6);
+    }
     g.stroke();
   }
+}
+
+/** Un morceau de rempart (est-ouest) : sa base, sa face de pierres, son cordon, son chemin de ronde
+    dallé et ses créneaux (side : -1 = au nord, créneaux au fond ; 1 = au sud, créneaux devant) */
+const WALL_H = 150, WALL_T = 44;
+function paintWallH(g, ox, oy, len, side, v) {
+  const x0 = ox - len / 2, top = oy - WALL_H, wt = WALL_T * 0.55;
+  const seed = Math.round(len) * 7 + v * 131 + (side > 0 ? 3 : 0);
+  const r = seeded(seed + 17);
+  // le chemin de ronde : des dalles
+  masonry(g, x0 - 2, top - wt, len + 4, wt, { row: 11, wide: 2.4, cols: FLAGS, seed: seed + 1, shadeDown: false });
+  g.fillStyle = 'rgba(40, 30, 15, 0.12)';
+  g.fillRect(x0, top - wt, len, 4);
+  if (side < 0) for (let xx = x0 + 6; xx < x0 + len - 16; xx += 36) merlon(g, xx, top - wt + 6, 22, 24, 8, seed + xx);
+  // la face, puis la grosse base en pierres sombres
+  masonry(g, x0 - 2, top, len + 4, WALL_H - 26, { row: 21, seed });
+  masonry(g, x0 - 2, oy - 26, len + 4, 26, { row: 26, wide: 1.6, cols: DARK_STONES, seed: seed + 5 });
+  g.fillStyle = 'rgba(30, 22, 10, 0.25)';
+  g.fillRect(x0, oy - 28, len, 3);
+  // des coulures sombres sous le cordon
+  for (let i = 0; i < 3; i++) {
+    const sx = x0 + 10 + r() * (len - 30), sw = 5 + r() * 8, sh = 24 + r() * 36;
+    const gr = g.createLinearGradient(0, top + 8, 0, top + 8 + sh);
+    gr.addColorStop(0, 'rgba(70, 60, 40, 0.14)');
+    gr.addColorStop(1, 'rgba(70, 60, 40, 0)');
+    g.fillStyle = gr;
+    g.fillRect(sx, top + 8, sw, sh);
+  }
+  // une meurtrière (pas toujours)
+  if (r() < 0.6) arrowSlit(g, x0 + len * (0.3 + r() * 0.4), top + 62);
+  // le cordon : une moulure qui dépasse, et son ombre dessous
+  g.fillStyle = 'rgba(30, 22, 10, 0.3)';
+  g.fillRect(x0, top + 6, len, 6);
+  masonry(g, x0 - 2, top - 3, len + 4, 9, { row: 9, wide: 3, cols: FLAGS, seed: seed + 9, shadeDown: false });
+  g.strokeStyle = INKS;
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(x0, top - 3);
+  g.lineTo(x0 + len, top - 3);
+  g.moveTo(x0, top + 6);
+  g.lineTo(x0 + len, top + 6);
+  g.stroke();
+  if (side > 0) for (let xx = x0 + 6; xx < x0 + len - 16; xx += 36) merlon(g, xx, top - 1, 22, 24, 8, seed + xx);
+  // les bords
+  g.strokeStyle = INKS;
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(x0, top - wt);
+  g.lineTo(x0 + len, top - wt);
+  g.moveTo(x0, oy);
+  g.lineTo(x0 + len, oy);
+  g.stroke();
+  wallFoot(g, x0, len, oy, r);
+}
+export function drawWallH(ctx, w) {
+  const side = w.side ?? 1, v = Math.abs(Math.round(w.x / 125)) % 4;
+  cached(ctx, `murH|${Math.round(w.len)}|${side}|${v}`, w.x, w.y, WALL_H + 70, w.len / 2 + 6, 10, (g, ox, oy) => paintWallH(g, ox, oy, w.len, side, v));
+}
+
+/** Un bloc du rempart nord-sud (vu par le bout : on voit son chemin de ronde dallé, son muret
+    intérieur et un créneau sur le bord extérieur ; side : -1 = à l'ouest, 1 = à l'est) */
+function paintWallV(g, ox, oy, len, side, v) {
+  const w = WALL_T + 12, x0 = ox - w / 2, top = oy - WALL_H;
+  const seed = 31 + Math.round(len) + v * 97 + (side > 0 ? 5 : 0);
+  // la face (on la voit au bout du mur, près des portes et des tours)
+  masonry(g, x0, top, w, WALL_H - 24, { row: 21, seed });
+  masonry(g, x0, oy - 24, w, 24, { row: 24, cols: DARK_STONES, seed: seed + 3 });
+  // le dessus : le chemin de ronde, dallé
+  masonry(g, x0, top - len - 2, w, len + 4, { row: 15, wide: 1.3, cols: FLAGS, seed: seed + 7, shadeDown: false });
+  g.fillStyle = 'rgba(60, 45, 25, 0.14)';
+  g.fillRect(x0 + 12, top - len, w - 24, len);
+  // le muret intérieur, et le créneau sur le bord extérieur
+  const outer = side < 0 ? x0 : x0 + w - 13, inner = side < 0 ? x0 + w - 9 : x0;
+  masonry(g, inner, top - len, 9, len, { row: len / 2, cols: FLAGS, seed: seed + 11, shadeDown: false });
+  g.fillStyle = 'rgba(40, 30, 15, 0.22)';
+  g.fillRect(side < 0 ? inner - 4 : inner + 9, top - len, 4, len);
+  const my = top - len * 0.2;
+  masonry(g, outer, my - 20, 13, 20, { row: 10, seed: seed + 13, shadeDown: false });
+  g.fillStyle = '#E6DCC4';
+  g.fillRect(outer, my - 20 - len * 0.38, 13, len * 0.38);
+  g.strokeStyle = INKS;
+  g.lineWidth = 1.5;
+  g.strokeRect(outer, my - 20 - len * 0.38, 13, 20 + len * 0.38);
+  // le cordon, sur la face
+  g.fillStyle = 'rgba(30, 22, 10, 0.3)';
+  g.fillRect(x0, top + 6, w, 5);
+  g.fillStyle = '#E2D7BE';
+  g.fillRect(x0, top - 3, w, 9);
+  // les deux grands côtés
+  g.strokeStyle = INKS;
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(x0, top - len);
+  g.lineTo(x0, oy);
+  g.moveTo(x0 + w, top - len);
+  g.lineTo(x0 + w, oy);
+  g.moveTo(x0, oy);
+  g.lineTo(x0 + w, oy);
+  g.stroke();
+}
+export function drawWallV(ctx, w) {
+  const side = w.side ?? -1, v = Math.abs(Math.round(w.y / 60)) % 4;
+  cached(ctx, `murV|${Math.round(w.len)}|${side}|${v}`, w.x, w.y, WALL_H + w.len + 50, WALL_T / 2 + 14, 6, (g, ox, oy) => paintWallV(g, ox, oy, w.len, side, v));
+}
+
+/** Une tour ronde du rempart (r = son rayon) : des rangs de pierres, l'ombre du côté droit, un
+    cordon, une meurtrière, et une couronne de créneaux autour du chemin de ronde */
+function paintTower(g, ox, oy, r, H, flag) {
+  groundShadow(g, ox + r * 0.2, oy, r * 1.2, r * 0.38, 0.3);
+  const body = () => {
+    g.beginPath();
+    g.moveTo(ox - r, oy - H);
+    g.lineTo(ox - r, oy);
+    g.ellipse(ox, oy, r, r * 0.35, 0, Math.PI, 0, true);
+    g.lineTo(ox + r, oy - H);
+    g.closePath();
+  };
+  g.save();
+  body();
+  g.clip();
+  masonry(g, ox - r, oy - H, r * 2, H + r * 0.4, { row: 20, wide: 0.8, seed: r * 3 + H });
+  masonry(g, ox - r, oy - 26, r * 2, 26 + r * 0.4, { row: 26, wide: 0.9, cols: DARK_STONES, seed: r * 5 + H });
+  // le volume : clair à gauche, sombre à droite, et les rangs qui s'arrondissent
+  const gr = g.createLinearGradient(ox - r, 0, ox + r, 0);
+  gr.addColorStop(0, 'rgba(255, 250, 230, 0.26)');
+  gr.addColorStop(0.35, 'rgba(255, 250, 230, 0)');
+  gr.addColorStop(0.7, 'rgba(40, 30, 15, 0.14)');
+  gr.addColorStop(1, 'rgba(40, 30, 15, 0.5)');
+  g.fillStyle = gr;
+  g.fillRect(ox - r, oy - H - 10, r * 2, H + r);
+  g.strokeStyle = 'rgba(60, 45, 25, 0.22)';
+  g.lineWidth = 2;
+  for (let yy = oy - 21; yy > oy - H; yy -= 20) {
+    g.beginPath();
+    g.ellipse(ox, yy, r, r * 0.3, 0, 0.15, Math.PI - 0.15);
+    g.stroke();
+  }
+  g.restore();
+  body();
+  g.strokeStyle = INKS;
+  g.lineWidth = 3;
+  g.stroke();
+  // une meurtrière
+  arrowSlit(g, ox - r * 0.18, oy - H * 0.58);
+  // le cordon, tout autour
+  g.fillStyle = 'rgba(30, 22, 10, 0.3)';
+  g.beginPath();
+  g.ellipse(ox, oy - H + 10, r, r * 0.35, 0, 0, Math.PI);
+  g.ellipse(ox, oy - H + 2, r, r * 0.35, 0, Math.PI, 0, true);
+  g.fill();
+  // le dessus : le chemin de ronde dallé…
+  g.save();
+  ell(g, ox, oy - H, r * 1.06, r * 0.37);
+  g.clip();
+  masonry(g, ox - r * 1.1, oy - H - r * 0.4, r * 2.2, r * 0.8, { row: 12, wide: 1.6, cols: FLAGS, seed: r + 5, shadeDown: false });
+  g.restore();
+  ell(g, ox, oy - H, r * 1.06, r * 0.37);
+  g.strokeStyle = INKS;
+  g.lineWidth = 2.5;
+  g.stroke();
+  // …et sa couronne de créneaux (ceux du fond, puis ceux de devant)
+  const n = Math.max(7, Math.round(r / 9));
+  const spots = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    spots.push({ x: ox + Math.cos(a) * r * 0.98, y: oy - H + Math.sin(a) * r * 0.35, i });
+  }
+  spots.sort((a, b) => a.y - b.y);
+  for (const s of spots) merlon(g, s.x - 9, s.y + 4, 18, 22, 7, r * 11 + s.i);
   if (flag) {
     g.strokeStyle = '#3A2414';
     g.lineWidth = 4;
@@ -585,57 +730,67 @@ function paintTower(g, ox, oy, r, H, flag) {
 }
 export function drawCityTower(ctx, tw) {
   const r = tw.r || 80, H = tw.h || 220;
-  cached(ctx, `tour|${r}|${H}|${tw.flag || ''}`, tw.x, tw.y, H + (tw.flag ? 110 : 40), r * 1.2 + 60, r * 0.5, (g, ox, oy) => paintTower(g, ox, oy, r, H, tw.flag));
+  cached(ctx, `tour|${r}|${H}|${tw.flag || ''}`, tw.x, tw.y, H + (tw.flag ? 110 : 50), r * 1.2 + 60, r * 0.5, (g, ox, oy) => paintTower(g, ox, oy, r, H, tw.flag));
+}
+
+/** Une arche de pierre : ses voussoirs (les pierres en coin, tout autour), sa clé de voûte dorée.
+    (cx, cy) = le milieu de la naissance de l'arche ; rx, ry = ses rayons ; th = l'épaisseur des voussoirs */
+function voussoirs(g, cx, cy, rx, ry, th, n, seed, key = '#E8C05A') {
+  const r = seeded(seed);
+  for (let i = 0; i < n; i++) {
+    const a0 = Math.PI + (i / n) * Math.PI, a1 = Math.PI + ((i + 1) / n) * Math.PI;
+    const P = (a, k) => ({ x: cx + Math.cos(a) * (rx + k), y: cy + Math.sin(a) * (ry + k * 0.9) });
+    const p = [P(a0 + 0.01, 0), P(a1 - 0.01, 0), P(a1 - 0.01, th), P(a0 + 0.01, th)];
+    const mid = i === Math.floor(n / 2);
+    g.beginPath();
+    p.forEach((q, k) => (k ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
+    g.closePath();
+    g.fillStyle = mid && key ? key : shade(STONES[Math.floor(r() * STONES.length)], 0.05 + (i % 2) * 0.05);
+    g.fill();
+    g.strokeStyle = 'rgba(58, 46, 30, 0.7)';
+    g.lineWidth = 1.4;
+    g.stroke();
+    // la lumière sur le bord intérieur
+    g.strokeStyle = 'rgba(255, 252, 236, 0.45)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(p[3].x, p[3].y);
+    g.lineTo(p[2].x, p[2].y);
+    g.stroke();
+  }
 }
 
 /** Le grand portail d'une porte nord ou sud : l'arche par-dessus le passage (gw = sa largeur) */
 function paintGateArch(g, ox, oy, gw) {
-  const H = WALL_H + 30, top = oy - H;
-  g.fillStyle = STONE;
+  const H = WALL_H + 30, top = oy - H, L = ox - gw / 2 - 10, R = ox + gw / 2 + 10;
+  const spring = oy - 100, rx = gw / 2 + 2, ry = 70;
+  // la maçonnerie au-dessus de l'arche
+  g.save();
+  g.beginPath();
+  g.rect(L, top, R - L, spring - top);
+  g.moveTo(ox + rx, spring);
+  g.ellipse(ox, spring, rx, ry, 0, 0, Math.PI, true);
+  g.closePath();
+  g.clip('evenodd');
+  masonry(g, L, top, R - L, spring - top + 2, { row: 20, seed: Math.round(gw) });
+  g.restore();
+  voussoirs(g, ox, spring, rx, ry, 20, 11, Math.round(gw) + 3);
+  // le cordon, et le contour
+  g.fillStyle = 'rgba(30, 22, 10, 0.3)';
+  g.fillRect(L, top + 6, R - L, 6);
+  masonry(g, L, top - 3, R - L, 9, { row: 9, wide: 3, cols: FLAGS, seed: 5, shadeDown: false });
   g.strokeStyle = INKS;
-  g.lineWidth = 3;
+  g.lineWidth = 2.5;
   g.beginPath();
-  g.moveTo(ox - gw / 2 - 10, top);
-  g.lineTo(ox + gw / 2 + 10, top);
-  g.lineTo(ox + gw / 2 + 10, oy - 112);
-  g.quadraticCurveTo(ox, oy - 190, ox - gw / 2 - 10, oy - 112);
-  g.closePath();
-  g.fill();
+  g.moveTo(L, spring);
+  g.lineTo(L, top - 3);
+  g.lineTo(R, top - 3);
+  g.lineTo(R, spring);
   g.stroke();
-  // la clé de voûte, et les grosses pierres de l'arche
-  g.strokeStyle = 'rgba(70, 58, 40, 0.55)';
-  g.lineWidth = 2;
-  g.beginPath();
-  for (let i = 1; i < 6; i++) {
-    const u = i / 6, xx = lerp(ox - gw / 2 - 10, ox + gw / 2 + 10, u);
-    const yy = oy - 112 - Math.sin(u * Math.PI) * 52;
-    g.moveTo(xx, yy);
-    g.lineTo(xx + (u - 0.5) * 10, top + 2);
-  }
-  g.stroke();
-  g.fillStyle = '#E8C05A';
-  g.strokeStyle = '#6A4A1A';
-  g.beginPath();
-  g.moveTo(ox - 12, oy - 164);
-  g.lineTo(ox + 12, oy - 164);
-  g.lineTo(ox + 9, top + 2);
-  g.lineTo(ox - 9, top + 2);
-  g.closePath();
-  g.fill();
-  g.stroke();
-  // les créneaux
-  for (let xx = ox - gw / 2 - 6; xx < ox + gw / 2; xx += 34) {
-    g.fillStyle = shade(STONE, 0.05);
-    g.strokeStyle = INKS;
-    g.lineWidth = 2.5;
-    g.beginPath();
-    g.rect(xx, top - 22, 20, 22);
-    g.fill();
-    g.stroke();
-  }
+  for (let xx = L + 4; xx < R - 16; xx += 36) merlon(g, xx, top - 1, 22, 24, 8, 77 + xx);
 }
 export function drawGateArch(ctx, ga) {
-  cached(ctx, `porte|${ga.w}`, ga.x, ga.y, WALL_H + 70, ga.w / 2 + 20, 4, (g, ox, oy) => paintGateArch(g, ox, oy, ga.w));
+  cached(ctx, `porte|${ga.w}`, ga.x, ga.y, WALL_H + 80, ga.w / 2 + 24, 4, (g, ox, oy) => paintGateArch(g, ox, oy, ga.w));
 }
 
 /** Une maison de pierre, avec son toit de chaume (v = la variante : la porte, les fenêtres, les pots…) */
@@ -645,29 +800,11 @@ function paintHouse(g, ox, oy, v, thatch) {
   const W = 190 + Math.floor(r() * 3) * 16, Hw = 88 + Math.floor(r() * 3) * 8;
   const wall = HOUSE_WALLS[v % HOUSE_WALLS.length];
   groundShadow(g, ox + 10, oy + 2, W * 0.6, 26, 0.3);
-  // le mur de devant, en pierres
-  const gr = g.createLinearGradient(0, oy - Hw, 0, oy);
-  gr.addColorStop(0, shade(wall, 0.06));
-  gr.addColorStop(1, shade(wall, -0.14));
-  g.fillStyle = gr;
+  // le mur de devant, en pierres (de la couleur de la maison)
+  masonry(g, ox - W / 2, oy - Hw, W, Hw, { row: 17, seed: v * 13 + 5, cols: [wall, shade(wall, 0.06), shade(wall, -0.06), shade(wall, 0.11), shade(wall, -0.1)] });
   g.strokeStyle = INKS;
   g.lineWidth = 3;
-  g.beginPath();
-  g.rect(ox - W / 2, oy - Hw, W, Hw);
-  g.fill();
-  g.stroke();
-  g.strokeStyle = 'rgba(80, 64, 44, 0.4)';
-  g.lineWidth = 1.5;
-  g.beginPath();
-  for (let row = 0, yy = oy - 6; yy > oy - Hw + 8; yy -= 18, row++) {
-    for (let xx = ox - W / 2 + (row % 2 ? 10 : 26); xx < ox + W / 2 - 14; xx += 32 + (row * 7) % 9) {
-      g.moveTo(xx, yy);
-      g.lineTo(xx + 22, yy);
-      g.moveTo(xx + 24, yy);
-      g.lineTo(xx + 24, yy - 14);
-    }
-  }
-  g.stroke();
+  g.strokeRect(ox - W / 2, oy - Hw, W, Hw);
   // la porte en bois, et ses clous
   const dx = (r() - 0.5) * W * 0.4;
   g.fillStyle = '#6A4A2A';
@@ -1045,65 +1182,350 @@ export function drawSchool(ctx, s, thatch) {
 /* ============================================================================
    AUTOUR DE LA VILLE
    ============================================================================ */
-/** Le sol de la carrière : de la roche claire, entaillée en gradins */
-export function drawQuarryGround(ctx, q) {
+/** La carrière, vue de trois quarts : un plateau de roche, et un grand trou creusé en deux gradins.
+    On voit les falaises du fond (striées, avec les entailles des blocs déjà sortis), les gravats,
+    un bloc à moitié découpé, une échelle, des coins de bois. */
+function paintQuarry(g, cx, cy, R) {
   const r = seeded(31);
-  ctx.fillStyle = '#B4AA98';
-  ell(ctx, q.x, q.y, q.r, q.r * 0.7);
-  ctx.fill();
-  ctx.fillStyle = '#9E9482';
-  ell(ctx, q.x + 20, q.y + 10, q.r * 0.72, q.r * 0.48);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(70, 60, 44, 0.5)';
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.ellipse(q.x + 20, q.y + 10, q.r * (0.72 - i * 0.18), q.r * (0.48 - i * 0.12), 0, 0.2, Math.PI - 0.2);
-    ctx.stroke();
+  const N = 44;
+  const J = Array.from({ length: N }, () => 0.88 + r() * 0.2);
+  const P = (i, kx, ky, dy = 0) => {
+    const a = (i / N) * TAU, j = J[((i % N) + N) % N];
+    return { x: cx + Math.cos(a) * R * kx * j, y: cy + Math.sin(a) * R * ky * j + dy };
+  };
+  const ring = (kx, ky, dy) => Array.from({ length: N }, (_, i) => P(i, kx, ky, dy));
+  const poly = (pts) => {
+    g.beginPath();
+    pts.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
+    g.closePath();
+  };
+  // 1. la poussière et les gravats tout autour
+  poly(ring(1.14, 0.8, 0));
+  g.fillStyle = '#CDC2A8';
+  g.fill();
+  for (let i = 0; i < 90; i++) {
+    const a = r() * TAU, d = Math.sqrt(r());
+    const x = cx + Math.cos(a) * R * 1.08 * d, y = cy + Math.sin(a) * R * 0.76 * d;
+    g.fillStyle = ['#B4A890', '#E2D8C0', '#A49880'][i % 3];
+    g.beginPath();
+    g.moveTo(x - 3 - r() * 4, y);
+    g.lineTo(x, y - 3 - r() * 3);
+    g.lineTo(x + 3 + r() * 4, y + 1);
+    g.closePath();
+    g.fill();
   }
-  ctx.fillStyle = 'rgba(255, 250, 235, 0.25)';
-  for (let i = 0; i < 26; i++) {
-    ell(ctx, q.x + (r() * 2 - 1) * q.r * 0.9, q.y + (r() * 2 - 1) * q.r * 0.6, 8 + r() * 16, 4 + r() * 6);
-    ctx.fill();
+  // 2. le plateau de roche, avec ses fissures
+  const plateau = ring(0.98, 0.69, 0);
+  poly(plateau);
+  g.fillStyle = '#BFB49A';
+  g.fill();
+  g.strokeStyle = 'rgba(90, 76, 52, 0.55)';
+  g.lineWidth = 3;
+  g.stroke();
+  g.strokeStyle = 'rgba(90, 76, 52, 0.35)';
+  g.lineWidth = 1.5;
+  for (let i = 0; i < 14; i++) {
+    const p = P(Math.floor(r() * N), 0.9, 0.62);
+    g.beginPath();
+    g.moveTo(p.x, p.y);
+    g.lineTo(p.x + (r() - 0.5) * 50, p.y + (r() - 0.5) * 24);
+    g.lineTo(p.x + (r() - 0.5) * 80, p.y + (r() - 0.5) * 40);
+    g.stroke();
   }
+  /** Un gradin : le trou (top = son bord), son fond (bot), et la falaise du fond, striée */
+  const step = (top, bot, cols, seed) => {
+    const rr = seeded(seed);
+    poly(top);
+    g.fillStyle = '#6E6450';
+    g.fill();
+    poly(bot);
+    g.fillStyle = cols.floor;
+    g.fill();
+    // la falaise : la moitié du fond du trou (on la voit, elle est tournée vers nous)
+    const ids = [];
+    for (let i = Math.floor(N * 0.46); i <= Math.ceil(N * 1.04); i++) ids.push(i % N);
+    g.save();
+    g.beginPath();
+    ids.forEach((i, k) => (k ? g.lineTo(top[i].x, top[i].y) : g.moveTo(top[i].x, top[i].y)));
+    for (let k = ids.length - 1; k >= 0; k--) g.lineTo(bot[ids[k]].x, bot[ids[k]].y);
+    g.closePath();
+    const yTop = Math.min(...ids.map((i) => top[i].y)), yBot = Math.max(...ids.map((i) => bot[i].y));
+    const gr = g.createLinearGradient(0, yTop, 0, yBot);
+    gr.addColorStop(0, cols.cliffTop);
+    gr.addColorStop(1, cols.cliffBot);
+    g.fillStyle = gr;
+    g.fill();
+    g.clip();
+    // les couches de roche (les strates)
+    for (let s = 1; s < 4; s++) {
+      g.strokeStyle = s % 2 ? 'rgba(110, 92, 62, 0.45)' : 'rgba(255, 248, 228, 0.35)';
+      g.lineWidth = s % 2 ? 2.5 : 2;
+      g.beginPath();
+      ids.forEach((i, k) => {
+        const x = lerp(top[i].x, bot[i].x, s / 4), y = lerp(top[i].y, bot[i].y, s / 4) + Math.sin(i * 1.7 + s) * 2;
+        if (k) g.lineTo(x, y); else g.moveTo(x, y);
+      });
+      g.stroke();
+    }
+    // les entailles des blocs déjà sortis : de grandes marches carrées, plus sombres
+    for (let k = 1; k < ids.length - 2; k += 3) {
+      const a = top[ids[k]], b = bot[ids[k]], c = top[ids[k + 1]];
+      if (rr() < 0.45) {
+        g.fillStyle = 'rgba(70, 58, 40, 0.28)';
+        g.beginPath();
+        g.moveTo(a.x, lerp(a.y, b.y, 0.15));
+        g.lineTo(c.x, lerp(c.y, bot[ids[k + 1]].y, 0.15));
+        g.lineTo(c.x, lerp(c.y, bot[ids[k + 1]].y, 0.6));
+        g.lineTo(a.x, lerp(a.y, b.y, 0.6));
+        g.closePath();
+        g.fill();
+      }
+      // les traces du ciseau, bien droites
+      g.strokeStyle = 'rgba(80, 66, 44, 0.35)';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(a.x, a.y + 3);
+      g.lineTo(b.x, b.y - 2);
+      g.stroke();
+    }
+    g.restore();
+    // le bord : une lèvre claire en haut, une ligne sombre en bas
+    g.strokeStyle = 'rgba(255, 250, 232, 0.65)';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    ids.forEach((i, k) => (k ? g.lineTo(top[i].x, top[i].y) : g.moveTo(top[i].x, top[i].y)));
+    g.stroke();
+    g.strokeStyle = 'rgba(60, 48, 30, 0.6)';
+    g.lineWidth = 2;
+    poly(top);
+    g.stroke();
+    g.beginPath();
+    ids.forEach((i, k) => (k ? g.lineTo(bot[i].x, bot[i].y) : g.moveTo(bot[i].x, bot[i].y)));
+    g.stroke();
+  };
+  step(ring(0.8, 0.53, 0), ring(0.77, 0.5, 58), { floor: '#AEA289', cliffTop: '#CFC4AA', cliffBot: '#958970' }, 3);
+  step(ring(0.5, 0.33, 58), ring(0.47, 0.3, 104), { floor: '#9E9279', cliffTop: '#BFB49A', cliffBot: '#857A62' }, 9);
+  // 3. au fond : un bloc à moitié découpé (ses rainures), des éclats de pierre
+  const bx = cx - R * 0.12, by = cy + 104 + R * 0.1;
+  g.fillStyle = '#B2A68C';
+  g.strokeStyle = 'rgba(60, 48, 30, 0.7)';
+  g.lineWidth = 2;
+  rrect(g, bx - 46, by - 26, 92, 40, 4);
+  g.fill();
+  g.stroke();
+  g.strokeStyle = '#4A3E2A';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(bx - 46, by - 26);
+  g.lineTo(bx + 46, by - 26);
+  g.moveTo(bx + 46, by - 26);
+  g.lineTo(bx + 46, by + 14);
+  g.stroke();
+  // les coins de bois, plantés dans la rainure (on les mouille : ils gonflent, et la pierre se fend)
+  for (const dx of [-30, -6, 18, 40]) {
+    g.fillStyle = '#8A6440';
+    g.strokeStyle = '#3A2414';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(bx + dx - 4, by - 26);
+    g.lineTo(bx + dx + 4, by - 26);
+    g.lineTo(bx + dx + 2, by - 38);
+    g.lineTo(bx + dx - 2, by - 38);
+    g.closePath();
+    g.fill();
+    g.stroke();
+  }
+  for (let i = 0; i < 40; i++) {
+    const a = r() * TAU, d = Math.sqrt(r());
+    const x = cx + Math.cos(a) * R * 0.42 * d, y = cy + 104 + Math.sin(a) * R * 0.26 * d;
+    g.fillStyle = ['#D4C8AE', '#A89C82', '#C2B69C'][i % 3];
+    g.strokeStyle = 'rgba(60, 48, 30, 0.45)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x - 4 - r() * 5, y + 2);
+    g.lineTo(x - 1, y - 3 - r() * 4);
+    g.lineTo(x + 4 + r() * 5, y + 1);
+    g.closePath();
+    g.fill();
+    g.stroke();
+  }
+  // 4. une échelle de bois, contre la falaise du premier gradin
+  const lx = cx + R * 0.32, ly = cy - R * 0.26;
+  g.strokeStyle = '#5A3A22';
+  g.lineWidth = 4;
+  g.lineCap = 'round';
+  g.beginPath();
+  for (const dx of [0, 18]) {
+    g.moveTo(lx + dx, ly - 8);
+    g.lineTo(lx + dx + 6, ly + 66);
+  }
+  for (let k = 0; k < 6; k++) {
+    const yy = ly + k * 12;
+    g.moveTo(lx + k * 0.5, yy);
+    g.lineTo(lx + 18 + k * 0.5, yy);
+  }
+  g.stroke();
+}
+export function drawQuarryGround(ctx, q) {
+  cached(ctx, `carriere|${Math.round(q.r)}`, q.x, q.y, q.r * 0.88, q.r * 1.27, q.r * 0.9, (g, ox, oy) => paintQuarry(g, ox, oy, q.r));
 }
 
-/** Un tas de pierres taillées (d.amount = ce qu'il en reste) */
-export function drawStonePile(ctx, d, t) {
-  const n = Math.max(0, d.amount ?? 4), max = d.max || 4;
-  groundShadow(ctx, d.x, d.y, d.r * 1.0, d.r * 0.3);
-  const spots = [[-0.55, 0], [0.05, 0.05], [0.6, 0], [-0.25, -0.5], [0.35, -0.48], [0.05, -0.95]];
-  const k = Math.ceil((n / max) * spots.length);
-  for (let i = 0; i < k; i++) {
-    const [fx, fy] = spots[i];
-    const x = d.x + fx * d.r, y = d.y + fy * d.r * 0.8;
-    const s = d.r * 0.36;
-    ctx.fillStyle = '#C8BCA4';
-    ctx.strokeStyle = '#4A4236';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.rect(x - s, y - s * 1.1, s * 2, s * 1.1);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#E2D8C2';
-    ctx.beginPath();
-    ctx.rect(x - s, y - s * 1.45, s * 2, s * 0.35);
-    ctx.fill();
-    ctx.stroke();
+/** Un bloc de pierre taillée vu de trois quarts ((x, y) = le milieu du bas de sa face) : sa face
+    avec les traces du ciseau, son dessus éclairé, un coin ébréché */
+function cutBlock(g, x, y, w, h, d, col, seed) {
+  const r = seeded(seed);
+  const x0 = x - w / 2;
+  // le dessus
+  g.fillStyle = shade(col, 0.16);
+  g.fillRect(x0, y - h - d, w, d);
+  g.fillStyle = 'rgba(255, 255, 245, 0.35)';
+  g.fillRect(x0 + 2, y - h - d + 1, w - 4, Math.max(1.5, d * 0.2));
+  // la face
+  const gr = g.createLinearGradient(0, y - h, 0, y);
+  gr.addColorStop(0, col);
+  gr.addColorStop(1, shade(col, -0.16));
+  g.fillStyle = gr;
+  g.fillRect(x0, y - h, w, h);
+  if (w > 26) {
+    // les traces du ciseau : de petits coups obliques, en rangs
+    g.strokeStyle = 'rgba(80, 64, 40, 0.28)';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let yy = y - h + 6; yy < y - 3; yy += 6) {
+      for (let xx = x0 + 4 + r() * 4; xx < x0 + w - 5; xx += 7 + r() * 3) {
+        g.moveTo(xx, yy + 3);
+        g.lineTo(xx + 3, yy - 1);
+      }
+    }
+    g.stroke();
+    // un coin ébréché
+    const left = r() < 0.5;
+    g.fillStyle = shade(col, -0.3);
+    g.beginPath();
+    const cxx = left ? x0 : x0 + w;
+    g.moveTo(cxx, y - h - d + 2);
+    g.lineTo(cxx + (left ? 9 : -9), y - h - d + 2);
+    g.lineTo(cxx, y - h + 8);
+    g.closePath();
+    g.fill();
   }
-  if (n > 0) {
-    // ça brille un peu : on peut les prendre
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + Math.sin(t * 3 + d.seed) * 0.25})`;
-    ell(ctx, d.x - d.r * 0.3, d.y - d.r * 0.9, 5, 5);
-    ctx.fill();
-  } else {
-    // (vide) un ciseau et un maillet posés par terre
-    ctx.strokeStyle = '#6A4A2A';
-    ctx.lineWidth = 4;
+  // la lumière sur l'arête, puis le contour
+  g.strokeStyle = 'rgba(255, 252, 236, 0.6)';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(x0 + 2, y - h + 1);
+  g.lineTo(x0 + w - 2, y - h + 1);
+  g.moveTo(x0 + 1.5, y - h + 2);
+  g.lineTo(x0 + 1.5, y - 2);
+  g.stroke();
+  g.strokeStyle = '#4A4030';
+  g.lineWidth = 2;
+  g.strokeRect(x0, y - h - d, w, h + d);
+  g.beginPath();
+  g.moveTo(x0, y - h);
+  g.lineTo(x0 + w, y - h);
+  g.stroke();
+}
+
+/** Un tas de pierres taillées, sur son traîneau de bois (n = combien de blocs il reste, sur 6) */
+const PILE = [[-0.62, 0], [0, 0], [0.62, 0], [-0.31, 1], [0.31, 1], [0, 2]];
+function paintPile(g, ox, oy, R, n, seed) {
+  const r = seeded(seed + 1);
+  // la poussière de pierre, et quelques éclats
+  g.fillStyle = 'rgba(236, 228, 208, 0.75)';
+  ell(g, ox, oy + 4, R * 1.25, R * 0.38);
+  g.fill();
+  groundShadow(g, ox + 6, oy + 2, R * 1.05, R * 0.26, 0.28);
+  for (let i = 0; i < 10; i++) {
+    const x = ox + (r() - 0.5) * R * 2.3, y = oy + 4 + (r() - 0.5) * R * 0.5;
+    g.fillStyle = r() < 0.5 ? '#C8BCA2' : '#A89C82';
+    g.beginPath();
+    g.moveTo(x - 4, y + 2);
+    g.lineTo(x, y - 3);
+    g.lineTo(x + 4, y + 2);
+    g.closePath();
+    g.fill();
+  }
+  // le traîneau : deux patins recourbés, et des planches
+  const sw = R * 1.95, sx = ox - sw / 2;
+  g.strokeStyle = '#3A2414';
+  g.lineWidth = 5;
+  g.lineCap = 'round';
+  g.beginPath();
+  for (const dy of [-2, 8]) {
+    g.moveTo(sx - 8, oy + dy - 12);
+    g.quadraticCurveTo(sx - 6, oy + dy, sx + 10, oy + dy);
+    g.lineTo(sx + sw, oy + dy);
+  }
+  g.stroke();
+  g.strokeStyle = '#8A6440';
+  g.lineWidth = 3;
+  g.stroke();
+  g.fillStyle = '#9A7448';
+  g.strokeStyle = '#3A2414';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.rect(sx, oy - 10, sw, 10);
+  g.fill();
+  g.stroke();
+  g.strokeStyle = 'rgba(50, 30, 14, 0.5)';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  for (let xx = sx + 18; xx < sx + sw; xx += 18) {
+    g.moveTo(xx, oy - 10);
+    g.lineTo(xx, oy);
+  }
+  g.stroke();
+  // les blocs, du bas vers le haut
+  const w = R * 0.6, h = R * 0.36, d = R * 0.22;
+  for (let i = 0; i < n; i++) {
+    const [fx, row] = PILE[i];
+    cutBlock(g, ox + fx * R, oy - 10 - row * (h + d * 0.5), w, h, d, STONES[(seed + i * 3) % STONES.length], seed * 7 + i);
+  }
+  if (!n) {
+    // (plus rien) le maillet et le ciseau, posés sur le traîneau
+    g.strokeStyle = '#5A3A22';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(ox - 22, oy - 14);
+    g.lineTo(ox + 6, oy - 20);
+    g.stroke();
+    g.fillStyle = '#7A5434';
+    g.strokeStyle = '#2A1A0C';
+    g.lineWidth = 1.5;
+    rrect(g, ox + 2, oy - 30, 18, 14, 3);
+    g.fill();
+    g.stroke();
+    g.strokeStyle = '#9A968C';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(ox + 18, oy - 13);
+    g.lineTo(ox + 38, oy - 18);
+    g.stroke();
+  }
+}
+export function drawStonePile(ctx, d, t) {
+  const amount = Math.max(0, d.amount ?? 4), max = d.max || 4;
+  const n = Math.ceil((amount / max) * PILE.length);
+  const R = Math.round(d.r), v = (d.seed || 0) % 3;
+  cached(ctx, `tas|${R}|${n}|${v}`, d.x, d.y, R * 1.7, R * 1.35, R * 0.55, (g, ox, oy) => paintPile(g, ox, oy, R, n, v));
+  if (amount > 0) {
+    // un petit éclat de lumière : on peut les prendre
+    const k = 0.5 + Math.sin(t * 3 + (d.seed || 0)) * 0.5;
+    const x = d.x - R * 0.35, y = d.y - R * 0.9;
+    ctx.fillStyle = `rgba(255, 255, 240, ${0.25 + k * 0.6})`;
     ctx.beginPath();
-    ctx.moveTo(d.x - 16, d.y - 4);
-    ctx.lineTo(d.x + 18, d.y - 10);
-    ctx.stroke();
+    ctx.moveTo(x, y - 7 * k - 2);
+    ctx.lineTo(x + 2, y);
+    ctx.lineTo(x, y + 7 * k + 2);
+    ctx.lineTo(x - 2, y);
+    ctx.closePath();
+    ctx.moveTo(x - 7 * k - 2, y);
+    ctx.lineTo(x, y + 2);
+    ctx.lineTo(x + 7 * k + 2, y);
+    ctx.lineTo(x, y - 2);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
@@ -1129,61 +1551,194 @@ export function drawWoolBales(ctx, d, t) {
   }
 }
 
-/** Le pont de pierre (au sol : on marche dessus) : son tablier pavé, ses parapets, ses arches */
-export function drawBridge(ctx, b, t) {
-  const { x0, x1, y } = b, hw = b.hw || 70;
-  // les arches (sous le tablier, au-dessus de l'eau)
-  const n = Math.max(2, Math.round((x1 - x0) / 140));
-  const step = (x1 - x0) / n;
-  ctx.fillStyle = shade(STONE, -0.12);
-  ctx.strokeStyle = INKS;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x0, y + hw);
-  ctx.lineTo(x1, y + hw);
-  ctx.lineTo(x1, y + hw + 70);
-  for (let i = n - 1; i >= 0; i--) {
-    const ax = x0 + (i + 0.5) * step;
-    ctx.lineTo(ax + step * 0.4, y + hw + 70);
-    ctx.quadraticCurveTo(ax + step * 0.4, y + hw + 18, ax, y + hw + 14);
-    ctx.quadraticCurveTo(ax - step * 0.4, y + hw + 18, ax - step * 0.4, y + hw + 70);
-  }
-  ctx.lineTo(x0, y + hw + 70);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // le reflet des arches dans l'eau
-  ctx.fillStyle = 'rgba(20, 40, 60, 0.35)';
-  for (let i = 0; i < n; i++) {
-    const ax = x0 + (i + 0.5) * step;
-    ell(ctx, ax, y + hw + 76, step * 0.38, 10);
-    ctx.fill();
-  }
-  // le tablier pavé
-  ctx.fillStyle = cobblePattern(ctx);
-  ctx.beginPath();
-  ctx.rect(x0, y - hw, x1 - x0, hw * 2);
-  ctx.fill();
-  ctx.strokeStyle = INKS;
-  ctx.stroke();
-  // les parapets
-  for (const py of [y - hw, y + hw - 14]) {
-    ctx.fillStyle = STONE;
-    ctx.strokeStyle = INKS;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.rect(x0, py - 10, x1 - x0, 22);
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(70, 58, 40, 0.45)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    for (let xx = x0 + 40; xx < x1; xx += 40) {
-      ctx.moveTo(xx, py - 10);
-      ctx.lineTo(xx, py + 12);
+/** Le pont de pierre (au sol : on marche dessus). Du fond vers le devant : le parapet du nord, le
+    tablier pavé, le parapet du sud ; puis la grande face de pierre qui descend jusqu'à l'eau, percée
+    d'arches (leurs voussoirs, leur ombre, l'eau qui brille de l'autre côté), les piles et leurs
+    éperons, les culées qui s'appuient sur les berges, et le reflet dans l'eau. */
+const BRIDGE_FACE = 104;
+function bridgeArches(x0, x1) {
+  const wx0 = x0 + 80, wx1 = x1 - 80;              // (le pont dépasse de 80 sur chaque berge)
+  const n = Math.max(2, Math.round((wx1 - wx0) / 150)), step = (wx1 - wx0) / n;
+  return { wx0, wx1, n, step, span: step * 0.72 };
+}
+function paintBridge(g, x0, x1, y, hw) {
+  const { wx0, wx1, n, step, span } = bridgeArches(x0, x1);
+  const top = y + hw, bottom = top + BRIDGE_FACE;
+  const spring = top + 56, ry = 34, rx = span / 2;
+  // le reflet du pont dans l'eau
+  const rg = g.createLinearGradient(0, bottom, 0, bottom + 50);
+  rg.addColorStop(0, 'rgba(40, 52, 60, 0.4)');
+  rg.addColorStop(1, 'rgba(40, 52, 60, 0)');
+  g.fillStyle = rg;
+  g.fillRect(wx0, bottom, wx1 - wx0, 50);
+  // ---- le tablier ----
+  // le parapet du nord : son dessus, sa face (tournée vers nous)
+  masonry(g, x0, y - hw - 22, x1 - x0, 22, { row: 11, wide: 1.6, seed: 41 });
+  masonry(g, x0, y - hw - 30, x1 - x0, 8, { row: 8, wide: 3.5, cols: FLAGS, seed: 43, shadeDown: false });
+  // les pavés, et leurs bordures
+  g.fillStyle = cobblePattern(g);
+  g.fillRect(x0, y - hw, x1 - x0, hw * 2 - 22);
+  g.fillStyle = 'rgba(40, 30, 15, 0.25)';
+  g.fillRect(x0, y - hw, x1 - x0, 8);
+  g.fillStyle = '#B9AA88';
+  g.fillRect(x0, y + hw - 30, x1 - x0, 8);
+  // ---- la grande face du sud (avec son parapet en haut) ----
+  const face = () => {
+    g.beginPath();
+    g.moveTo(x0, top - 22);
+    g.lineTo(x1, top - 22);
+    g.lineTo(x1, top + 22);
+    g.lineTo(wx1 + 10, bottom);
+    g.lineTo(wx0 - 10, bottom);
+    g.lineTo(x0, top + 22);
+    g.closePath();
+  };
+  const holes = () => {
+    for (let i = 0; i < n; i++) {
+      const ax = wx0 + (i + 0.5) * step;
+      g.moveTo(ax + rx, bottom + 2);
+      g.lineTo(ax + rx, spring);
+      g.ellipse(ax, spring, rx, ry, 0, 0, Math.PI, true);
+      g.lineTo(ax - rx, bottom + 2);
+      g.closePath();
     }
-    ctx.stroke();
+  };
+  g.save();
+  face();
+  holes();
+  g.clip('evenodd');
+  masonry(g, x0, top - 22, x1 - x0, BRIDGE_FACE + 24, { row: 20, seed: 47 });
+  // la ligne d'eau : la pierre mouillée, verte d'algues
+  const wg = g.createLinearGradient(0, bottom - 22, 0, bottom);
+  wg.addColorStop(0, 'rgba(60, 90, 50, 0)');
+  wg.addColorStop(1, 'rgba(50, 80, 46, 0.55)');
+  g.fillStyle = wg;
+  g.fillRect(x0, bottom - 22, x1 - x0, 22);
+  g.restore();
+  // ---- les arches : l'ombre sous le pont, l'eau qui brille de l'autre côté ----
+  for (let i = 0; i < n; i++) {
+    const ax = wx0 + (i + 0.5) * step;
+    g.save();
+    g.beginPath();
+    g.moveTo(ax + rx, bottom + 2);
+    g.lineTo(ax + rx, spring);
+    g.ellipse(ax, spring, rx, ry, 0, 0, Math.PI, true);
+    g.lineTo(ax - rx, bottom + 2);
+    g.closePath();
+    g.clip();
+    const ag = g.createLinearGradient(0, spring - ry, 0, bottom);
+    ag.addColorStop(0, '#1A262C');
+    ag.addColorStop(0.55, '#24414E');
+    ag.addColorStop(1, '#3A7298');
+    g.fillStyle = ag;
+    g.fillRect(ax - rx, spring - ry, span, bottom - spring + ry + 4);
+    g.fillStyle = 'rgba(160, 210, 235, 0.35)';
+    ell(g, ax, bottom - 6, rx * 0.7, 10);
+    g.fill();
+    g.strokeStyle = 'rgba(220, 240, 255, 0.4)';
+    g.lineWidth = 2;
+    g.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const yy = bottom - 18 + k * 7, ww = rx * (0.3 + k * 0.15);
+      g.moveTo(ax - ww, yy);
+      g.lineTo(ax + ww * 0.6, yy);
+    }
+    g.stroke();
+    g.restore();
+    // les voussoirs, et les pierres d'angle des montants
+    voussoirs(g, ax, spring, rx, ry, 15, 9, 53 + i, '#E2D7BE');
+    for (const s of [-1, 1]) {
+      for (let yy = spring; yy < bottom - 8; yy += 16) {
+        const wq = (Math.round((yy - spring) / 16) % 2) ? 10 : 16;
+        g.fillStyle = shade(STONES[(i + Math.round(yy)) % STONES.length], 0.06);
+        g.strokeStyle = 'rgba(58, 46, 30, 0.6)';
+        g.lineWidth = 1;
+        const qx = s < 0 ? ax - rx - wq : ax + rx;
+        g.fillRect(qx, yy + 1, wq, 14);
+        g.strokeRect(qx, yy + 1, wq, 14);
+      }
+    }
   }
+  // ---- les piles : un éperon arrondi au pied, contre le courant ----
+  for (let i = 1; i < n; i++) {
+    const px = wx0 + i * step, pw = (step - span) * 0.9;
+    const eg = g.createLinearGradient(px - pw / 2, 0, px + pw / 2, 0);
+    eg.addColorStop(0, '#DCD0B4');
+    eg.addColorStop(0.5, '#C8BA9C');
+    eg.addColorStop(1, '#94876C');
+    g.fillStyle = eg;
+    g.strokeStyle = INKS;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(px - pw / 2, bottom + 4);
+    g.lineTo(px - pw / 2, bottom - 30);
+    g.ellipse(px, bottom - 30, pw / 2, pw * 0.4, 0, Math.PI, 0, false);
+    g.lineTo(px + pw / 2, bottom + 4);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.strokeStyle = 'rgba(58, 46, 30, 0.4)';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let yy = bottom - 16; yy > bottom - 34; yy -= 12) {
+      g.moveTo(px - pw / 2 + 2, yy);
+      g.lineTo(px + pw / 2 - 2, yy);
+    }
+    g.stroke();
+  }
+  // ---- le cordon (sous le parapet), le dessus du parapet, les quatre bornes des bouts ----
+  g.fillStyle = 'rgba(30, 22, 10, 0.3)';
+  g.fillRect(x0, top + 6, x1 - x0, 6);
+  masonry(g, x0, top - 3, x1 - x0, 9, { row: 9, wide: 3, cols: FLAGS, seed: 59, shadeDown: false });
+  masonry(g, x0, top - 30, x1 - x0, 8, { row: 8, wide: 3.5, cols: FLAGS, seed: 61, shadeDown: false });
+  g.strokeStyle = INKS;
+  g.lineWidth = 2.5;
+  face();
+  g.stroke();
+  g.beginPath();
+  g.moveTo(x0, y - hw - 30);
+  g.lineTo(x1, y - hw - 30);
+  g.moveTo(x0, y - hw);
+  g.lineTo(x1, y - hw);
+  g.stroke();
+  for (const bx of [x0 + 2, x1 - 30]) {
+    for (const by of [y - hw, top]) {
+      masonry(g, bx, by - 48, 28, 40, { row: 13, wide: 1, seed: bx + by });
+      g.fillStyle = '#E8DEC6';
+      g.fillRect(bx - 3, by - 58, 34, 10);
+      g.strokeStyle = INKS;
+      g.lineWidth = 2;
+      g.strokeRect(bx, by - 48, 28, 40);
+      g.strokeRect(bx - 3, by - 58, 34, 10);
+      // une petite boule de pierre, tout en haut
+      g.fillStyle = '#DCD0B4';
+      ell(g, bx + 14, by - 64, 8, 7);
+      g.fill();
+      g.stroke();
+    }
+  }
+}
+export function drawBridge(ctx, b, t) {
+  const L = b.x1 - b.x0, hw = b.hw || 70;
+  cached(ctx, `pont|${Math.round(L)}|${hw}`, (b.x0 + b.x1) / 2, b.y, hw + 80, L / 2 + 40, hw + BRIDGE_FACE + 60,
+    (g, ox, oy) => paintBridge(g, ox - L / 2, ox + L / 2, oy, hw));
+  // l'eau qui bouillonne au pied des piles (elle bouge)
+  const { wx0, n, step } = bridgeArches(b.x0, b.x1);
+  const bottom = b.y + hw + BRIDGE_FACE;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 1; i < n; i++) {
+    const px = wx0 + i * step;
+    for (let k = 0; k < 2; k++) {
+      const u = (t * 0.8 + k * 0.5 + i * 0.3) % 1;
+      const rr = 18 + u * 26, yy = bottom + 6 + u * 14;
+      ctx.moveTo(px - rr, yy);
+      ctx.quadraticCurveTo(px, yy + 8 * (1 - u), px + rr, yy);
+    }
+  }
+  ctx.stroke();
 }
 
 /** Un morceau de route pavée (de (ax, ay) à (bx, by)) ; pass : 'bord' (le bord de terre) ou 'paves' */
@@ -1620,16 +2175,8 @@ export function drawStock(ctx, s, pierre, bois) {
   }
   for (let i = 0; i < np; i++) {
     const row = Math.floor(i / 4), col = i % 4;
-    const x = s.x - 120 + col * 44 + row * 22, y = s.y - row * 26;
-    ctx.fillStyle = '#C8BCA4';
-    ctx.strokeStyle = '#4A4236';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.rect(x - 20, y - 26, 40, 26);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#E2D8C2';
-    ctx.fillRect(x - 20, y - 32, 40, 6);
+    const x = s.x - 120 + col * 44 + row * 22, y = s.y - row * 30;
+    cutBlock(ctx, x, y, 40, 24, 10, STONES[i % STONES.length], i + 1);
   }
 }
 

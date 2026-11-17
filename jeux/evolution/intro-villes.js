@@ -72,7 +72,7 @@ function walls(list, ctx, V, k, o = {}) {
     for (let x = x0 + 62; x < x1 - 30; x += 124) {
       if (gate && Math.abs(x) < 120) continue;
       if (o.ruin && (Math.round(x / 124) + (gate ? 1 : 0)) % 3 === 0) continue;
-      put(x, fy, () => drawWallH(ctx, { x: 0, y: 0, len: 124 }));
+      put(x, fy, () => drawWallH(ctx, { x: 0, y: 0, len: 124, side: gate ? 1 : -1 }));
     }
     if (gate && !o.ruin) put(0, fy + 0.001, () => drawGateArch(ctx, { x: 0, y: 0, w: 200 }));
   }
@@ -82,7 +82,7 @@ function walls(list, ctx, V, k, o = {}) {
       const fy = lerp(f0, f1, i / 16), fyp = lerp(f0, f1, (i - 1) / 16);
       if (o.ruin && i % 4 === 1) continue;
       const len = (V.Y(fy) - V.Y(fyp)) / V.S(fy);
-      put(x, fy, () => drawWallV(ctx, { x: 0, y: 0, len }));
+      put(x, fy, () => drawWallV(ctx, { x: 0, y: 0, len, side: x < 0 ? -1 : 1 }));
     }
   }
   if (!o.ruin) for (const x of [x0, x1]) for (const fy of [f0, f1]) put(x, fy + 0.002, () => drawCityTower(ctx, { x: 0, y: 0, r: 86, h: 232, flag: fy === f0 ? '#C8302A' : null }));
