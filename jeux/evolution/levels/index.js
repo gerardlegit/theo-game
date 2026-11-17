@@ -206,6 +206,33 @@
 //      repoussées sans qu'ils volent de blé). Intro 'humains' ; fin scene
 //      'civilisation' avec "parade" = le défilé des inventions ([{ icon ou draw
 //      'biface' / 'roue', name }]).
+//   LES PREMIÈRES VILLES (premieres-villes.js ; moteur : tqv.js + villes.js,
+//   dessins : art-villes.js, animations : intro-villes.js)
+//      La même vue de trois quarts, avec world.city : la ville carrée (half = le
+//      demi-côté des remparts, gateW = la largeur des portes), quarry + stones (la
+//      carrière et ses tas de pierres), wool (les balles de laine du parc à moutons),
+//      monument, yard (la cabane du chantier : on y embauche), port (le port, à cette
+//      hauteur sous la ville), towns (les villages : id, name, at, friend = toujours
+//      ami, fav = ce qu'il paie le plus cher, col), friends (combien des autres sont
+//      amis, tirés au sort), friendFav, reveal / aggro / leash (à quelle distance on
+//      découvre un village hostile, ses soldats foncent, puis abandonnent), guards,
+//      price + favBonus (le prix d'une marchandise), friendGain + meetGain (l'amitié
+//      gagnée), caravan ({ every, gain, need, friend } : les charrettes des villages
+//      amis), worker ({ cost, rate }), boat ({ cost, pierre, bois, sail }), needs (ce
+//      que coûte tout le monument), steal (la part des pièces que prennent les soldats).
+//      land.riverBlock = le fleuve ne se traverse que sur le pont ; land.noCave = pas
+//      de grotte ; land.irrigated = les champs poussent tout seuls (land.growTime = en combien de
+//      secondes). Plans : built = déjà
+//      là au début (les champs, les parcs), 'pont', 'route' (to = le village, step =
+//      la longueur d'un morceau ; mission build avec n: 0 = tous les morceaux),
+//      'ecole', 'fondations', 'port'. chapters[].penned peut être une liste
+//      ([{ species, n, pen = l'id du parc }]). Espèces : kind 'habitant' (les gens des
+//      autres villages), le soldat est un 'hunter' avec steals (et fierce).
+//      Missions : trade (n échanges ; town), meet (rencontrer : town, ou n villages
+//      amis), friend (n villages amis, ou town, à pct %), money (n pièces gagnées ;
+//      have = qu'on possède), choose (choisir la forme du monument), hire (n ouvriers),
+//      boat (n bateaux arrivés), monument (le terminer). Intro 'villes' ; fin scene
+//      'touristes' (le monument, puis 2 000 ans plus tard ; "parade").
 //   7. Ajouter le niveau à la liste ci-dessous. C'est tout : le moteur
 //      (script.js) ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -219,5 +246,6 @@ import voieDesRequins from './voie-des-requins.js';
 import voieDesAirs from './voie-des-airs.js';
 import voieDesReptiles from './voie-des-reptiles.js';
 import voieDesHumains from './voie-des-humains.js';
+import premieresVilles from './premieres-villes.js';
 
-export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins, voieDesAirs, voieDesReptiles, voieDesHumains];
+export const LEVELS = [oceanPrimitif, versLesDinosaures, monstresMarins, voieDesMammiferes, loupEtHumain, voieDesRequins, voieDesAirs, voieDesReptiles, voieDesHumains, premieresVilles];

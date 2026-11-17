@@ -25,6 +25,7 @@ import {
   drawField, drawGranary, drawStake, drawGate, drawTower, drawPlan, drawResIcon, groundShadow, flame,
   drawFern, drawFlowers, drawReeds, drawDecal,
 } from './art-humains.js';
+import { createVilles } from './villes.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -81,6 +82,11 @@ export function createTqv(api) {
   let spears = [];
   let raid = null;
   let nightCv = null;
+  // (world.city) les premières villes : la ville de pierre, le fleuve, les villages, le monument (villes.js)
+  const X = createVilles({ ...api, nearestRes: (p, r) => nearestRes(p, r), ripeField: (p) => ripeField(p) }, {
+    M: () => M, riverX: (y) => riverX(M.river, y), riverDist: (x, y) => riverDist(M.river, x, y),
+  });
+  const ext = () => (X.on() ? X : null);
 
   /* ============================================================================
      LA CARTE (une seule fois par niveau : elle reste la même d'un chapitre à l'autre)
@@ -103,12 +109,19 @@ export function createTqv(api) {
     const onCanal = (x, y, m = 0) => !!canal && Math.abs(y - canal.y) < 70 + m && x > canal.x0 - m && x < canal.x1 + m;
     // la grotte, au nord du village : une colline de roche, creusée d'une grande salle
     // (x, y) = le milieu du sol de la salle ; on y entre par l'arche, au sud
-    const cave = { type: 'grotte', x: V.x + (L.caveDx ?? 500), y: V.y + (L.caveDy ?? -1900), r: 210, rw: CAVE_RW, rd: CAVE_RD, seed: 11, solid: true };
-    cave.walls = caveWalls(cave);
-    items.push(cave);
-    const inCave = (x, y, m) => ((x - cave.x) / (cave.rw + 260 + m)) ** 2 + ((y - (cave.y - 140)) / (cave.rd + 380 + m)) ** 2 < 1;
+    // (land.noCave : pas de grotte)
+    const cave = L.noCave ? null : { type: 'grotte', x: V.x + (L.caveDx ?? 500), y: V.y + (L.caveDy ?? -1900), r: 210, rw: CAVE_RW, rd: CAVE_RD, seed: 11, solid: true };
+    if (cave) {
+      cave.walls = caveWalls(cave);
+      items.push(cave);
+    }
+    const inCave = (x, y, m) => !!cave && ((x - cave.x) / (cave.rw + 260 + m)) ** 2 + ((y - (cave.y - 140)) / (cave.rd + 380 + m)) ** 2 < 1;
+    // (world.city) la ville, les villages, la carrière… : villes.js les pose d'abord, et rien ne pousse dessus
+    M = { W, L, V, VR, river, riverW, cave, canal, items, sites: [], meadow: null, decals: [], caveFade: 1, grid: null, stakes: [], posts: [], lights: [] };
+    if (ext()) X.build(M, rnd);
+    const reserved = (x, y, m) => !!ext() && X.reserved(x, y, m);
     const free = (x, y, m) => x > 150 && y > 150 && x < W.w - 150 && y < W.h - 150 && Math.hypot(x - V.x, y - V.y) > VR + 180 + m
-      && !nearRiver(x, y, m + 30) && !inCave(x, y, m) && !onCanal(x, y, m);
+      && !nearRiver(x, y, m + 30) && !inCave(x, y, m) && !onCanal(x, y, m) && !reserved(x, y, m);
     const tooClose = (x, y, d) => items.some((o) => (o.type === 'arbre' || o.type === 'rocher') && Math.hypot(o.x - x, o.y - y) < d);
     const kindOf = () => (rnd() < 0.45 ? 'pin' : rnd() < 0.4 ? 'bouleau' : 'feuillu');
     // l'arbre frappé par la foudre (le premier feu)
@@ -141,14 +154,14 @@ export function createTqv(api) {
     for (let i = 0; i < (L.woodNear || 8); i++) {
       const a = rnd() * TAU, d = R(VR * 0.55, VR + 650);
       const x = V.x + Math.cos(a) * d, y = V.y + Math.sin(a) * d;
-      if (!nearRiver(x, y, 40) && !onCanal(x, y, 40)) items.push({ type: 'bois', x, y, r: 42, seed: Math.floor(rnd() * 1e6), amount: 3, max: 3, res: 'bois' });
+      if (!nearRiver(x, y, 40) && !onCanal(x, y, 40) && !reserved(x, y, 20)) items.push({ type: 'bois', x, y, r: 42, seed: Math.floor(rnd() * 1e6), amount: 3, max: 3, res: 'bois' });
     }
     // les rochers, et le silex au bord de la rivière et près de la grotte
     for (let i = 0; i < (L.rocks || 40); i++) {
       const x = R(200, W.w - 200), y = R(200, W.h - 200);
       if (free(x, y, 60)) items.push({ type: 'rocher', x, y, r: R(30, 70), seed: Math.floor(rnd() * 1e6), solid: true });
     }
-    for (let i = 0; i < (L.flint || 18); i++) {
+    for (let i = 0; i < (L.flint ?? 18); i++) {
       const byRiver = i % 3 !== 2;
       const y = R(300, W.h - 300);
       const x = byRiver ? riverX(river, y) + (rnd() < 0.5 ? -1 : 1) * (riverW / 2 + R(60, 220)) : cave.x + R(-700, 700);
@@ -157,7 +170,7 @@ export function createTqv(api) {
       items.push({ type: 'silex', x, y: yy, r: 46, seed: Math.floor(rnd() * 1e6), amount: 3, max: 3, res: 'silex', solid: false });
     }
     // l'ocre, la terre rouge des peintres, au pied de la grotte
-    for (let i = 0; i < (L.ochre || 6); i++) {
+    for (let i = 0; i < (cave ? L.ochre ?? 6 : 0); i++) {
       items.push({ type: 'ocre', x: cave.x + R(-620, 620), y: cave.y + cave.rd + R(110, 380), r: 40, seed: Math.floor(rnd() * 1e6), amount: 2, max: 2, res: 'ocre', from: L.ochreFrom || 2 });
     }
     // des arbres seuls, un peu partout dans la vallée
@@ -178,11 +191,11 @@ export function createTqv(api) {
     for (let i = 0; i < (L.reeds || 0); i++) {
       const y = R(150, W.h - 150);
       const x = riverX(river, y) + (rnd() < 0.5 ? -1 : 1) * (riverW / 2 + R(10, 70));
-      if (Math.hypot(x - V.x, y - V.y) > VR + 120 && !inCave(x, y, 0)) items.push({ type: 'roseaux', x, y, r: R(40, 60), seed: Math.floor(rnd() * 1e6), hide: true });
+      if (Math.hypot(x - V.x, y - V.y) > VR + 120 && !inCave(x, y, 0) && !reserved(x, y, -60)) items.push({ type: 'roseaux', x, y, r: R(40, 60), seed: Math.floor(rnd() * 1e6), hide: true });
     }
     // le blé sauvage, dans une prairie (à partir du chapitre de l'agriculture)
     const meadow = { x: V.x + (L.meadow ? L.meadow[0] : -1500), y: V.y + (L.meadow ? L.meadow[1] : 1700) };
-    for (let i = 0; i < (L.wheat || 26); i++) {
+    for (let i = 0; i < (L.wheat ?? 26); i++) {
       const a = rnd() * TAU, d = Math.sqrt(rnd()) * 700;
       const x = meadow.x + Math.cos(a) * d, y = meadow.y + Math.sin(a) * d * 0.7;
       if (nearRiver(x, y, 40) || Math.hypot(x - V.x, y - V.y) < VR + 80) continue;
@@ -199,20 +212,29 @@ export function createTqv(api) {
     // des bouquets de fleurs sauvages (même près du village)
     for (let i = 0; i < (L.flowers || 0); i++) {
       const x = R(200, W.w - 200), y = R(200, W.h - 200);
-      if (nearRiver(x, y, 40) || inCave(x, y, 0) || onCanal(x, y, 40) || Math.hypot(x - V.x, y - V.y) < VR * 0.7 || tooClose(x, y, 60)) continue;
+      if (nearRiver(x, y, 40) || inCave(x, y, 0) || onCanal(x, y, 40) || Math.hypot(x - V.x, y - V.y) < VR * 0.7 || tooClose(x, y, 60) || reserved(x, y, 0)) continue;
       items.push({ type: 'fleurs', x, y, r: R(30, 48), seed: Math.floor(rnd() * 1e6) });
     }
     // (au sol, pour décorer) des touffes d'herbe et des fleurs, même dans le village
     const decals = [];
     for (let i = 0; i < (L.decals || 0); i++) {
       const x = R(100, W.w - 100), y = R(100, W.h - 100);
-      if (nearRiver(x, y, 20) || inCave(x, y, -200) || onCanal(x, y, 0) || Math.hypot(x - V.x, y - V.y) < 260) continue;
+      if (nearRiver(x, y, 20) || inCave(x, y, -200) || onCanal(x, y, 0) || Math.hypot(x - V.x, y - V.y) < 260 || (ext() && X.inCity(x, y, 60))) continue;
       decals.push({ x, y, k: rnd() < 0.45 ? 'fleur' : 'touffe', s: R(0.7, 1.3), seed: Math.floor(rnd() * 1e6) });
     }
     items.sort((a, b) => a.y - b.y);
     // les plans du village (ce que le niveau propose de construire)
-    const sites = (W.sites || []).flatMap((s) => expandSite(s, V, VR, cave));
-    M = { W, L, V, VR, river, riverW, cave, canal, items, sites, meadow, decals, caveFade: 1, grid: null, stakes: [], posts: [], lights: [] };
+    const sites = (W.sites || []).flatMap((s) => (ext() && X.expandSite(s)) || expandSite(s, V, VR, cave));
+    Object.assign(M, { sites, meadow, decals });
+    // (built) ce qui est déjà là au début du niveau : les champs (qui poussent déjà), les parcs
+    const g = api.game();
+    g.built = g.built || {};
+    g.fields = g.fields || {};
+    for (const s of sites) {
+      if (!s.built || g.built[s.id] !== undefined) continue;
+      g.built[s.id] = true;
+      if (s.type === 'champ') g.fields[s.id] = { stage: 'pousse', watered: true, grow: rnd() * 0.9 };
+    }
     // (land.bbq, land.henhouse) le grand barbecue et le poulailler du village
     M.bbq = L.bbq ? { x: V.x + L.bbq[0], y: V.y + L.bbq[1] } : null;
     M.henhouse = L.henhouse ? { x: V.x + L.henhouse[0], y: V.y + L.henhouse[1] } : null;
@@ -276,7 +298,7 @@ export function createTqv(api) {
       if (s.type === 'feu') M.lights.push({ x: s.x, y: s.y, r: 320, warm: 230, fear: 380, site: s });
       if (s.type === 'enclos') {
         // l'enclos : un cercle de piquets, avec une porte (les moutons entrent par là)
-        const pen = { x: s.x, y: s.y, r: s.r || 240, gate: s.gate ?? Math.PI, gateW: 0.7, zone: 'pen' };
+        const pen = { id: s.id, x: s.x, y: s.y, r: s.r || 240, gate: s.gate ?? Math.PI, gateW: 0.7, zone: 'pen' };
         M.pens.push(pen);
         const n = 22;
         const posts = [];
@@ -310,6 +332,8 @@ export function createTqv(api) {
       }
       if (s.type === 'porte') solids.push({ x: s.x, y: s.y, r: GATE_GAP / 2, gate: true, site: s });
     }
+    // (world.city) les remparts, les maisons, les étals, les villages…
+    if (ext()) X.solids(solids);
     // (le barbecue et le poulailler)
     if (extrasOn()) {
       if (M.bbq) solids.push({ x: M.bbq.x, y: M.bbq.y - 10, r: 62 });
@@ -318,7 +342,7 @@ export function createTqv(api) {
     // (le feu de l'arbre frappé par la foudre)
     for (const it of M.items) if (it.type === 'arbre-feu' && active(it, ch)) M.lights.push({ x: it.x, y: it.y - 90, r: 470, warm: 260, fear: 420, tree: it });
     // (les peintures faites) des torches éclairent la grotte
-    if (M.sites.some((s) => s.type === 'peinture' && g.built[s.id] === true)) M.lights.push({ x: M.cave.x, y: M.cave.y - M.cave.rd * 0.4, r: 380, warm: 0, fear: 0, cave: true });
+    if (M.cave && M.sites.some((s) => s.type === 'peinture' && g.built[s.id] === true)) M.lights.push({ x: M.cave.x, y: M.cave.y - M.cave.rd * 0.4, r: 380, warm: 0, fear: 0, cave: true });
     // la grille des obstacles (pour aller vite)
     const grid = new Map();
     for (const s of solids) {
@@ -359,16 +383,18 @@ export function createTqv(api) {
     if (riverDist(M.river, x, y) < M.riverW / 2) return 'water';
     for (const l of M.lights) if (Math.hypot(x - l.x, y - l.y) < l.warm) return 'feu';
     for (const p of M.pens) if (Math.hypot(x - p.x, y - p.y) < p.r * 0.85) return 'pen';
-    if (Math.hypot(x - M.V.x, y - M.V.y) < M.VR) return 'camp';
+    if (inVillage(x, y)) return 'camp';
     return null;
   }
-  const inVillage = (x, y, m = 0) => Math.hypot(x - M.V.x, y - M.V.y) < M.VR + m;
+  const inVillage = (x, y, m = 0) => (ext() ? X.inCity(x, y, m) : Math.hypot(x - M.V.x, y - M.V.y) < M.VR + m);
   const palisadeDone = () => M.sites.some((s) => s.arc) && M.sites.filter((s) => s.arc).every((s) => api.game().built[s.id] === true);
 
   /** On ne passe pas à travers les arbres, les rochers, les huttes, la palissade.
       who : 'ami' (le joueur, la tribu : ils passent la porte) ou 'sauvage' */
   function collide(e, rad, who) {
     if (!M) return;
+    // (land.riverBlock) le grand fleuve : on ne le traverse que sur le pont
+    if (ext() && !(e.sp && e.sp.flying)) X.riverBlock(e, rad);
     const i = Math.floor(e.x / CELL), j = Math.floor(e.y / CELL);
     let hitWall = null;
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
@@ -468,7 +494,10 @@ export function createTqv(api) {
     if (site) {
       const lock = lockText(site);
       const miss = lock ? null : missing(site, p);
-      if (lock && !(site.need && !g.owned[site.need])) {
+      if (lock && ext() && X.lockText(site)) {
+        p.buildT = 0;
+        api.sayOnce('needChoose', api.lines().needChoose, 25, 2);
+      } else if (lock && !(site.need && !g.owned[site.need])) {
         p.buildT = 0;
         api.sayOnce(`store-${site.id}`, api.lines().needStore.replace('{n}', site.store), 25, 2);
       } else if (lock) {
@@ -533,6 +562,8 @@ export function createTqv(api) {
         if (Math.hypot(c.x - p.x, c.y - p.y) < c.size + p.size * 1.3) repel(c, p, 'Ouste !', 6);
       }
     }
+    // (world.city) vendre au marché des villages amis, embaucher, commander un bateau, déposer au chantier
+    if (ext()) X.interact(p, dt);
   }
 
   /** Pourquoi ce plan est verrouillé (null s'il ne l'est pas) : une invention qui manque, ou
@@ -540,6 +571,7 @@ export function createTqv(api) {
   function lockText(s) {
     const g = api.game();
     if (s.need && !g.owned[s.need]) return `Invente d’abord : ${api.evoName(s.need)}`;
+    if (ext() && X.lockText(s)) return X.lockText(s);
     const have = (g.delivered || {}).ble || 0;
     if (s.store && have < s.store) return `Apporte d’abord ${s.store} blé au grenier (${have}/${s.store})`;
     return null;
@@ -608,7 +640,7 @@ export function createTqv(api) {
     }
     for (const [id, f] of Object.entries(g.fields || {})) {
       if (f.stage !== 'pousse') continue;
-      f.grow += dt / GROW_TIME;
+      f.grow += dt / (M.L.growTime || GROW_TIME);
       if (f.grow >= 1) {
         f.stage = 'mur';
         const s = M.sites.find((x) => x.id === id);
@@ -617,6 +649,7 @@ export function createTqv(api) {
       }
     }
     updateIrrigation();
+    if (ext()) X.update(dt);
     updateConvoy(dt);
     updateHunger(dt);
     updateThrowers(dt);
@@ -637,7 +670,7 @@ export function createTqv(api) {
   }
 
   /* ---------- L'irrigation : le canal arrose les champs tout seul ---------- */
-  const irrigated = () => !!M && M.sites.some((s) => s.type === 'canal' && api.game().built[s.id] === true);
+  const irrigated = () => !!M && (!!M.L.irrigated || M.sites.some((s) => s.type === 'canal' && api.game().built[s.id] === true));
   function updateIrrigation() {
     if (!irrigated()) return;
     const g = api.game();
@@ -842,7 +875,7 @@ export function createTqv(api) {
       s.y += s.vy * dt;
       s.life -= dt;
       for (const c of api.creatures()) {
-        if (s.life <= 0 || c.dead || ['tribu', 'ally', 'stray', 'food', 'flock', 'chien', 'poule'].includes(c.sp.kind)) continue;
+        if (s.life <= 0 || c.dead || ['tribu', 'ally', 'stray', 'food', 'flock', 'chien', 'poule', 'habitant'].includes(c.sp.kind)) continue;
         // (on vise le corps : un peu au-dessus des pattes)
         if (Math.hypot(c.x - s.x, c.y - c.size * 0.8 - s.y) > c.size * 0.9 + 14) continue;
         s.life = 0;
@@ -935,6 +968,8 @@ export function createTqv(api) {
     if (!M) return false;
     const sp = c.sp, g = api.game(), CH = api.chapter();
     c.fleeT = Math.max(0, (c.fleeT || 0) - dt);
+    // (world.city) les habitants des autres villages, les soldats des villages hostiles
+    if (ext() && X.steer(c, dt, p)) return true;
     // (la torche) un pillard, un sanglier : il recule devant les flammes… mais il reviendra
     if (c.scaredT > 0 && (sp.kind === 'pillard' || sp.fieldRaider)) {
       c.scaredT = 0;
@@ -1185,6 +1220,7 @@ export function createTqv(api) {
       if (riverDist(M.river, x, y) < M.riverW / 2 + 40) continue;
       // (les bêtes sauvages naissent hors du village ; les moutons, près de l'enclos s'il existe)
       if (sp.kind !== 'stray' && inVillage(x, y, 250)) continue;
+      if (ext() && X.reserved(x, y, -120)) continue;
       if (blocked(x, y, sp.size * 0.6)) continue;
       return { x, y };
     }
@@ -1198,6 +1234,7 @@ export function createTqv(api) {
     return false;
   }
   function startPoint() {
+    if (ext()) return { x: M.W.start.x, y: M.W.start.y };
     return { x: M.V.x + 60, y: M.V.y + 140 };
   }
   function respawnPoint() {
@@ -1217,15 +1254,17 @@ export function createTqv(api) {
   function drawGround(ctx, x0, x1, y0, y1, t) {
     const P = pal(), g = api.game();
     // la terre battue autour du foyer (elle s'agrandit avec le village)
-    const n = Math.min(30, g.builtCount || 0);
-    const rr = 280 + n * 35;
-    const dg = ctx.createRadialGradient(M.V.x, M.V.y, rr * 0.2, M.V.x, M.V.y, rr);
-    dg.addColorStop(0, P.dirt || 'rgba(150, 120, 80, 0.55)');
-    dg.addColorStop(1, 'rgba(150, 120, 80, 0)');
-    ctx.fillStyle = dg;
-    ctx.beginPath();
-    ctx.ellipse(M.V.x, M.V.y, rr, rr * 0.75, 0, 0, TAU);
-    ctx.fill();
+    if (!ext()) {
+      const n = Math.min(30, g.builtCount || 0);
+      const rr = 280 + n * 35;
+      const dg = ctx.createRadialGradient(M.V.x, M.V.y, rr * 0.2, M.V.x, M.V.y, rr);
+      dg.addColorStop(0, P.dirt || 'rgba(150, 120, 80, 0.55)');
+      dg.addColorStop(1, 'rgba(150, 120, 80, 0)');
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.ellipse(M.V.x, M.V.y, rr, rr * 0.75, 0, 0, TAU);
+      ctx.fill();
+    }
     // la rivière
     const W2 = M.riverW;
     const path = (off, w) => {
@@ -1265,11 +1304,15 @@ export function createTqv(api) {
       if (d.x < x0 - 30 || d.x > x1 + 30 || d.y < y0 - 30 || d.y > y1 + 30) continue;
       drawDecal(ctx, d, flowers, dark, light);
     }
+    // (world.city) le sol de la ville, la carrière, la route, le pont, le port
+    if (ext()) X.drawGround(ctx, x0, x1, y0, y1, t);
     // le sol de la grotte (quand on y entre, la colline devient transparente)
     const c = M.cave, pp = api.player();
-    const inside = !pp.dead && ((pp.x - c.x) / (c.rw + 40)) ** 2 + ((pp.y - c.y) / (c.rd + 40)) ** 2 < 1;
-    M.caveFade += ((inside ? 0.22 : 1) - M.caveFade) * 0.12;
-    if (c.x + c.rw + 300 > x0 && c.x - c.rw - 300 < x1 && c.y + c.rd + 100 > y0 && c.y - c.rd - 100 < y1) drawCaveFloor(ctx, c, t, P);
+    if (c) {
+      const inside = !pp.dead && ((pp.x - c.x) / (c.rw + 40)) ** 2 + ((pp.y - c.y) / (c.rd + 40)) ** 2 < 1;
+      M.caveFade += ((inside ? 0.22 : 1) - M.caveFade) * 0.12;
+      if (c.x + c.rw + 300 > x0 && c.x - c.rw - 300 < x1 && c.y + c.rd + 100 > y0 && c.y - c.rd - 100 < y1) drawCaveFloor(ctx, c, t, P);
+    }
     drawCanal(ctx, t);
     // les champs (à plat)
     for (const s of M.sites) {
@@ -1280,7 +1323,7 @@ export function createTqv(api) {
     // les plans de ce qu'on peut construire (au sol, en pointillés)
     const p = api.player();
     for (const s of M.sites) {
-      if (!visibleSite(s) || s.x + 300 < x0 || s.x - 300 > x1) continue;
+      if (!visibleSite(s) || s.seg || s.x + 300 < x0 || s.x - 300 > x1) continue;
       if (s.arc) {
         ctx.save();
         ctx.setLineDash([16, 12]);
@@ -1317,7 +1360,7 @@ export function createTqv(api) {
     }
     for (const s of M.sites) {
       const b = g.built[s.id];
-      if (!inV(s, 400)) continue;
+      if (s.seg || !inV(s, 400)) continue;
       if (b === true || (b === 'casse' && !s.arc)) out.push({ y: s.y, site: s });
       else if (visibleSite(s) && !s.arc && s.type !== 'champ') out.push({ y: s.y, ghost: s });
     }
@@ -1327,11 +1370,13 @@ export function createTqv(api) {
     }
     for (const st of M.stakes) if (inV(st, 60)) out.push({ y: st.y, stake: st });
     for (const pt of M.posts) if (inV(pt, 80)) out.push({ y: pt.y, post: pt });
+    if (ext()) X.uprights(out, inV);
     return out;
   }
 
   function drawUpright(ctx, u, t) {
     const P = pal(), g = api.game();
+    if ((u.city || u.item) && ext() && X.drawUpright(ctx, u, t)) return;
     if (u.item) {
       const it = u.item;
       if (it.type === 'arbre') drawTree(ctx, it, t, P);
@@ -1355,6 +1400,7 @@ export function createTqv(api) {
     if (u.post) { drawPost(ctx, u.post); return; }
     const s = u.site || u.ghost;
     if (u.ghost) ctx.globalAlpha = 0.28;
+    if (ext() && X.drawUpright(ctx, u, t)) { ctx.globalAlpha = 1; return; }
     const p = api.player();
     switch (s.type) {
       case 'foyer': drawHearth(ctx, s, t, !!u.site, true); break;
@@ -1445,6 +1491,7 @@ export function createTqv(api) {
         ctx.stroke();
       }
     }
+    if (ext()) X.drawTop(ctx, t, zoom);
   }
 
   /** Au-dessus du grenier : combien de blé il contient (la réserve du village ; au chapitre du
@@ -1548,12 +1595,15 @@ export function createTqv(api) {
     mctx.beginPath();
     M.river.forEach((q, i) => { const m = toM(q.x, q.y); if (i) mctx.lineTo(m.x, m.y); else mctx.moveTo(m.x, m.y); });
     mctx.stroke();
-    const v = toM(M.V.x, M.V.y);
-    mctx.strokeStyle = 'rgba(255, 210, 140, 0.7)';
-    mctx.lineWidth = 2;
-    mctx.beginPath();
-    mctx.arc(v.x, v.y, Math.max(4, M.VR * k), 0, TAU);
-    mctx.stroke();
+    if (ext()) X.minimap(mctx, toM, k);
+    else {
+      const v = toM(M.V.x, M.V.y);
+      mctx.strokeStyle = 'rgba(255, 210, 140, 0.7)';
+      mctx.lineWidth = 2;
+      mctx.beginPath();
+      mctx.arc(v.x, v.y, Math.max(4, M.VR * k), 0, TAU);
+      mctx.stroke();
+    }
     for (const s of M.sites) {
       const m = toM(s.x, s.y);
       mctx.fillStyle = g.built[s.id] === true ? 'rgba(255, 180, 90, 0.95)' : visibleSite(s) ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0,0,0,0)';
@@ -1562,14 +1612,16 @@ export function createTqv(api) {
     for (const it of M.items) {
       if (!it.res || !active(it, ch) || it.amount <= 0 || !wanted.includes(it.res)) continue;
       const m = toM(it.x, it.y);
-      mctx.fillStyle = it.res === 'bois' ? '#C9A06A' : it.res === 'silex' ? '#E2E2EA' : it.res === 'ocre' ? '#E2744A' : '#F2D05A';
+      mctx.fillStyle = it.res === 'bois' ? '#C9A06A' : it.res === 'silex' || it.res === 'pierre' ? '#E2E2EA' : it.res === 'ocre' ? '#E2744A' : it.res === 'laine' ? '#FFFFFF' : '#F2D05A';
       mctx.beginPath();
       mctx.arc(m.x, m.y, 2.6, 0, TAU);
       mctx.fill();
     }
-    const cv = toM(M.cave.x, M.cave.y);
-    mctx.fillStyle = '#6A6258';
-    mctx.fillRect(cv.x - 4, cv.y - 3, 8, 6);
+    if (M.cave) {
+      const cv = toM(M.cave.x, M.cave.y);
+      mctx.fillStyle = '#6A6258';
+      mctx.fillRect(cv.x - 4, cv.y - 3, 8, 6);
+    }
   }
 
   /* ---------- Ce que la flèche montre ---------- */
@@ -1586,11 +1638,26 @@ export function createTqv(api) {
   function sitesOf(type) {
     return M.sites.filter((s) => s.type === type);
   }
+  /** Le champ de blé mûr le plus proche (null s'il n'y en a pas) */
+  function ripeField(p) {
+    const g = api.game();
+    let best = null, bd = Infinity;
+    for (const s of M.sites) {
+      if (s.type !== 'champ' || g.built[s.id] !== true || !g.fields[s.id] || g.fields[s.id].stage !== 'mur') continue;
+      const d = Math.hypot(s.x - p.x, s.y - p.y);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
 
   return {
     on, build, refresh, get M() { return M; }, zoneAt, collide, interact, update, steer, spawnPoint, startPoint, respawnPoint,
     throwSpear, repel, drawGround, uprights, drawUpright, drawTop, drawNight, minimap, nearestRes, sitesOf, missing, inVillage,
     lockText, raidLeft, raidState, palisadeDone, resetRaid: () => { raid = null; spears = []; mealT = 0; sheepShown = -1; convoy = null; roastT = 0; }, irrigated,
     get pens() { return M ? M.pens : []; }, get hides() { return M ? M.hides : []; },
+    // (world.city) les premières villes
+    get city() { return ext(); }, speedAt: (x, y) => (ext() ? X.speedAt(x, y) : 1), zoomAt: (p) => (ext() && M ? X.zoomAt(p) : 1),
+    populate: () => { if (ext()) X.populate(); },
+    caught: (by) => { if (ext()) X.caught(by); }, ripeField,
   };
 }

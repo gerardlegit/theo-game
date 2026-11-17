@@ -174,10 +174,16 @@ export function drawHuman(ctx, c, t, o = {}) {
     ctx.moveTo(-r * 0.36, -r * 1.58);
     ctx.quadraticCurveTo(0, -r * 1.7, r * 0.36, -r * 1.58);
     ctx.quadraticCurveTo(r * 0.5, -r * 1.2, r * 0.42, -r * 0.62);
-    const n = 5;
-    for (let i = 0; i <= n; i++) {
-      const xx = lerp(r * 0.42, -r * 0.42, i / n);
-      ctx.lineTo(xx + r * 0.04, -r * (i % 2 ? 0.5 : 0.62));
+    if (o.smooth) {
+      // (une tunique tissée, une robe, un habit d'aujourd'hui) un bas bien droit
+      ctx.lineTo(r * 0.46, -r * (o.long ? 0.2 : 0.52));
+      ctx.lineTo(-r * 0.46, -r * (o.long ? 0.2 : 0.52));
+    } else {
+      const n = 5;
+      for (let i = 0; i <= n; i++) {
+        const xx = lerp(r * 0.42, -r * 0.42, i / n);
+        ctx.lineTo(xx + r * 0.04, -r * (i % 2 ? 0.5 : 0.62));
+      }
     }
     ctx.quadraticCurveTo(-r * 0.5, -r * 1.2, -r * 0.36, -r * 1.58);
     ctx.closePath();
@@ -349,6 +355,24 @@ export function drawHuman(ctx, c, t, o = {}) {
   ctx.fill();
   ctx.stroke();
   if (!back) face(ctx, hx, hy, R, f, c, o, skin, dark, lw);
+  // (l'Antiquité, aujourd'hui) le casque, le chapeau, la coiffe du pharaon
+  if (o.helmet || o.hat) headwear(ctx, hx, hy, R, f, o, lw, back);
+  // un bloc de pierre (ou un sac de blé) porté sur l'épaule
+  if (o.carry === 'bloc' || o.carry === 'sac') {
+    const bx = -f * r * 0.32, by = -r * 1.78;
+    ctx.fillStyle = o.carry === 'bloc' ? '#C8BCA4' : '#D8C08A';
+    ctx.strokeStyle = o.carry === 'bloc' ? '#5A5040' : '#7A5A2A';
+    ctx.lineWidth = lw * 1.2;
+    ctx.beginPath();
+    if (o.carry === 'bloc') ctx.rect(bx - r * 0.42, by - r * 0.32, r * 0.84, r * 0.5);
+    else ctx.ellipse(bx, by - r * 0.06, r * 0.44, r * 0.3, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    if (o.carry === 'bloc') {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillRect(bx - r * 0.42, by - r * 0.32, r * 0.84, r * 0.1);
+    }
+  }
   // le bandeau, la plume
   if (o.band) {
     ctx.strokeStyle = o.band;
@@ -372,6 +396,122 @@ export function drawHuman(ctx, c, t, o = {}) {
     }
   }
   ctx.restore();
+}
+
+/** Ce qu'on porte sur la tête : o.helmet (le casque de bronze, sa crête de couleur), o.hat :
+    'paille' (le grand chapeau de paille), 'casquette' (la visière du côté où l'on regarde),
+    'nemes' (la coiffe rayée du pharaon), 'bonnet' (le petit bonnet du scribe) */
+function headwear(ctx, hx, hy, R, f, o, lw, back) {
+  ctx.lineWidth = Math.max(0.7, lw * 1.1);
+  if (o.helmet) {
+    const col = '#C9963A';
+    ctx.fillStyle = col;
+    ctx.strokeStyle = shade(col, -0.55);
+    ctx.beginPath();
+    ctx.moveTo(hx - R * 1.08, hy - R * 0.12);
+    ctx.quadraticCurveTo(hx - R * 1.12, hy - R * 1.25, hx, hy - R * 1.22);
+    ctx.quadraticCurveTo(hx + R * 1.12, hy - R * 1.25, hx + R * 1.08, hy - R * 0.12);
+    ctx.lineTo(hx + R * 0.95, hy - R * 0.32);
+    ctx.lineTo(hx - R * 0.95, hy - R * 0.32);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.4)';
+    ell(ctx, hx - f * R * 0.35, hy - R * 0.85, R * 0.22, R * 0.12, -0.4 * f);
+    ctx.fill();
+    // la crête (en crin de cheval)
+    ctx.fillStyle = o.helmet === true ? '#C8302A' : o.helmet;
+    ctx.strokeStyle = '#3A1410';
+    ctx.beginPath();
+    ctx.moveTo(hx - R * 0.75, hy - R * 1.0);
+    ctx.quadraticCurveTo(hx - R * 0.2, hy - R * 1.85, hx + R * 0.8, hy - R * 1.05);
+    ctx.quadraticCurveTo(hx, hy - R * 1.4, hx - R * 0.75, hy - R * 1.0);
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
+  if (o.hat === 'paille') {
+    ctx.fillStyle = '#E2C47A';
+    ctx.strokeStyle = '#8A6A2A';
+    ell(ctx, hx, hy - R * 0.62, R * 1.55, R * 0.32);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - R * 0.7, R * 0.78, R * 0.62, 0, Math.PI, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = o.hatBand || '#C8302A';
+    ctx.fillRect(hx - R * 0.78, hy - R * 0.86, R * 1.56, R * 0.16);
+  } else if (o.hat === 'casquette') {
+    const col = o.hatCol || '#E8443A';
+    ctx.fillStyle = col;
+    ctx.strokeStyle = shade(col, -0.5);
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - R * 0.45, R * 1.02, R * 0.85, 0, Math.PI, TAU);
+    ctx.fill();
+    ctx.stroke();
+    if (!back) {
+      ctx.beginPath();
+      ctx.ellipse(hx + f * R * 0.85, hy - R * 0.45, R * 0.62, R * 0.16, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (o.hat === 'nemes') {
+    // la coiffe du pharaon : des rayures jaunes et bleues qui tombent sur les épaules
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = '#E8C05A';
+      ctx.strokeStyle = '#5A4020';
+      ctx.beginPath();
+      ctx.moveTo(hx + s * R * 0.85, hy - R * 0.5);
+      ctx.lineTo(hx + s * R * 1.3, hy + R * 1.25);
+      ctx.lineTo(hx + s * R * 0.75, hy + R * 1.25);
+      ctx.lineTo(hx + s * R * 0.72, hy + R * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#2E5AA8';
+      ctx.lineWidth = Math.max(0.6, R * 0.1);
+      ctx.beginPath();
+      for (let i = 1; i < 4; i++) {
+        const y = hy + R * (-0.2 + i * 0.36);
+        ctx.moveTo(hx + s * R * (0.78 + i * 0.07), y);
+        ctx.lineTo(hx + s * R * (0.78 + i * 0.07 + 0.3), y);
+      }
+      ctx.stroke();
+      ctx.lineWidth = Math.max(0.7, lw * 1.1);
+    }
+    ctx.fillStyle = '#E8C05A';
+    ctx.strokeStyle = '#5A4020';
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - R * 0.4, R * 1.08, R * 0.9, 0, Math.PI, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#2E5AA8';
+    ctx.lineWidth = Math.max(0.6, R * 0.1);
+    ctx.beginPath();
+    for (let i = -3; i <= 3; i++) {
+      ctx.moveTo(hx + i * R * 0.28, hy - R * 0.45);
+      ctx.lineTo(hx + i * R * 0.24, hy - R * (0.95 + Math.cos(i * 0.4) * 0.25));
+    }
+    ctx.stroke();
+    // le petit serpent doré, sur le front
+    ctx.fillStyle = '#F2C24A';
+    ctx.strokeStyle = '#5A4020';
+    ctx.lineWidth = Math.max(0.6, lw);
+    ell(ctx, hx + f * R * 0.15, hy - R * 0.62, R * 0.12, R * 0.2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (o.hat === 'bonnet') {
+    const col = o.hatCol || '#F2EEE4';
+    ctx.fillStyle = col;
+    ctx.strokeStyle = shade(col, -0.5);
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - R * 0.4, R * 1.0, R * 0.78, 0, Math.PI, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#C8302A';
+    ctx.fillRect(hx - R, hy - R * 0.5, R * 2, R * 0.14);
+  }
 }
 
 /** Le visage, tourné du côté f */
@@ -565,6 +705,116 @@ function holdTool(ctx, hx, hy, r, f, t, o, c) {
     ctx.fillStyle = '#5A3A22';
     ell(ctx, hx + f * r * 0.22, hy - r * 0.68, r * 0.17, r * 0.22);
     ctx.fill();
+  } else if (tool === 'marteau') {
+    // (le bâtisseur) un marteau à tête de bronze
+    const tx = hx + f * r * 0.12, ty = hy - r * 0.62;
+    stick(hx, hy + r * 0.2, tx, ty, r * 0.08);
+    ctx.fillStyle = '#C9963A';
+    ctx.strokeStyle = '#5A3A14';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.rect(tx - r * 0.2, ty - r * 0.14, r * 0.4, r * 0.2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (tool === 'tablette') {
+    // (le scribe) une tablette d'argile couverte de petits signes, et le roseau pour écrire
+    ctx.fillStyle = '#C9A274';
+    ctx.strokeStyle = '#5A3A22';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(hx - r * 0.28, hy - r * 0.52, r * 0.56, r * 0.42, r * 0.06) : ctx.rect(hx - r * 0.28, hy - r * 0.52, r * 0.56, r * 0.42);
+    ctx.fill();
+    ctx.stroke();
+    if (fine) {
+      ctx.strokeStyle = '#6A4A2A';
+      ctx.lineWidth = Math.max(0.5, r * 0.03);
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 4; j++) {
+          const x = hx - r * 0.2 + j * r * 0.12, y = hy - r * 0.42 + i * r * 0.11;
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + r * 0.05, y + r * 0.03);
+        }
+      }
+      ctx.stroke();
+    }
+    stick(hx + f * r * 0.22, hy - r * 0.05, hx + f * r * 0.42, hy - r * 0.6, r * 0.04, '#C9B070');
+  } else if (tool === 'balance') {
+    // (le marchand) une petite balance à deux plateaux
+    stick(hx, hy, hx, hy - r * 0.7, r * 0.05, '#C9963A');
+    ctx.strokeStyle = '#8A6A2A';
+    ctx.lineWidth = Math.max(0.8, r * 0.05);
+    ctx.beginPath();
+    const tilt = Math.sin(t * 2 + (c.seed || 0)) * r * 0.05;
+    ctx.moveTo(hx - r * 0.35, hy - r * 0.62 + tilt);
+    ctx.lineTo(hx + r * 0.35, hy - r * 0.62 - tilt);
+    for (const s of [-1, 1]) {
+      ctx.moveTo(hx + s * r * 0.35, hy - r * 0.62 - s * tilt);
+      ctx.lineTo(hx + s * r * 0.35, hy - r * 0.36 - s * tilt);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#E8C05A';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(hx + s * r * 0.35, hy - r * 0.34 - s * tilt, r * 0.15, r * 0.05, 0, 0, Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (tool === 'rouleau') {
+    // (l'architecte) le plan, roulé
+    ctx.save();
+    ctx.translate(hx, hy - r * 0.2);
+    ctx.rotate(-0.9 * f);
+    ctx.fillStyle = '#F2E6C4';
+    ctx.strokeStyle = '#6A5030';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.rect(-r * 0.08, -r * 0.5, r * 0.16, r * 0.8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#C8302A';
+    ctx.fillRect(-r * 0.09, -r * 0.12, r * 0.18, r * 0.07);
+    ctx.restore();
+  } else if (tool === 'sceptre') {
+    // (le pharaon) le bâton recourbé en crosse, rayé d'or et de bleu
+    const tx = hx + f * r * 0.1, ty = hy - r * 0.8;
+    stick(hx, hy + r * 0.2, tx, ty, r * 0.08, '#E8C05A');
+    ctx.strokeStyle = '#2E5AA8';
+    ctx.lineWidth = r * 0.08;
+    ctx.beginPath();
+    ctx.arc(tx + f * r * 0.12, ty, r * 0.12, f > 0 ? Math.PI : 0, f > 0 ? 0.2 : Math.PI - 0.2, f < 0);
+    ctx.stroke();
+  } else if (tool === 'appareil') {
+    // (un touriste) un appareil photo… et le flash, de temps en temps
+    ctx.fillStyle = '#2A2A30';
+    ctx.strokeStyle = '#0E0E12';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.rect(hx - r * 0.24, hy - r * 0.28, r * 0.48, r * 0.3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#5A7AA8';
+    circle(ctx, hx + f * r * 0.04, hy - r * 0.13, r * 0.1);
+    ctx.fill();
+    if (Math.sin(t * 1.3 + (c.seed || 0) * 5) > 0.97) {
+      ctx.fillStyle = 'rgba(255, 255, 230, 0.9)';
+      circle(ctx, hx + f * r * 0.15, hy - r * 0.3, r * 0.35);
+      ctx.fill();
+    }
+  } else if (tool === 'drapeau') {
+    // (le guide des touristes) un petit drapeau au bout d'un bâton
+    const tx = hx + f * r * 0.05, ty = hy - r * 1.3;
+    stick(hx, hy + r * 0.2, tx, ty, r * 0.05, '#8A8A8A');
+    ctx.fillStyle = o.flag || '#F2C24A';
+    ctx.strokeStyle = shade(o.flag || '#F2C24A', -0.5);
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(tx + f * r * 0.25, ty + Math.sin(t * 6) * r * 0.05, tx + f * r * 0.5, ty + r * 0.08);
+    ctx.lineTo(tx, ty + r * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   } else if (tool === 'jarre') {
     // une jarre d'argile pleine d'eau, sur l'épaule
     const jx = hx + f * r * 0.02, jy = hy - r * 0.32;
@@ -679,6 +929,11 @@ const horn = (kind) => (ctx, L, D, c, col, dark, lw) => {
     // une grosse corne enroulée
     ctx.arc(0.08 * L, -0.25 * D, 0.38 * D, -Math.PI * 0.9, Math.PI * 0.6);
     ctx.arc(0.08 * L, -0.25 * D, 0.2 * D, Math.PI * 0.6, -Math.PI * 0.9, true);
+  } else if (kind === 'vache') {
+    // (la vache) deux petites cornes courbes
+    ctx.moveTo(0.06 * L, -0.42 * D);
+    ctx.quadraticCurveTo(0.05 * L, -0.78 * D, 0.3 * L, -0.8 * D);
+    ctx.quadraticCurveTo(0.16 * L, -0.66 * D, 0.2 * L, -0.4 * D);
   } else if (kind === 'chevre') {
     ctx.moveTo(0.1 * L, -0.45 * D);
     ctx.quadraticCurveTo(-0.2 * L, -1.15 * D, -0.45 * L, -0.85 * D);
@@ -1055,6 +1310,28 @@ const MAM = {
     legW: 0.12, stride: 0.32, cadence: 1.8,
     tail: { len: 0.6, w: 0.05, droop: 1.0, type: 'fine' },
   },
+  // (les premières villes) les animaux de la ferme : la vache tachetée, le cochon tout rose, le bœuf des charrettes
+  vache: {
+    ground: 0.95, hip: [-0.55, -0.3], shoulder: [0.36, -0.32], depth: 0.46, hump: 1.05, belly: 1.06,
+    neck: [[0.56, -0.36, 0.32], [0.68, -0.34, 0.29]],
+    head: { x: 0.8, y: -0.34, L: 0.58, D: 0.5, snout: 0.55, ear: 'pointe', earR: 0.5, eye: [0.12, -0.2], eyeR: 0.12, noseCol: '#D88A8A', extra: horn('vache') },
+    legW: 0.11, stride: 0.3, cadence: 1.8, patches: { col: '#2A2420', n: 3 },
+    tail: { len: 0.62, w: 0.05, droop: -1.15, curl: -0.2, type: 'touffue' },
+  },
+  boeuf: {
+    ground: 1.0, hip: [-0.55, -0.32], shoulder: [0.36, -0.36], depth: 0.48, hump: 1.2, belly: 1.0,
+    neck: [[0.56, -0.38, 0.36], [0.68, -0.34, 0.32]],
+    head: { x: 0.8, y: -0.32, L: 0.62, D: 0.52, snout: 0.55, ear: 'pointe', earR: 0.45, eye: [0.12, -0.2], eyeR: 0.1, noseCol: '#2A2024', extra: horn('aurochs') },
+    legW: 0.12, stride: 0.3, cadence: 1.6,
+    tail: { len: 0.6, w: 0.05, droop: -1.15, curl: -0.2, type: 'touffue' },
+  },
+  cochon: {
+    ground: 0.55, hip: [-0.46, -0.08], shoulder: [0.32, -0.1], depth: 0.46, hump: 1.05, belly: 1.1, midTop: 1.05,
+    neck: [[0.5, -0.1, 0.36], [0.6, -0.1, 0.32]],
+    head: { x: 0.66, y: -0.12, L: 0.56, D: 0.56, snout: 0.5, dome: 0.25, ear: 'tombante', earR: 0.5, eye: [0.12, -0.2], eyeR: 0.1, noseCol: '#E87A8A' },
+    legW: 0.09, stride: 0.22, cadence: 2.8,
+    tail: { len: 0.3, w: 0.04, droop: -0.2, curl: 1.8, type: 'fine' },
+  },
   // (le niveau du loup) les grandes bêtes de la steppe…
   bison: {
     ground: 1.0, hip: [-0.55, -0.26], shoulder: [0.32, -0.4], depth: 0.48, hump: 1.55, hipTop: 0.85, belly: 1.0,
@@ -1415,6 +1692,12 @@ const HERO = {
   'th-villageois': (P) => ({ cloth: PLAYER.body, woven: true, border: '#A8442A', style: 'court', necklace: true, band: P.elevage ? '#3A6A9A' : null, tool: P.hutte ? 'hache' : 'lance' }),
   'th-paysan': (P) => ({ cloth: PLAYER.body, woven: true, border: '#C9A030', style: 'court', necklace: true, band: '#3A6A9A', tool: P.agriculture ? 'houe' : 'hache' }),
   'th-chef': (P) => ({ cloth: PLAYER.body, woven: true, border: '#C8302A', style: 'court', necklace: true, band: '#C8302A', feather: '#E8B04A', cape: P.tour ? '#7A3A2A' : null, tool: 'lance', shield: !!P.palissade }),
+  // (les premières villes) le bâtisseur, le marchand, le scribe, l'architecte, le pharaon
+  'th-batisseur': (P) => ({ cloth: PLAYER.body, woven: true, smooth: true, border: '#A8442A', style: 'court', beard: true, band: P.arche ? '#A8442A' : null, tool: P.bronze ? 'marteau' : 'hache' }),
+  'th-marchand': (P) => ({ cloth: PLAYER.body, woven: true, smooth: true, border: '#F2C24A', style: 'court', beard: true, necklace: true, hat: 'paille', hatBand: '#3A6AC8', tool: P.balance ? 'balance' : 'lance' }),
+  'th-scribe': (P) => ({ cloth: PLAYER.body, woven: true, smooth: true, long: true, border: '#3A6AC8', style: 'court', hat: 'bonnet', tool: P.ecriture ? 'tablette' : 'lance', shield: !!P.bouclier }),
+  'th-architecte': (P) => ({ cloth: PLAYER.body, woven: true, smooth: true, long: true, border: '#F2C24A', style: 'court', necklace: true, band: '#F2C24A', tool: P.plans ? 'rouleau' : 'lance', shield: !!P.bouclier }),
+  'th-pharaon': (P) => ({ cloth: PLAYER.body, woven: true, smooth: true, long: true, border: '#2E5AA8', style: 'court', necklace: true, hat: 'nemes', cape: P.levier ? '#2E5AA8' : null, tool: 'sceptre', shield: !!P.bouclier }),
 };
 for (const [form, make] of Object.entries(HERO)) {
   FORM_SPINE[form] = null;
@@ -3286,13 +3569,18 @@ export function drawPlan(ctx, b, t, near) {
 /* ============================================================================
    LES ICÔNES DES RESSOURCES (le compteur en haut, le coût des plans)
    ============================================================================ */
+/* (un autre fichier peut ajouter ses icônes : la pierre, la laine, les pièces… voir art-villes.js)
+   EXTRA_ICONS[id] = (ctx, s) => …, dessinée autour de (0, 0) */
+export const EXTRA_ICONS = {};
 export function drawResIcon(ctx, id, x, y, s) {
   ctx.save();
   ctx.translate(x, y);
   ctx.lineWidth = Math.max(1, s * 0.1);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  if (id === 'bois') {
+  if (EXTRA_ICONS[id]) {
+    EXTRA_ICONS[id](ctx, s);
+  } else if (id === 'bois') {
     for (const [a, dy] of [[-0.35, 0.12], [0.35, -0.05]]) {
       ctx.save();
       ctx.rotate(a);

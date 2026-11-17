@@ -4,7 +4,9 @@
 // retourne dans la mer : il mange ce qui est plus petit que
 // lui pour grandir et gagner de l'ADN, évite de se faire croquer par plus
 // gros, et fait évoluer son corps. Au niveau du loup, il chasse avec sa meute,
-// gagne la confiance des humains, aboie et rassemble les moutons.
+// gagne la confiance des humains, aboie et rassemble les moutons. Dans la
+// voie des humains et les premières villes, il invente, construit et échange
+// (tqv.js, villes.js).
 // Tout ce qui décrit un niveau (espèces, évolutions, chapitres, missions) est
 // dans levels/ : ce fichier ne connaît aucune espèce par son nom.
 // ============================================================================
@@ -31,6 +33,8 @@ import { resIconUrl, drawHut, drawHearth, drawTree, drawGrass, drawRock, drawFer
 import { createTerre, LAND_SPEED, LAND_MAX } from './terre.js';
 import { LINES as BASE_LINES } from './data.js';
 import { createHumanIntro, drawHumanEnding } from './intro-humains.js';
+import { createCityIntro, drawCityEnding } from './intro-villes.js';
+import { MONUMENTS, monumentThumb } from './art-villes.js';
 import { createIntro, createLandIntro, createSeaIntro, createMammalIntro, createWolfIntro, createSharkIntro, drawCaptionBox } from './intro.js';
 import { sfx, isSoundOn, toggleSound } from './sound.js';
 
@@ -44,7 +48,7 @@ const MAX_PIXELS = 3.6e6;          // pixels au plus dans une toile plein écran
 function fixTypo(o) {
   for (const k of Object.keys(o)) {
     const v = o[k];
-    if (typeof v === 'string') o[k] = v.replace(/ ([!?:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+    if (typeof v === 'string') o[k] = v.replace(/ ([!?:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0').replace(/(\d) (\d{3})\b/g, '$1\u00a0$2');
     else if (v && typeof v === 'object') fixTypo(v);
   }
 }
@@ -287,7 +291,7 @@ function thumbImg(url) {
 /* ---------- Sauvegarde ---------- */
 /** Ce qui repart à zéro à chaque nouveau chapitre */
 function freshChapter() {
-  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {}, nest: null, fed: 0, visited: [], escaped: 0, gathered: {}, delivered: {}, harvested: 0, repelled: 0 };
+  return { earned: 0, eaten: {}, done: [], maxSaid: false, barked: {}, penned: {}, played: {}, packN: 0, packMax: 0, stunned: {}, hits: {}, nest: null, fed: 0, visited: [], escaped: 0, gathered: {}, delivered: {}, harvested: 0, repelled: 0, traded: {}, coins: 0, boats: 0 };
 }
 
 function newGame() {
@@ -496,7 +500,8 @@ function baseZoom() { return clamp(cssW / 950, 0.58, 1.1); }
 /** Plus on est gros, plus la caméra recule (on voit plus loin) */
 function targetZoom() {
   if (LV.world.view === 'cote') return baseZoom() * clamp(Math.pow(40 / player.size, 0.45), 0.42, 1.35) * (CH.zoom || 1);
-  if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1);
+  // (les premières villes) près du grand monument, la caméra recule
+  if (LV.world.view === 'tqv') return baseZoom() * 0.95 * (CH.zoom || 1) * (player ? tqv.zoomAt(player) : 1);
   // (world.style = 'tqv') les bêtes sont debout : la caméra est un peu plus près
   if (LV.world.style === 'tqv') return baseZoom() * TQ_ZOOM * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
   return baseZoom() * clamp(Math.pow(26 / player.size, 0.6), 0.3, 1.8);
@@ -628,6 +633,9 @@ const tqv = createTqv({
   spearHit: (c, owner, s) => spearHit(c, owner, s), huntTarget: () => huntTarget, hungerLost: () => hungerLost(),
   horn: () => { sfx.horn(); shake = Math.max(shake, 0.3); },
   drawGuard: (g, x, y, t) => drawCreature(g, { sp: { look: 'th-chasseur', color: '#7A5A3A' }, x, y, size: 24, seed: 4, angle: Math.PI / 2, mood: 'happy', blink: 0, speed: 0, walk: 0 }, t),
+  // (les premières villes) dessiner quelqu'un (un marchand, un ouvrier, un élève…) ; choisir la forme du monument
+  drawLook: (g, look, color, x, y, size, o = {}) => drawCreature(g, { sp: { look, color }, x, y, size, seed: 1, angle: 0, mood: 'happy', blink: 0, speed: 0, walk: 0, ...o }, worldT),
+  chooseMonument: () => chooseMonument(),
 });
 const trois = () => tqv.on();
 /* (world.style = 'tqv') un niveau vu de dessus, dessiné comme la voie des humains : voir decor-tqv.js */
@@ -797,15 +805,21 @@ function populate() {
     }
   }
   // (vue de trois quarts, chapters[].penned) les bêtes déjà apprivoisées, dans l'enclos
+  // (une liste [{ species, n, pen }] : chaque espèce dans son parc)
   if (trois() && CH.penned && pens.length) {
-    const z = pens[0];
-    for (let i = 0; i < CH.penned.n; i++) {
-      const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * z.r * FENCE * 0.6;
-      const c = makeCreature(CH.penned.species, z.x + Math.cos(a) * d, z.y + Math.sin(a) * d);
-      c.penned = true;
-      creatures.push(c);
+    for (const P of Array.isArray(CH.penned) ? CH.penned : [CH.penned]) {
+      const z = (P.pen && pens.find((o) => o.id === P.pen)) || pens[0];
+      for (let i = 0; i < P.n; i++) {
+        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * z.r * FENCE * 0.6;
+        const c = makeCreature(P.species, z.x + Math.cos(a) * d, z.y + Math.sin(a) * d);
+        c.penned = true;
+        c.pen = z;
+        creatures.push(c);
+      }
     }
   }
+  // (les premières villes) les habitants des villages amis, les soldats des villages hostiles
+  if (trois()) tqv.populate();
   // la meute déjà rassemblée est autour de toi
   if (CH.pack) {
     game.packN = Math.min(game.packN || 0, PACK_MAX);   // (une ancienne sauvegarde pouvait en avoir 8)
@@ -1121,7 +1135,7 @@ function renderBarkBtn() {
 /* ---------- Ammo, le guide ---------- */
 function say(text, prio = 1, dur = 4500) {
   const now = performance.now();
-  if (now < ammo.until && prio < ammo.prio) return;
+  if (!text || (now < ammo.until && prio < ammo.prio)) return;   // (une phrase que le niveau n'a pas : rien)
   bubble.textContent = text;
   bubble.classList.remove('show');
   void bubble.offsetWidth;
@@ -1134,7 +1148,7 @@ function say(text, prio = 1, dur = 4500) {
 
 function sayOnce(key, lines, cooldownS, prio = 1) {
   const now = performance.now();
-  if ((cooldowns[key] || 0) > now) return false;
+  if (!lines || (cooldowns[key] || 0) > now) return false;
   cooldowns[key] = now + cooldownS * 1000;
   say(typeof lines === 'string' ? lines : pick(lines), prio);
   return true;
@@ -1260,7 +1274,8 @@ function updatePlayer(dt) {
   if (zone !== p.zone) enterZone(zone);
   const zk = onLand ? (zone === 'mud' ? LAND_MUD : zone === 'water' ? LAND_WATER : 1)
     : zone === 'mud' ? (LV.world.mudSpeed ?? 0.4) : zone === 'water' ? (CH.waterSpeed ?? 0.7) : 1;
-  const ms = maxSpeed() * zk;
+  // (les premières villes) sur les rues et les routes pavées, on marche plus vite
+  const ms = maxSpeed() * zk * (trois() ? tqv.speedAt(p.x, p.y) : 1);
   const dashing = p.dash > 0;
   const boost = dashing ? DASH_BOOST * (stats.dash ? 1.1 : 1) : 1;
   let want = dir;
@@ -1610,6 +1625,12 @@ function tqvTarget(todo) {
   const p = player;
   if (!tqv.M) return null;
   for (const m of todo) {
+    // (les premières villes) les marchés, les villages, le chantier, le port…
+    const ct = tqv.city ? tqv.city.target(m, p, resIconUrl) : undefined;
+    if (ct !== undefined) {
+      if (ct) return ct;
+      continue;
+    }
     if (m.type === 'gather') {
       const it = tqv.nearestRes(p, m.res);
       return it ? { x: it.x, y: it.y - 40, size: 40, img: resIconUrl(m.res) } : null;
@@ -2274,7 +2295,7 @@ function updateCreatures(dt) {
         c.eatT = 0.25;
         const most = sp.kind === 'rival' ? 0.7 : 0.55;
         for (const o of creatures) {
-          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd', 'tribu', 'pillard', 'chien'].includes(o.sp.kind)) continue;
+          if (o === c || o.dead || o.penned || o.buried || ['human', 'ally', 'stray', 'shepherd', 'tribu', 'pillard', 'chien', 'habitant'].includes(o.sp.kind)) continue;
           // un gros chasseur croque aussi les rivaux (plus petits que lui) ; un rival, jamais un autre rival
           const rivalSnack = o.sp.kind === 'rival' && sp.kind === 'hunter' && o.size < c.size * 1.05;
           if (o.sp.kind === 'rival' ? !rivalSnack : o.size > c.size * most) continue;
@@ -2728,8 +2749,8 @@ function updateFlock(c, d, dt) {
   c.fleeing = false;
   c.mood = 'calm';
   if (c.penned) {
-    // il reste vers le milieu de l'enclos
-    const z = pens[0];
+    // il reste vers le milieu de son enclos
+    const z = c.pen || pens[0];
     if (z && dist(c, z) > z.r * 0.6) {
       const gd = dist(c, z) || 1;
       steer(c, (z.x - c.x) / gd, (z.y - c.y) / gd, c.sp.speed * 0.5, dt);
@@ -3397,6 +3418,8 @@ function loseLife(by, cause) {
     addFloater(by.sp.hurt || 'GLOUPS !', p.x, p.y - p.size * 1.5, '#FF6F91', 1.8);
     burst(p.x, p.y, 24, ['#6EE0B0', '#FFFFFF', '#B9F5DA'], p.size * 8 + 60, Math.max(2, p.size * 0.18));
   }
+  // (les premières villes) les soldats d'un village hostile te prennent des pièces
+  if (trois() && by) tqv.caught(by);
   const pen = LV.world.penalty || { adn: EATEN_ADN_LOSS, growth: EATEN_GROWTH_LOSS };
   const lost = Math.floor(game.adn * pen.adn);
   if (lost > 0) {
@@ -3504,8 +3527,10 @@ function missionInfo(m) {
   }
   if (m.type === 'build') {
     const sites = tqv.M ? tqv.sitesOf(m.what) : [];
-    const cur = Math.min(m.n, sites.filter((st) => game.built && game.built[st.id] === true).length);
-    return { text: m.text || `Construis ${m.n} ${m.what}`, cur, max: m.n, done: cur >= m.n, img: m.img ? resIconUrl(m.img) : playerThumb(CH.form, game.owned) };
+    // (n: 0) tous les morceaux (la route pavée)
+    const n = m.n || sites.length || 1;
+    const cur = Math.min(n, sites.filter((st) => game.built && game.built[st.id] === true).length);
+    return { text: m.text || `Construis ${n} ${m.what}`, cur, max: n, done: cur >= n, img: m.img ? resIconUrl(m.img) : playerThumb(CH.form, game.owned) };
   }
   if (m.type === 'deliver') {
     const cur = Math.min(m.n, (game.delivered || {})[m.item] || 0);
@@ -3520,6 +3545,8 @@ function missionInfo(m) {
     const sp = SPECIES[m.species];
     return { text: m.text || `Repousse ${m.n} attaques`, cur, max: m.n, done: cur >= m.n, img: sp ? speciesThumb(m.species, sp) : playerThumb(CH.form, game.owned) };
   }
+  if (m.type === 'trade' || m.type === 'meet' || m.type === 'friend' || m.type === 'money' || m.type === 'choose'
+    || m.type === 'hire' || m.type === 'boat' || m.type === 'monument') return cityMission(m);
   if (m.type === 'nest') {
     // (vue de côté) construire son nid à un endroit précis
     return { text: m.text || 'Construis ton nid', cur: game.nest ? 1 : 0, max: 1, done: !!game.nest, img: nestThumb(false) };
@@ -3543,6 +3570,65 @@ function missionInfo(m) {
   }
   const pct = Math.floor(growthK() * 100);
   return { text: 'Grandis au maximum', cur: pct, max: 100, done: pct >= 100, img: playerThumb(CH.form, game.owned), pct: true };
+}
+
+/** (les premières villes) les missions des villes : échanger, rencontrer, l'amitié, l'argent, le monument */
+function cityMission(m) {
+  const V = tqv.city ? tqv.city.state() : { towns: {}, chantier: { k: 0 }, workers: 0 };
+  const towns = V.towns;
+  const out = (cur, max, img, pct = false) => ({ text: m.text, cur: Math.min(cur, max), max, done: cur >= max, img: resIconUrl(img), pct });
+  if (m.type === 'trade') {
+    const tr = game.traded || {};
+    return out((m.town ? tr[m.town] : tr._all) || 0, m.n, game.owned.ecriture ? 'tablette' : 'argent');
+  }
+  if (m.type === 'meet') {
+    if (m.town) return out(towns[m.town] && towns[m.town].met ? 1 : 0, 1, 'carte');
+    return out(Object.values(towns).filter((t) => t.friend && t.met).length, m.n, 'carte');
+  }
+  if (m.type === 'friend') {
+    const pct = m.pct || 100;
+    if (m.town) return out(Math.floor(((towns[m.town] || {}).amitie || 0) * 100 + 1e-6), pct, 'ami', true);
+    return out(Object.values(towns).filter((t) => t.friend && t.met && t.amitie * 100 + 1e-6 >= pct).length, m.n, 'ami');
+  }
+  if (m.type === 'money') return out(m.have ? (game.res || {}).argent || 0 : game.coins || 0, m.n, 'argent');
+  if (m.type === 'choose') return { ...out(V.monument ? 1 : 0, 1, 'plans'), img: V.monument ? monumentThumb(V.monument) : resIconUrl('plans') };
+  if (m.type === 'hire') return out(V.workers || 0, m.n, 'ouvrier');
+  if (m.type === 'boat') return out(game.boats || 0, m.n, 'bateau');
+  return { ...out(Math.floor((V.chantier.k || 0) * 100 + 1e-6), 100, 'monument', true), img: V.monument ? monumentThumb(V.monument) : resIconUrl('monument') };
+}
+
+/** (les premières villes) Le grand choix : la forme du monument (une fenêtre avec les quatre dessins) */
+function chooseMonument() {
+  if (state !== 'playing' || !dialogEl.hidden || !tqv.city) return;
+  const V = tqv.city.state();
+  if (V.monument) return;
+  sfx.chapter();
+  const cards = Object.entries(MONUMENTS).map(([id, mo]) => `
+    <button class="choice-card mono-card" data-act="pick:${id}">
+      <img src="${monumentThumb(id)}" alt="">
+      <span class="choice-title">${escapeHtml(mo.name)}</span>
+      <span class="choice-text">${escapeHtml(mo.text)}</span>
+    </button>`).join('');
+  const actions = { close: closeDialog };
+  const pick = (id) => {
+    closeDialog();
+    V.monument = id;
+    flash = { a: 0.6, color: '255,240,200' };
+    confetti(70);
+    sfx.victory();
+    addFloater(`${MONUMENTS[id].icon} ${MONUMENTS[id].name} !`, player.x, player.y - player.size * 3, '#FFE58A', 1.6);
+    say(LINES.chosen, 2, 6000);
+    showFact({ img: monumentThumb(id), tag: '📐 Ton grand monument', name: MONUMENTS[id].name, where: MONUMENTS[id].text, fact: MONUMENTS[id].fact });
+    checkMissions();
+    saveGame();
+  };
+  for (const id of Object.keys(MONUMENTS)) actions[`pick:${id}`] = () => pick(id);
+  actions.go = () => pick(Object.keys(MONUMENTS)[Math.floor(Math.random() * 4)]);
+  openDialog(`
+    <p class="dlg-title">📐 Le grand monument</p>
+    <p class="dlg-sub">Tes architectes ont dessiné quatre plans. Lequel ta ville va-t-elle construire ?</p>
+    <div class="mono-choices">${cards}</div>
+    <div class="dlg-actions"><button class="primary" data-act="close">Je réfléchis encore…</button></div>`, actions, true);
 }
 
 function checkMissions() {
@@ -4934,6 +5020,13 @@ function playIntro() {
       drawHero: (c, x, y, r, o) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CHAPTERS[0].form, {}, performance.now() / 1000),
       drawAnimal: (c, look, color, x, y, r, o) => drawCreature(c, { sp: { look, color }, x, y, size: r, seed: 1, blink: 0, spine: null, mouth: 0, mood: 'calm', ...o }, performance.now() / 1000),
     });
+  } else if (LV.intro === 'villes') {
+    // (vue de trois quarts) le village devient une ville de pierre ; au-delà du fleuve, d'autres villages…
+    intro = createCityIntro({
+      sfx,
+      drawHero: (c, x, y, r, o = {}) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CHAPTERS[0].form, o.owned || {}, performance.now() / 1000),
+      drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, performance.now() / 1000),
+    });
   } else if (LV.intro === 'humains') {
     // (vue de trois quarts) la nuit, l'éclair… et le premier feu
     intro = createHumanIntro({
@@ -5014,7 +5107,9 @@ function startEnding() {
   sizeCanvas(endCanvas, endOverlay);
   $('endTitle').textContent = LV.ending.title;
   $('endSub').textContent = LV.ending.sub;
-  $('endStats').textContent = LV.world.currency
+  $('endStats').textContent = LV.world.city
+    ? `💡 ${game.stats.evolutions} inventions · 🏠 ${game.builtCount || 0} constructions · 🤝 ${(game.traded || {})._all || 0} échanges · ⛵ ${tqv.city ? tqv.city.state().boatsTotal : 0} bateaux`
+    : LV.world.currency
     ? `💡 ${game.stats.evolutions} inventions · 🏠 ${game.builtCount || 0} constructions · 💨 ${game.stats.escapes} fuites réussies`
     : `🍽️ ${game.stats.eaten} repas · 💨 ${game.stats.escapes} fuites réussies · 😱 croqué ${game.stats.deaths} fois · 🧬 ${game.stats.evolutions} évolutions`;
   $('endChoices').classList.toggle('three', LV.ending.choices.length > 2);
@@ -5082,6 +5177,7 @@ function goToLevel(i) {
   game.builtCount = 0;
   game.trust = 0;
   game.trustBest = 0;
+  game.ville = null;                 // (les premières villes) les villages, le monument, les ouvriers
   startOverlay.hidden = true;
   game.level = i;
   game.chapter = 0;
@@ -5110,6 +5206,7 @@ $('endReplay').addEventListener('click', () => {
 function drawEnding(dt) {
   if (LV.ending.scene === 'oiseaux' || LV.ending.scene === 'reptiles') { drawSideEndingScene(dt); return; }
   if (LV.ending.scene === 'civilisation') { drawHumanEndingScene(dt); return; }
+  if (LV.ending.scene === 'touristes') { drawCityEndingScene(dt); return; }
   if (LV.ending.scene === 'meteorite') { drawMeteorEnding(dt); return; }
   if (LV.ending.scene === 'feu') { drawFireEnding(dt); return; }
   if (LV.ending.scene === 'chien') { drawDogEnding(dt); return; }
@@ -5177,6 +5274,28 @@ function drawHumanEndingScene(dt) {
     captions: LV.ending.captions,
     parade: LV.ending.parade || [],
     textAt: HUMAN_TEXT_AT,
+    drawHero: (c, x, y, r, o = {}) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CH.form, game.owned, t),
+    drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, t),
+  });
+}
+
+/* ---------- La fin des premières villes (intro-villes.js) ----------
+   le monument terminé, la fête… puis, 2 000 ans plus tard, les touristes ; et le défilé des inventions */
+const CITY_TEXT_AT = 16;
+function drawCityEndingScene(dt) {
+  endT += dt;
+  const t = endT;
+  cueEnd('time', 5.2, () => sfx.time());
+  cueEnd('parade', 11.2, () => { sfx.victory(); confetti(70); });
+  if (t > CITY_TEXT_AT && !endOverlay.classList.contains('show-text')) endOverlay.classList.add('show-text');
+  const w = endCanvas.width / dpr, h = endCanvas.height / dpr;
+  ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const V = tqv.city ? tqv.city.state() : {};
+  drawCityEnding(ectx, w, h, t, {
+    captions: LV.ending.captions,
+    parade: LV.ending.parade || [],
+    textAt: CITY_TEXT_AT,
+    monument: V.monument || 'pyramide',
     drawHero: (c, x, y, r, o = {}) => drawPlayer(c, { x, y, size: r, angle: 0, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, CH.form, game.owned, t),
     drawAnimal: (c, look, color, x, y, r, o = {}) => drawCreature(c, { sp: { look, color, belly: o.belly }, x, y, size: r, seed: o.seed ?? 1, blink: 0, spine: null, mouth: 0, mood: 'happy', ...o }, t),
   });
@@ -6437,8 +6556,21 @@ function botJob() {
 }
 
 /** (?debug) Le pilote automatique de la voie des humains (les autres missions : botJob) */
-function tqvBot(go0) {
+const botStuck = { x: 0, y: 0, t: 0, side: 1, until: 0 };
+function tqvBot(goStraight) {
   const p = player;
+  // (coincé contre une maison, un rocher…) on fait un pas de côté, un moment
+  const go0 = (x, y, stop = 0) => {
+    const d = goStraight(x, y, stop);
+    if (!d.x && !d.y) return d;
+    if (worldT < botStuck.until) {
+      const a = Math.atan2(d.y, d.x) + botStuck.side * 1.25;
+      return { x: Math.cos(a), y: Math.sin(a) };
+    }
+    if (Math.hypot(p.x - botStuck.x, p.y - botStuck.y) > 40) Object.assign(botStuck, { x: p.x, y: p.y, t: worldT });
+    else if (worldT - botStuck.t > 1.2) Object.assign(botStuck, { until: worldT + 1, side: Math.random() < 0.5 ? -1 : 1, t: worldT });
+    return d;
+  };
   // (la palissade) pour sortir du village ou y entrer, on passe par la porte
   const M = tqv.M, V = M.V;
   const walled = M.sites.some((s) => s.arc && game.built[s.id]);
@@ -6452,8 +6584,11 @@ function tqvBot(go0) {
     return go0(V.x + Math.cos(a) * (M.VR + 240), V.y + Math.sin(a) * (M.VR + 240));
   };
   const C = M.cave;
-  const inCave = (q) => ((q.x - C.x) / (C.rw + 40)) ** 2 + ((q.y - C.y) / (C.rd + 40)) ** 2 < 1;
+  const inCave = (q) => !!C && ((q.x - C.x) / (C.rw + 40)) ** 2 + ((q.y - C.y) / (C.rd + 40)) ** 2 < 1;
   const go = (x, y, stop = 0, ring = false) => {
+    // (les premières villes) on passe par les portes des remparts, et par le pont
+    const via = tqv.city && tqv.city.cityRoute(p, x, y);
+    if (via) return go0(via.x, via.y);
     // (la grotte) on y entre, et on en sort, par l'arche (au sud) ; on contourne la colline
     if (inCave(p) !== inCave({ x, y })) {
       const door = { x: C.x, y: C.y + C.rd + 150 }, sill = { x: C.x, y: C.y + C.rd - 70 };
@@ -6498,7 +6633,16 @@ function tqvBot(go0) {
     if (m.type === 'evolve') {
       if (game.adn >= EVOS[m.part].cost) continue;
       // pas assez d'idées : on ramasse (chaque chose ramassée en donne une)
-      return res('bois') || res('silex');
+      return (tqv.city && res('pierre')) || res('bois') || res('silex');
+    }
+    if (tqv.city && ['trade', 'meet', 'friend', 'money', 'choose', 'hire', 'boat', 'monument'].includes(m.type)) {
+      // (les premières villes) les marchés, les villages, le chantier, le port : on y va… et on y reste
+      const t = tqvTarget([m]);
+      if (!t) continue;
+      const tx = t.x, ty = t.y + (t.size === 60 || t.size === 40 ? 60 : 0);
+      if (p.counter && Math.hypot(p.counter.x - tx, p.counter.y - ty) < 40) return { x: 0, y: 0 };
+      if (p.stall && Math.hypot(p.stall.stall.front.x - tx, p.stall.stall.front.y - ty) < 40) return { x: 0, y: 0 };
+      return go(tx, ty, 12);
     }
     if (m.type === 'gather') return res(m.res);
     if (m.type === 'build') {
@@ -6614,6 +6758,9 @@ async function init() {
       get zones() { return zones; },
       get cote() { return cote; },
       get tqv() { return tqv; },
+      get city() { return tqv.city; },
+      target: () => missionTarget(),
+      bot: () => botDir(),
       chapter(i) { game.chapter = i; Object.assign(game, freshChapter()); game.chapterDone = false; CH = CHAPTERS[i]; setupChapter(true); },
       adn(n) { game.adn += n; },
       grow() { game.earned = CH.growth; },

@@ -41,14 +41,14 @@ const TUFTS = (() => { const r = seeded(21); return Array.from({ length: 160 }, 
 /* ============================================================================
    LE DIORAMA : le ciel jusqu'à l'horizon (hy), puis le sol (fy : 0 au fond → 1 devant)
    ============================================================================ */
-function view(w, h, span) {
+export function view(w, h, span) {
   const hy = Math.round(h * 0.27);
   const K = Math.min(w / span, (h - hy) / (span * 0.5));
   const S = (fy) => K * lerp(0.46, 1.08, fy);
   return { w, h, hy, K, S, X: (x, fy) => w / 2 + x * S(fy), Y: (fy) => hy + fy * (h - hy) };
 }
 /** Dessine fn() posé sur le sol en (x, fy), à la bonne taille (fn dessine autour de (0, 0)) */
-function at(ctx, V, x, fy, fn, k = 1) {
+export function at(ctx, V, x, fy, fn, k = 1) {
   const s = V.S(fy) * k;
   ctx.save();
   ctx.translate(V.X(x, fy), V.Y(fy));
@@ -68,7 +68,7 @@ function hills(ctx, w, y0, A, wl, ph, col) {
 }
 
 /** Le ciel : la nuit étoilée (et la lune), ou le soir doré */
-function sky(ctx, V, t, night) {
+export function sky(ctx, V, t, night) {
   const { w, hy } = V;
   const g = ctx.createLinearGradient(0, 0, 0, hy);
   if (night) {
@@ -123,7 +123,7 @@ function sky(ctx, V, t, night) {
 }
 
 /** Le sol, du fond (brumeux) vers le devant, avec des touffes d'herbe */
-function ground(ctx, V, far, near, tuft) {
+export function ground(ctx, V, far, near, tuft) {
   const g = ctx.createLinearGradient(0, V.hy, 0, V.h);
   g.addColorStop(0, far);
   g.addColorStop(1, near);
@@ -646,7 +646,7 @@ function palm(ctx, s, t, seed) {
 }
 
 /** Une roue en bois (avec ses rayons) */
-function wheel(ctx, x, y, r, rot) {
+export function wheel(ctx, x, y, r, rot) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rot);
@@ -849,16 +849,28 @@ export function drawHumanEnding(ctx, w, h, t, o) {
   put(hp.x - 90, Math.min(0.98, hp.fy), () => o.drawHero(ctx, 0, 0, 34, { angle: 0, front: true, speed: 0, walk: 0, mood: 'happy' }));
   list.sort((a, b) => a.fy - b.fy);
   for (const it of list) it.fn();
-  // le défilé des inventions, dans le ciel
-  const P = o.parade || [];
+  // le défilé des inventions, en bas de l'écran
+  drawParade(ctx, w, h, t, o.parade || [], 10.2);
+  // (le texte de la fin) on assombrit un peu
+  const dim = clamp01((t - o.textAt + 0.6) / 0.8);
+  if (dim > 0) {
+    ctx.fillStyle = `rgba(20, 16, 30, ${0.55 * dim})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+  const cap = o.captions.find(([a0, b0]) => t >= a0 && t < b0);
+  if (cap && t < o.textAt) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
+}
+
+/** Le défilé des inventions (à partir de t0), en bas de l'écran : P = [{ icon | draw ('biface' / 'roue'), name }] */
+export function drawParade(ctx, w, h, t, P, t0) {
   const n = P.length;
-  if (t > 10.2 && n) {
+  if (t > t0 && n) {
     const m = Math.min(w, h);
     // (sur un écran étroit, sur deux rangs)
     const cols = w < 700 ? Math.ceil(n / 2) : n, rows = Math.ceil(n / cols);
     const R = Math.min(w / (cols * 2.6), m * 0.06);
     P.forEach((d, i) => {
-      const k = ease((t - 10.4 - i * 0.42) / 0.5);
+      const k = ease((t - t0 - 0.2 - i * 0.42) / 0.5);
       if (k <= 0) return;
       const row = Math.floor(i / cols), col = i % cols, inRow = row < rows - 1 ? cols : n - cols * (rows - 1);
       const x = w * (0.5 + (col - (inRow - 1) / 2) / (cols + 0.6));
@@ -897,12 +909,4 @@ export function drawHumanEnding(ctx, w, h, t, o) {
       ctx.restore();
     });
   }
-  // (le texte de la fin) on assombrit un peu
-  const dim = clamp01((t - o.textAt + 0.6) / 0.8);
-  if (dim > 0) {
-    ctx.fillStyle = `rgba(20, 16, 30, ${0.55 * dim})`;
-    ctx.fillRect(0, 0, w, h);
-  }
-  const cap = o.captions.find(([a0, b0]) => t >= a0 && t < b0);
-  if (cap && t < o.textAt) drawCaptionBox(ctx, w, h, cap[2], Math.min(1, (t - cap[0]) / 0.4, (cap[1] - t) / 0.3));
 }

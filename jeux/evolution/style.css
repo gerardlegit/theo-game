@@ -479,6 +479,12 @@ body {
 .choice-text { font-size: .9rem; line-height: 1.35; }
 .end-choices.three .choice-card { width: min(250px, 30vw); }
 .end-overlay.chosen .end-choices { display: none; }
+/* (les premières villes) le choix de la forme du grand monument */
+.mono-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; margin: .4rem 0 .6rem; }
+.mono-card { width: auto; padding: .45rem .5rem .6rem; border-color: rgba(60, 40, 20, 0.25); }
+.mono-card img { width: 100%; max-width: 180px; border-radius: 12px; border: 2px solid rgba(60, 40, 20, 0.3); }
+.mono-card .choice-title { font-size: 1.05rem; }
+.mono-card .choice-text { font-size: .8rem; }
 .end-result-icon { margin: 0; font-size: 3.4rem; line-height: 1.1; }
 .end-soon {
   display: inline-block;
