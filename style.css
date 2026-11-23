@@ -275,6 +275,7 @@ body {
 .chip-geo,      .theme-geo      { --c: var(--sky);    --c-dark: #2f8fb8; --c-soft: #DDF1FB; }
 .chip-science,  .theme-science  { --c: var(--purple); --c-dark: #7446c9; --c-soft: #ECE3FD; }
 .chip-anglais,  .theme-anglais  { --c: #E8A317;       --c-dark: #b87f0c; --c-soft: #FFF1CC; }
+.chip-logique,  .theme-logique  { --c: #1FB5A8;       --c-dark: #168a80; --c-soft: #D6F5F1; }
 
 /* ---------- Promise strip ---------- */
 .promise {
