@@ -1038,32 +1038,172 @@ function renderLevels() {
 $('mapBtn').addEventListener('click', (e) => { e.currentTarget.blur(); if (mode !== 'menu') openLevels(); });
 $('levelsClose').addEventListener('click', () => closeLevels());
 
-/* ---------- L'écran de départ ---------- */
+/* ---------- L'écran de départ et la carte des mondes ----------
+   Un monde fini se rejoue quand on veut ; le monde où l'on en est s'ouvre au
+   niveau à faire ; les mondes d'après restent fermés (tout est ouvert avec ?debug). */
+const MAP_POS = [[11, 70], [31, 30], [51, 70], [71, 30], [90, 66]];    // en % de la carte
+const MAP_DECOR = [
+  ['🌼', 4, 38], ['🌷', 21, 90], ['🌲', 20, 10], ['🍄', 41, 48], ['💎', 62, 90],
+  ['🦇', 42, 88], ['❄️', 61, 10], ['🏔️', 83, 10], ['🔥', 98, 90], ['☁️', 51, 12],
+];
+let mapSel = 0;
+const worldLevels = (wi) => LEVELS.filter((l) => l.wi === wi);
+const worldDone = (wi) => worldLevels(wi).every(isWon);
+const hereWorld = () => (LEVELS.every(isWon) ? -1 : LEVELS[firstUnfinished()].wi);
+function worldState(wi) {
+  if (wi >= WORLDS.length) return 'soon';
+  if (worldDone(wi)) return 'done';
+  if (DEBUG || wi === hereWorld()) return 'open';
+  return 'locked';
+}
+const worldStars = (wi) => worldLevels(wi).reduce((n, lv) => n + starsFor(lv, bestOf(lv)), 0);
+const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F08A5D'];
+
+function renderWorldMap() {
+  const map = $('worldMap');
+  map.innerHTML = '';
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('wm-svg');
+  /* une tache de couleur par monde, comme une région sur une carte */
+  MAP_POS.forEach(([x, y], i) => {
+    const e = document.createElementNS(NS, 'ellipse');
+    e.setAttribute('cx', x); e.setAttribute('cy', y); e.setAttribute('rx', 12); e.setAttribute('ry', 26);
+    e.setAttribute('fill', REGION_COLORS[i % REGION_COLORS.length]);
+    e.setAttribute('class', `wm-region is-${worldState(i)}`);
+    svg.appendChild(e);
+  });
+  /* le chemin d'un monde à l'autre : plein quand on l'a parcouru */
+  for (let i = 1; i < MAP_POS.length; i++) {
+    const [x0, y0] = MAP_POS[i - 1];
+    const [x1, y1] = MAP_POS[i];
+    const mx = (x0 + x1) / 2;
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', `M${x0} ${y0} C${mx} ${y0} ${mx} ${y1} ${x1} ${y1}`);
+    if (worldDone(i - 1)) path.setAttribute('class', 'taken');
+    svg.appendChild(path);
+  }
+  map.appendChild(svg);
+  for (const [icon, x, y] of MAP_DECOR) {
+    const d = el('span', 'wm-decor', icon);
+    d.style.left = `${x}%`;
+    d.style.top = `${y}%`;
+    map.appendChild(d);
+  }
+  const here = hereWorld();
+  const BADGE = { done: '✅', locked: '🔒', soon: '🚧' };
+  const SAY = { done: 'fini', open: 'ouvert', locked: 'fermé', soon: 'bientôt' };
+  [...WORLDS, null].forEach((w, wi) => {
+    const st = worldState(wi);
+    const b = el('button', `wm-node is-${st}${wi === mapSel ? ' is-sel' : ''}${wi === here ? ' is-here' : ''}`);
+    b.type = 'button';
+    b.style.left = `${MAP_POS[wi][0]}%`;
+    b.style.top = `${MAP_POS[wi][1]}%`;
+    b.setAttribute('aria-pressed', String(wi === mapSel));
+    const name = w ? w.nom : BIENTOT.nom;
+    b.setAttribute('aria-label', `${name} (${SAY[st]})`);
+    const dot = el('span', 'wm-dot', w ? w.icone : BIENTOT.icone);
+    if (BADGE[st]) dot.append(el('span', 'wm-badge', BADGE[st]));
+    if (wi === here) dot.append(el('span', 'wm-pin', '📍'));
+    b.append(dot, el('span', 'wm-name', name));
+    if (w && st !== 'locked') b.append(el('span', 'wm-stars', `⭐ ${worldStars(wi)}/${worldLevels(wi).length * 3}`));
+    b.addEventListener('click', () => {
+      mapSel = wi;
+      sfx.select();
+      renderWorldMap();
+      renderStartInfo();
+      $('worldMap').querySelectorAll('.wm-node')[wi].focus({ preventScroll: true });
+    });
+    map.appendChild(b);
+  });
+}
+
+/* le niveau proposé dans un monde : celui à faire, sinon le premier sans ses 3 étoiles */
+function suggestedLevel(wi) {
+  const lvls = worldLevels(wi);
+  const todo = lvls.find((lv) => !isWon(lv)) || lvls.find((lv) => starsFor(lv, bestOf(lv)) < 3) || lvls[0];
+  return LEVELS.indexOf(todo);
+}
+
+function renderStartInfo() {
+  const any = Object.keys(save.best).length > 0;
+  const st = worldState(mapSel);
+  const w = WORLDS[mapSel];
+  const startBtn = $('startBtn');
+  const levels = $('startLevels');
+  const done = $('startDone');
+  levels.innerHTML = '';
+  $('newGameBtn').hidden = !any;
+  $('howTo').hidden = any;
+  if (st === 'soon') {
+    $('startLevel').textContent = `${BIENTOT.icone} ${BIENTOT.nom}`;
+    $('startGoal').textContent = fr(BIENTOT.texte);
+    done.hidden = false;
+    done.textContent = fr('🚧 Ce monde n’existe pas encore : il arrive bientôt !');
+    startBtn.hidden = true;
+    return;
+  }
+  $('startLevel').textContent = `${w.icone} Monde ${mapSel + 1} : ${w.nom}`;
+  $('startGoal').textContent = fr(any || mapSel
+    ? w.histoire
+    : 'Le grand vent a emporté les Pompons loin de leur village. Ils marchent toujours tout droit, sans jamais réfléchir… Donne-leur des métiers pour les ramener à la maison !');
+  if (st === 'locked') {
+    const prev = WORLDS[mapSel - 1];
+    done.hidden = false;
+    done.textContent = fr(`🔒 Pour ouvrir ce monde, finis d’abord tous les niveaux de ${prev.nom} ${prev.icone}.`);
+    startBtn.hidden = true;
+    return;
+  }
+  const stars = totalStars();
+  done.hidden = !any;
+  done.textContent = st === 'done'
+    ? fr(`✅ Monde fini ! Rejoue ses niveaux pour gagner toutes les étoiles. (En tout : ${stars} ⭐ sur ${LEVELS.length * 3})`)
+    : fr(`Bon retour ! Tu as déjà ${stars} étoile${stars > 1 ? 's' : ''} ⭐ sur ${LEVELS.length * 3}.`);
+  /* les niveaux du monde choisi : on peut aussi en prendre un directement */
+  LEVELS.forEach((lv, i) => {
+    if (lv.wi !== mapSel) return;
+    const open = isOpen(i);
+    const b = el('button', 'lvl-btn');
+    b.type = 'button';
+    b.disabled = !open;
+    const sN = starsFor(lv, bestOf(lv));
+    b.append(el('span', null, open ? String(lv.li + 1) : '🔒'));
+    if (open) b.append(el('span', 'st', '⭐'.repeat(sN) + '☆'.repeat(3 - sN)));
+    b.title = open ? lv.nom : 'Gagne le niveau d’avant pour l’ouvrir';
+    b.setAttribute('aria-label', `Niveau ${lv.li + 1} : ${lv.nom}`);
+    if (open && !isWon(lv)) b.classList.add('next');
+    b.addEventListener('click', () => launchLevel(i));
+    levels.append(b);
+  });
+  const target = suggestedLevel(mapSel);
+  const lv = LEVELS[target];
+  startBtn.hidden = false;
+  startBtn.dataset.level = String(target);
+  if (!any) startBtn.textContent = '▶ Jouer !';
+  else if (st === 'done') startBtn.textContent = `🔁 Rejouer : ${lv.wi + 1}-${lv.li + 1} ${lv.nom}`;
+  else startBtn.textContent = `▶ Continuer : ${lv.wi + 1}-${lv.li + 1} ${lv.nom}`;
+}
+
+function launchLevel(i) {
+  startOverlay.hidden = true;
+  if (!save.seenIntro) playIntro(() => startLevel(i));
+  else startLevel(i);
+}
+
 function openStart() {
   mode = 'menu';
-  const done = $('startDone');
-  const stars = totalStars();
-  const any = Object.keys(save.best).length > 0;
-  if (any) {
-    done.hidden = false;
-    done.textContent = `Bon retour ! Tu as déjà ${stars} étoile${stars > 1 ? 's' : ''} ⭐ sur ${LEVELS.length * 3}.`;
-    $('startBtn').textContent = '▶ Continuer';
-    $('newGameBtn').hidden = false;
-  } else {
-    done.hidden = true;
-    $('startBtn').textContent = '▶ Jouer !';
-    $('newGameBtn').hidden = true;
-  }
+  const here = hereWorld();
+  mapSel = here >= 0 ? here : WORLDS.length - 1;
+  renderWorldMap();
+  renderStartInfo();
   startOverlay.hidden = false;
 }
 $('startBtn').addEventListener('click', (e) => {
   e.currentTarget.blur();
-  startOverlay.hidden = true;
-  if (!save.seenIntro) {
-    playIntro(() => startLevel(firstUnfinished()));
-  } else if (Object.keys(save.best).length) {
-    openLevels();
-  } else startLevel(0);
+  launchLevel(Number(e.currentTarget.dataset.level) || 0);
 });
 $('newGameBtn').addEventListener('click', (e) => {
   e.currentTarget.blur();

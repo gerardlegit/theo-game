@@ -101,20 +101,32 @@
   <div class="start-overlay" id="startOverlay" hidden>
     <div class="order-card start-card">
       <p class="order-title">🐾 La Marche des Pompons</p>
-      <p class="start-goal">Le grand vent a emporté les <b>Pompons</b> loin de leur village. Ils marchent toujours tout droit, sans jamais réfléchir… <b>Donne-leur des métiers</b> pour les ramener à la maison !</p>
-      <p class="start-done" id="startDone" hidden></p>
-      <ul class="how-to">
+      <div class="start-body">
+        <!-- La carte des mondes (script.js : renderWorldMap) -->
+        <div class="map-box">
+          <p class="map-title">🗺️ La carte des mondes</p>
+          <div class="world-map" id="worldMap"></div>
+          <p class="map-legend">✅ fini : rejoue-le quand tu veux · 📍 tu en es là · 🔒 pas encore ouvert · 🚧 bientôt</p>
+        </div>
+        <div class="start-info">
+          <p class="start-level" id="startLevel"></p>
+          <p class="start-goal" id="startGoal"></p>
+          <p class="start-done" id="startDone" hidden></p>
+          <div class="start-levels" id="startLevels"></div>
+          <div class="order-actions">
+            <button id="startBtn">▶ Jouer !</button>
+            <button id="newGameBtn" class="ghost-btn" hidden>🆕 Nouvelle partie</button>
+            <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
+          </div>
+        </div>
+      </div>
+      <ul class="how-to" id="howTo">
         <li>👇 Choisis un <b>métier</b> en bas de l’écran, puis <b>touche un Pompon</b></li>
         <li>✋ Stop · 🧱 Pont · ⛏️ Creuseur · ➡️ Tunnel · 🧗 Grimpeur · ☂️ Parapluie</li>
         <li>🏡 Ramène assez de Pompons à la maison-champignon pour gagner, et tous pour les ⭐⭐⭐</li>
         <li>⚠️ Attention à l’eau, aux ronces… et aux chutes de plus de 4 cubes !</li>
         <li class="desktop-only">⏸ <kbd>Espace</kbd> met en pause pour réfléchir, <kbd>F</kbd> accélère</li>
       </ul>
-      <div class="order-actions">
-        <button id="startBtn">▶ Jouer !</button>
-        <button id="newGameBtn" class="ghost-btn" hidden>🆕 Nouvelle partie</button>
-        <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
-      </div>
       <p class="save-note">💾 Tes étoiles sont gardées toutes seules : tu peux revenir quand tu veux.</p>
       <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
     </div>
