@@ -103,11 +103,16 @@ export const sfx = {
   lost: (why) => play(() => {
     if (why === 'eau') noise(0, 0.35, { vol: 0.2, freq: 900, to: 250, q: 0.7 });
     else if (why === 'ronces') noise(0, 0.15, { vol: 0.15, freq: 4200, q: 3 });
+    else if (why === 'lave') noise(0, 0.6, { vol: 0.22, freq: 5000, to: 1500, q: 0.8, type: 'highpass' });
     else tone(320, 0, 0.2, { type: 'square', vol: 0.05, to: 160 });
     tone(NOTE(76), 0.15, 0.18, { type: 'sine', vol: 0.08, to: NOTE(71) });
     tone(NOTE(71), 0.33, 0.25, { type: 'sine', vol: 0.08, to: NOTE(64) });
     tone(NOTE(88), 0.55, 0.3, { type: 'sine', vol: 0.05, to: NOTE(96) });
   }, 'lost', 150),
+  /* une échelle qu'on pose : toc toc toc */
+  ladder: () => play(() => [0, 0.08, 0.16, 0.26].forEach((d, i) => { tone(NOTE(64 + i * 3), d, 0.07, { type: 'triangle', vol: 0.09 }); noise(d, 0.05, { vol: 0.1, freq: 1800, q: 3 }); })),
+  /* le volcan gronde */
+  rumble: () => play(() => { noise(0, 1.8, { vol: 0.45, freq: 120, to: 60, q: 0.7, type: 'lowpass' }); tone(48, 0, 1.6, { type: 'sine', vol: 0.18, to: 36 }); }),
   /* Plume parle : « hou hou » */
   hoot: () => play(() => {
     tone(NOTE(67), 0, 0.16, { type: 'sine', vol: 0.09, to: NOTE(64) });

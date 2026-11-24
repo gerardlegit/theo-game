@@ -170,6 +170,9 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
   } else if (p.state === 'grimpe') {
     mood = 'work';
     bob = Math.sin(a * 0.6) * 0.6;
+  } else if (p.state === 'monte' || p.state === 'descend') {
+    mood = p.state === 'monte' ? 'up' : 'normal';
+    bob = Math.sin(a * 0.5) * 0.5;
   } else {
     mood = 'work';
     bob = p.state === 'pont' ? Math.abs(Math.sin(a * 0.3)) * 0.5 : 0;
@@ -192,7 +195,8 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
   }
 
   /* ombre */
-  if (p.state !== 'tombe' && p.state !== 'perdu' && p.state !== 'grimpe') {
+  const onLadder = p.state === 'monte' || p.state === 'descend';
+  if (p.state !== 'tombe' && p.state !== 'perdu' && p.state !== 'grimpe' && !onLadder) {
     c.beginPath(); c.ellipse(0, 0.2, 5, 1.2, 0, 0, TAU);
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.fill();
   }
@@ -212,6 +216,7 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
       let fy = -0.9;
       if (p.state === 'tombe') { fx = s * 2.4; fy = -1.6; }
       if (p.state === 'grimpe') { fx = dir * 2 + s * 1.5; fy = -1.5 + (s > 0 ? Math.sin(a * 0.6) : -Math.sin(a * 0.6)) * 1.2; }
+      if (onLadder) { fx = s * 2.6; fy = -1.2 + (s > 0 ? Math.sin(a * 0.5) : -Math.sin(a * 0.5)) * 1.4; }
       c.beginPath(); c.ellipse(fx, fy, 2.1, 1.2, 0, 0, TAU); c.fill(); c.stroke();
     }
   }
@@ -337,6 +342,28 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
     c.beginPath(); c.moveTo(-2.2, 7); c.lineTo(2.2, 7); c.lineTo(1.4, 10.5); c.lineTo(0, 11.5); c.lineTo(-1.4, 10.5); c.closePath(); c.fill(); c.stroke();
     c.restore();
     mitt(c, dir * 3.5, cy + 1 + dy, '#FFFFFF', 1.3);
+  } else if (onLadder) {
+    /* les deux mains sur les barreaux, l'une après l'autre */
+    const k = Math.sin(a * 0.5);
+    mitt(c, -4.2, cy - 6 + k * 1.6, '#FFFFFF', 1.4);
+    mitt(c, 4.2, cy - 6 - k * 1.6, '#FFFFFF', 1.4);
+  } else if (p.state === 'echelle') {
+    /* il dresse une petite échelle devant lui */
+    const k = Math.min(1, (p.work || 0) / 14);
+    c.save();
+    c.translate(dir * 6, cy + 4);
+    c.rotate(dir * (1 - k) * 1.3);
+    c.lineCap = 'round';
+    for (const s of [-1.6, 1.6]) {
+      c.strokeStyle = INK; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(s, 2); c.lineTo(s, -14); c.stroke();
+      c.strokeStyle = '#D9984F'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(s, 2); c.lineTo(s, -14); c.stroke();
+    }
+    c.strokeStyle = '#F0B66E'; c.lineWidth = 0.8;
+    for (let y = 0; y > -14; y -= 3.5) { c.beginPath(); c.moveTo(-1.6, y); c.lineTo(1.6, y); c.stroke(); }
+    c.restore();
+    mitt(c, dir * 4.5, cy - 1, '#FFFFFF', 1.3);
   } else if (p.state === 'grimpe') {
     const k = Math.sin(a * 0.6);
     mitt(c, dir * 6.2, cy - 3 + k * 1.5, '#FFFFFF', 1.4);
@@ -563,6 +590,149 @@ export function drawThorns(c, tiles, TILE) {
   c.restore();
 }
 
+/* ---------- La lave du Volcan ---------- */
+/* une tache de lumière orange, dessinée une seule fois puis réutilisée */
+let glowSprite = null;
+function lavaGlowSprite() {
+  if (glowSprite) return glowSprite;
+  glowSprite = document.createElement('canvas');
+  glowSprite.width = glowSprite.height = 128;
+  const g = glowSprite.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 2, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,200,80,0.9)');
+  gr.addColorStop(0.3, 'rgba(255,110,20,0.45)');
+  gr.addColorStop(1, 'rgba(255,60,0,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
+  return glowSprite;
+}
+
+export function drawLava(c, tiles, t, TILE) {
+  c.save();
+  for (const l of tiles) {
+    const x0 = l.c * TILE;
+    const y0 = l.r * TILE;
+    const seed = hash(l.c, l.r);
+    if (l.fall) {
+      /* une cascade : des filets brillants qui coulent vers le bas */
+      const g = c.createLinearGradient(x0, 0, x0 + TILE, 0);
+      g.addColorStop(0, '#C9260A'); g.addColorStop(0.5, '#FFB020'); g.addColorStop(1, '#C9260A');
+      c.fillStyle = g;
+      c.fillRect(x0 + 2, y0, TILE - 4, TILE + 0.5);
+      c.fillStyle = 'rgba(255,245,170,0.85)';
+      for (let i = 0; i < 3; i++) {
+        const sx = x0 + 4 + i * 3.5;
+        const k = ((t * (1.6 + i * 0.3) + seed * 3 + i * 0.37) % 1);
+        c.fillRect(sx, y0 + k * TILE - 6, 1.2, 7);
+      }
+      continue;
+    }
+    /* le corps de la lave : jaune en surface, rouge en profondeur */
+    const g = c.createLinearGradient(0, y0, 0, y0 + TILE);
+    g.addColorStop(0, l.top ? '#FFD23A' : '#FF7A12');
+    g.addColorStop(0.45, '#FF6A10');
+    g.addColorStop(1, '#C42A08');
+    c.fillStyle = g;
+    if (l.top) {
+      c.beginPath();
+      c.moveTo(x0, y0 + TILE);
+      for (let i = 0; i <= 8; i++) {
+        const xx = x0 + (i / 8) * TILE;
+        c.lineTo(xx, y0 + 1.5 + Math.sin(xx * 0.3 + t * 1.6) * 0.9);
+      }
+      c.lineTo(x0 + TILE, y0 + TILE);
+      c.closePath();
+      c.fill();
+      /* la croûte sombre qui dérive lentement */
+      c.fillStyle = 'rgba(110,25,8,0.55)';
+      for (let i = 0; i < 2; i++) {
+        const k = (t * 0.06 + seed + i * 0.5) % 1;
+        c.beginPath();
+        c.ellipse(x0 + k * TILE, y0 + 5 + i * 4, 3 + i, 1.1, 0, 0, TAU);
+        c.fill();
+      }
+      /* une bulle qui gonfle puis éclate */
+      const per = 2.2 + seed * 2;
+      const b = ((t + seed * 7) % per) / per;
+      if (b < 0.35) {
+        const r = b * 9;
+        c.strokeStyle = 'rgba(255,240,160,0.9)';
+        c.lineWidth = 0.7;
+        c.beginPath(); c.arc(x0 + 4 + seed * 8, y0 + 2, r, Math.PI, TAU); c.stroke();
+      } else if (b < 0.42) {
+        c.fillStyle = '#FFE680';
+        for (let i = 0; i < 4; i++) c.fillRect(x0 + 4 + seed * 8 + (i - 1.5) * 2.4, y0 - (b - 0.35) * 60 - i % 2, 1.1, 1.1);
+      }
+      /* le liseré brillant */
+      c.strokeStyle = '#FFF3A0';
+      c.lineWidth = 0.8;
+      c.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const xx = x0 + (i / 8) * TILE;
+        const yy = y0 + 1.5 + Math.sin(xx * 0.3 + t * 1.6) * 0.9;
+        if (i === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+      }
+      c.stroke();
+    } else {
+      c.fillRect(x0, y0, TILE + 0.3, TILE + 0.3);
+      c.fillStyle = 'rgba(255,220,90,0.35)';
+      const k = (t * 0.25 + seed) % 1;
+      c.beginPath(); c.ellipse(x0 + k * TILE, y0 + 8, 4, 2, 0, 0, TAU); c.fill();
+    }
+  }
+  c.restore();
+}
+
+/* la lumière de la lave : elle éclaire tout autour (mélange « lighter ») */
+export function drawLavaGlow(c, tiles, t, TILE) {
+  if (!tiles.length) return;
+  const spr = lavaGlowSprite();
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (const l of tiles) {
+    if (!l.top && !l.fall) continue;
+    const flick = 0.55 + Math.sin(t * 3.1 + l.c * 1.7) * 0.12 + Math.sin(t * 7.3 + l.r) * 0.06;
+    const R = l.fall ? 30 : 46;
+    c.globalAlpha = Math.max(0, flick) * (l.fall ? 0.7 : 0.8);
+    c.drawImage(spr, l.c * TILE + TILE / 2 - R, l.r * TILE + (l.fall ? TILE / 2 : 2) - R, R * 2, R * 2);
+  }
+  c.restore();
+}
+
+/* ---------- L'Échelle ---------- */
+export function drawLadder(c, L, t, age) {
+  const grow = Math.min(1, age / 0.35);
+  const top = L.top - 9;
+  const len = (L.bottom - top) * grow;
+  /* une échelle qui monte se dresse depuis le bas, une échelle qui descend se déroule depuis le haut */
+  const goingUp = L.drawUp != null ? L.drawUp : true;
+  const y0 = goingUp ? L.bottom - len : top;
+  const y1 = goingUp ? L.bottom : top + len;
+  c.save();
+  c.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    c.strokeStyle = INK; c.lineWidth = 2.4;
+    c.beginPath(); c.moveTo(L.x + s * 3.6, y0); c.lineTo(L.x + s * 3.6, y1); c.stroke();
+    c.strokeStyle = '#D9984F'; c.lineWidth = 1.3;
+    c.beginPath(); c.moveTo(L.x + s * 3.6, y0); c.lineTo(L.x + s * 3.6, y1); c.stroke();
+  }
+  for (let y = L.bottom - 3; y > top + 1; y -= 5) {
+    if (y < y0 || y > y1) continue;
+    c.strokeStyle = INK; c.lineWidth = 1.8;
+    c.beginPath(); c.moveTo(L.x - 3.6, y); c.lineTo(L.x + 3.6, y); c.stroke();
+    c.strokeStyle = '#F0B66E'; c.lineWidth = 0.9;
+    c.beginPath(); c.moveTo(L.x - 3.4, y); c.lineTo(L.x + 3.4, y); c.stroke();
+  }
+  /* un petit éclat quand elle vient d'être posée */
+  if (age < 0.6) {
+    c.globalAlpha = 1 - age / 0.6;
+    c.strokeStyle = '#FFFFFF';
+    c.lineWidth = 1;
+    c.beginPath(); c.arc(L.x, goingUp ? y0 : y1, 4 + age * 20, 0, TAU); c.stroke();
+  }
+  c.restore();
+}
+
 /* ---------- Les petits décors posés sur le terrain ---------- */
 export function buildDecor(T, solid, theme, seed, avoid = []) {
   const list = [];
@@ -573,6 +743,7 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
   const top = new Int32Array(W);
   for (let x = 0; x < W; x++) { let y = 0; while (y < H && !solid(x, y)) y++; top[x] = y; }
   const cave = theme.fond === 'grotte';
+  const volcan = theme.fond === 'volcan';
   for (let x = 3; x < W - 3; x += 4) {
     for (let y = 1; y < H; y++) {
       const floor = solid(x, y) && !solid(x, y - 1);
@@ -588,6 +759,11 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
       /* gros décor (arbres, rochers) sur les sols bien plats, à l'air libre */
       if (!inside && h > 0.965 && solid(x - 14, y) && solid(x + 14, y) && !solid(x - 14, y - 1) && !solid(x + 14, y - 1)) {
         big.push({ kind: theme.fond, x, y, s: 0.8 + hash(x, y, seed + 2) * 0.5, v: hash(x, y, seed + 3) });
+        continue;
+      }
+      if (volcan) {
+        if (h < 0.16) list.push({ kind: 'ember', x, y, v: hash(x, y, seed + 4) });
+        else if (h < 0.3) list.push({ kind: 'pebble', x, y, v: hash(x, y, seed + 5) });
         continue;
       }
       if (h < 0.3) list.push({ kind: 'tuft', x, y, s: 0.7 + hash(x, y, seed + 4) * 0.6 });
@@ -666,6 +842,18 @@ export function drawDecor(c, list, solid, theme, t) {
         }
         break;
       }
+      case 'ember': {
+        /* une braise qui rougeoie */
+        const glow = 0.6 + Math.sin(t * 3 + d.v * 20) * 0.35;
+        c.fillStyle = '#2A1A1A'; c.strokeStyle = INK; c.lineWidth = 0.5;
+        c.beginPath(); c.ellipse(x, y - 1.3, 2.6, 1.7, 0, 0, TAU); c.fill(); c.stroke();
+        c.fillStyle = `rgba(255,${Math.round(110 + glow * 90)},40,${glow})`;
+        c.beginPath(); c.ellipse(x - 0.3, y - 1.6, 1.3, 0.8, 0, 0, TAU); c.fill();
+        const k = (t * 0.7 + d.v * 5) % 1;
+        c.fillStyle = `rgba(255,200,80,${1 - k})`;
+        c.fillRect(x + Math.sin(k * 9 + d.v * 4) * 2, y - 3 - k * 14, 0.8, 0.8);
+        break;
+      }
       case 'pebble': {
         c.fillStyle = '#C7CDD6'; c.strokeStyle = INK; c.lineWidth = 0.5;
         c.beginPath(); c.ellipse(x, y - 1.2, 2.4, 1.5, 0, 0, TAU); c.fill(); c.stroke();
@@ -710,6 +898,14 @@ export function drawBigDecor(c, big, solid, theme, t) {
         c.beginPath(); c.moveTo(-w, yy); c.lineTo(0, yy - 10); c.lineTo(w, yy); c.closePath(); c.fillStyle = '#2F6F55'; c.fill(); c.stroke();
         c.beginPath(); c.moveTo(-w * 0.6, yy - 4); c.lineTo(0, yy - 10); c.lineTo(w * 0.6, yy - 4); c.quadraticCurveTo(0, yy - 6, -w * 0.6, yy - 4); c.fillStyle = '#FFFFFF'; c.fill();
       }
+    } else if (d.kind === 'volcan') {
+      /* une aiguille d'obsidienne fendue de braises */
+      c.fillStyle = '#1E1418';
+      c.beginPath(); c.moveTo(-7, 0); c.lineTo(-2, -26); c.lineTo(1, -30); c.lineTo(4, -18); c.lineTo(8, 0); c.closePath(); c.fill(); c.stroke();
+      const glow = 0.6 + Math.sin(t * 2.4 + x) * 0.3;
+      c.strokeStyle = `rgba(255,120,30,${glow})`; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(-1, -2); c.lineTo(0, -9); c.lineTo(-2, -15); c.lineTo(0, -22); c.stroke();
+      c.strokeStyle = INK;
     } else if (d.kind === 'grotte') {
       const col = d.v < 0.5 ? '#B98BFF' : '#6FE3F2';
       c.globalAlpha = 0.3 + Math.sin(t * 1.5 + x) * 0.1;
@@ -848,6 +1044,67 @@ export function drawBackground(c, theme, camX, z, W, H, t) {
     };
     layer(0.12, '#8CCBA9', H * 0.8, 120 * s, 1, 200 * s);
     layer(0.25, '#5FAE84', H * 0.92, 150 * s, 2, 220 * s);
+  } else if (kind === 'volcan') {
+    /* l'intérieur d'un immense volcan : tout rougeoie, tout tremble */
+    const pulse = 0.5 + Math.sin(t * 1.3) * 0.25 + Math.sin(t * 4.1) * 0.08;
+    const lg = c.createRadialGradient(W / 2, H * 1.25, 10, W / 2, H * 1.1, H * 1.1);
+    lg.addColorStop(0, `rgba(255,170,40,${0.75 * pulse + 0.2})`);
+    lg.addColorStop(0.45, 'rgba(255,70,10,0.35)');
+    lg.addColorStop(1, 'rgba(120,10,0,0)');
+    c.fillStyle = lg;
+    c.fillRect(0, 0, W, H);
+    /* les parois du volcan, au loin, en dents de scie */
+    const wall = (f, col, seed, base, amp, step) => {
+      const off = camX * z * f;
+      c.fillStyle = col;
+      c.beginPath();
+      c.moveTo(0, 0);
+      const first = Math.floor(off / step) - 1;
+      const last = Math.ceil((off + W) / step) + 1;
+      for (let i = first; i <= last; i++) c.lineTo(i * step - off, base + hash(i, seed) * amp);
+      c.lineTo(W, 0);
+      c.closePath();
+      c.fill();
+    };
+    wall(0.08, '#2A0705', 1, H * 0.12, H * 0.18, 70 * s);
+    wall(0.18, '#160303', 2, H * 0.02, H * 0.12, 46 * s);
+    /* des cascades de lave au loin */
+    for (let i = 0; i < 5; i++) {
+      const span = W + 300;
+      const x = ((hash(i, 41) * span * 3 - camX * z * 0.12) % span + span) % span - 150;
+      const top = H * (0.08 + hash(i, 42) * 0.25);
+      const w = (5 + hash(i, 43) * 6) * s;
+      const gg = c.createLinearGradient(x - w * 3, 0, x + w * 3, 0);
+      gg.addColorStop(0, 'rgba(255,90,10,0)');
+      gg.addColorStop(0.5, `rgba(255,140,30,${0.35 + pulse * 0.2})`);
+      gg.addColorStop(1, 'rgba(255,90,10,0)');
+      c.fillStyle = gg;
+      c.fillRect(x - w * 3, top, w * 6, H);
+      c.fillStyle = '#FFB43A';
+      c.fillRect(x - w / 2, top, w, H);
+      c.fillStyle = 'rgba(255,245,180,0.8)';
+      for (let k = 0; k < 4; k++) {
+        const yy = top + ((t * 0.5 + k * 0.25 + hash(i, k)) % 1) * (H - top);
+        c.fillRect(x - w / 4, yy, w / 2, 10 * s);
+      }
+    }
+    /* la fumée qui monte */
+    for (let i = 0; i < 9; i++) {
+      const k = (t * 0.04 + hash(i, 51)) % 1;
+      const x = ((hash(i, 52) * W * 1.4 - camX * z * 0.2) % (W + 200) + W + 200) % (W + 200) - 100;
+      const y = H * (1 - k * 1.2);
+      c.fillStyle = `rgba(40,20,20,${0.25 * Math.sin(k * Math.PI)})`;
+      c.beginPath(); c.arc(x + Math.sin(t * 0.3 + i) * 20, y, (40 + k * 90) * s, 0, TAU); c.fill();
+    }
+    /* les braises qui volent partout */
+    for (let i = 0; i < 70; i++) {
+      const sp = 20 + hash(i, 61) * 50;
+      const y = H - ((t * sp + hash(i, 62) * H) % (H + 40));
+      const x = ((hash(i, 63) * W + Math.sin(t * 1.5 + i) * 18 - camX * z * 0.35) % W + W) % W;
+      const a = 0.5 + Math.sin(t * 6 + i * 3) * 0.4;
+      c.fillStyle = i % 4 ? `rgba(255,150,40,${a})` : `rgba(255,230,140,${a})`;
+      c.fillRect(x, y, (1.4 + hash(i, 64) * 1.8) * s * 0.7, (1.4 + hash(i, 64) * 1.8) * s * 0.7);
+    }
   } else if (kind === 'grotte') {
     /* les parois du fond */
     hills(c, W, H, H * 0.25, -60 * s, 120 * s, camX * z * 0.12, '#1C1738', 1, false);
@@ -957,7 +1214,7 @@ export function drawSkillIcon(cv, skill) {
   const k = S / 30;
   c.save();
   c.scale(k, k);
-  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
+  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4, echelle: 2 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
   if (skill === 'stop') p.state = 'stop';
   if (skill === 'pont') {
     p.state = 'pont';
@@ -982,6 +1239,12 @@ export function drawSkillIcon(cv, skill) {
     c.strokeStyle = INK; c.lineWidth = 0.6; c.strokeRect(22, 0, 8, 30);
   }
   if (skill === 'parapluie') { p.state = 'tombe'; p.parapluie = true; p.fall = 30; p.y = 30; }
+  if (skill === 'echelle') {
+    p.x = 11; p.id = 2;
+    c.fillStyle = '#4A3634'; c.fillRect(22, 6, 8, 19);
+    c.strokeStyle = INK; c.lineWidth = 0.6; c.strokeRect(22, 6, 8, 19);
+    drawLadder(c, { x: 18.5, top: 9, bottom: 25, up: 1 }, 0, 2);
+  }
   if (skill !== 'creuse' && skill !== 'parapluie') {
     c.fillStyle = '#58C46B'; c.fillRect(0, 25, skill === 'tunnel' ? 20 : 30, 5);
   }

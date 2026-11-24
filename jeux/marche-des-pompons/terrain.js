@@ -11,7 +11,7 @@ export const TS = 2;               // la texture est 2 fois plus fine que la gri
 /* Ce qu'il y a dans chaque pixel de la grille */
 export const VIDE = 0, TERRE = 1, ROCHE = 2, BRIQUE = 3, PLANCHE = 4;
 /* Les dangers (on peut passer dedans… mais on est perdu) */
-export const EAU = 1, RONCES = 2;
+export const EAU = 1, RONCES = 2, LAVE = 3;
 
 /* Petit hasard qui ne change jamais pour un même pixel */
 function hash(x, y, s = 0) {
@@ -21,6 +21,20 @@ function hash(x, y, s = 0) {
   return (h >>> 0) / 4294967296;
 }
 export { hash };
+
+/* un hasard doux (les valeurs voisines se ressemblent) : pour les veines de braise */
+function smooth(x, y, cell, s) {
+  const gx = x / cell;
+  const gy = y / cell;
+  const ix = Math.floor(gx);
+  const iy = Math.floor(gy);
+  const fx = gx - ix;
+  const fy = gy - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix, iy, s), b = hash(ix + 1, iy, s), c = hash(ix, iy + 1, s), d = hash(ix + 1, iy + 1, s);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
 
 /* ---------- Lecture du plan ---------- */
 export function parseLevel(level) {
@@ -32,6 +46,7 @@ export function parseLevel(level) {
   const haz = new Uint8Array(W * H);
   const water = [];
   const thorns = [];
+  const lava = [];
   let entree = null;
   let sortie = null;
 
@@ -60,6 +75,7 @@ export function parseLevel(level) {
         case '=': fill(x0, y0, TILE, 4, PLANCHE); break;
         case '~': fill(x0, y0, TILE, TILE, EAU, haz); water.push({ c, r }); break;
         case '^': fill(x0, y0 + 6, TILE, TILE - 6, RONCES, haz); thorns.push({ c, r }); break;
+        case 'L': fill(x0, y0, TILE, TILE, LAVE, haz); lava.push({ c, r }); break;
         case 'E': entree = { x: x0 + TILE / 2, y: y0 + TILE / 2 }; break;
         case 'S': sortie = { x: x0 + TILE / 2, y: y0 + TILE }; break;
         default: break;
@@ -69,8 +85,14 @@ export function parseLevel(level) {
   /* l'eau du dessus d'une colonne d'eau fait des vagues */
   const isWater = (c, r) => r >= 0 && (rows[r] || '')[c] === '~';
   water.forEach((w) => { w.top = !isWater(w.c, w.r - 1); });
+  /* la lave : la surface fait des bulles ; une colonne fine qui tombe, c'est une cascade */
+  const isLava = (c, r) => r >= 0 && r < rows.length && (rows[r] || '')[c] === 'L';
+  lava.forEach((l) => {
+    l.top = !isLava(l.c, l.r - 1);
+    l.fall = !isLava(l.c - 1, l.r) && !isLava(l.c + 1, l.r) && (isLava(l.c, l.r - 1) || isLava(l.c, l.r + 1));
+  });
 
-  return { W, H, cols, rowsN: rows.length, ter, haz, water, thorns, entree, sortie };
+  return { W, H, cols, rowsN: rows.length, ter, haz, water, thorns, lava, entree, sortie };
 }
 
 /* ---------- Questions sur la grille ---------- */
@@ -118,7 +140,7 @@ export function createTerrainPainter(T, theme, seed = 1) {
     if (k === TERRE) {
       let up = 0;
       while (up < 9 && at(x, y - up - 1) !== VIDE) up++;
-      if (P.herbe && up < 4 && at(x, y - up - 1) === VIDE && y - up - 1 >= 0 && haz[(y - up - 1) * W + x] !== 1) {
+      if (P.herbe && up < 4 && at(x, y - up - 1) === VIDE && y - up - 1 >= 0 && haz[(y - up - 1) * W + x] !== EAU && haz[(y - up - 1) * W + x] !== LAVE) {
         const c = up === 0 ? P.herbeClaire : P.herbe;
         return mix(c, [0, 0, 0], 0.04 + n * 0.08 + (up === 3 ? 0.12 : 0));
       }
@@ -132,6 +154,12 @@ export function createTerrainPainter(T, theme, seed = 1) {
         const d = (x - px) * (x - px) + (y - py) * (y - py);
         if (d <= (hp < 0.07 ? 3 : 1)) return mix(P.caillou, [255, 255, 255], d === 0 ? 0.25 : 0);
       }
+      /* au Volcan, des veines de braise brillent dans la roche */
+      if (theme.braise) {
+        const v = Math.abs(smooth(x, y, 26, seed) * 0.7 + smooth(x, y, 9, seed + 4) * 0.3 - 0.5);
+        if (v < 0.012) return mix([255, 150, 50], [255, 225, 130], 1 - v / 0.012);
+        if (v < 0.03) return mix([210, 70, 20], P.terre, (v - 0.012) / 0.018);
+      }
       const shade = up < 6 && P.herbe ? 0.18 : 0;
       /* de douces couches de terre, comme dans une vraie falaise */
       const band = Math.floor((y + Math.sin(x * 0.045 + seed) * 5) / 34) % 3;
@@ -139,6 +167,12 @@ export function createTerrainPainter(T, theme, seed = 1) {
       return mix(mix(P.terre, P.terreFonce, Math.min(1, Math.max(0, shade + strata + (hash(cx, cy, seed + 3) - 0.5) * 0.3 + 0.15))), [0, 0, 0], n * 0.1);
     }
     if (k === ROCHE) {
+      /* au Volcan, la roche dure est de l'obsidienne : noire, brillante, sans joints */
+      if (theme.braise) {
+        const v = smooth(x, y, 11, seed + 9);
+        const shine = Math.abs(((x - y * 0.6) % 23 + 23) % 23 - 11) < 0.8 ? 0.25 : 0;
+        return mix(mix(P.rocheFonce, P.roche, v), [200, 170, 255], shine + n * 0.05);
+      }
       const row = Math.floor(y / 9);
       const off = (row % 2) * 7;
       const sx = (x + off) % 14;
@@ -207,7 +241,7 @@ export function createTerrainPainter(T, theme, seed = 1) {
   const bg = back.getContext('2d');
   const bimg = bg.createImageData(W, H);
   const bd = bimg.data;
-  const wall = mix(P.terreFonce, [20, 16, 30], theme.fond === 'grotte' ? 0.45 : 0.35);
+  const wall = theme.braise ? mix(P.terreFonce, [70, 10, 4], 0.5) : mix(P.terreFonce, [20, 16, 30], theme.fond === 'grotte' ? 0.45 : 0.35);
   for (let x = 0; x < W; x++) {
     let top = 0;
     while (top < H && ter[top * W + x] === VIDE) top++;
@@ -224,7 +258,7 @@ export function createTerrainPainter(T, theme, seed = 1) {
   const bottomRuns = [];
   let run = -1;
   for (let x = 0; x <= W; x++) {
-    const full = x < W && (ter[(H - 1) * W + x] !== VIDE || haz[(H - 1) * W + x] === 1);
+    const full = x < W && (ter[(H - 1) * W + x] !== VIDE || haz[(H - 1) * W + x] === EAU || haz[(H - 1) * W + x] === LAVE);
     if (full && run < 0) run = x;
     if (!full && run >= 0) { bottomRuns.push([run, x]); run = -1; }
   }

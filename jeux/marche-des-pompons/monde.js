@@ -1,14 +1,14 @@
 // ============================================================================
 // La simulation d'un niveau, sans aucun dessin : les Pompons tombent du
 // nuage, marchent tout droit, font leur métier (Stop, Pont, Creuseur, Tunnel,
-// Grimpeur, Parapluie), rentrent à la maison… ou se perdent.
+// Grimpeur, Parapluie, Échelle), rentrent à la maison… ou se perdent.
 // Tout avance par petits pas réguliers (30 par seconde), toujours de la même
 // façon : une même partie rejouée donne exactement le même résultat, ce qui
 // permet au pilote automatique (?debug) de vérifier les solutions des niveaux.
 // Le jeu (script.js) lit w.events pour les bruits, les étincelles et Plume.
 // ============================================================================
 
-import { parseLevel, makeQueries, VIDE, TERRE, ROCHE, BRIQUE, PLANCHE, EAU, RONCES } from './terrain.js';
+import { parseLevel, makeQueries, VIDE, TERRE, ROCHE, BRIQUE, PLANCHE, EAU, RONCES, LAVE } from './terrain.js';
 
 export const TICK_RATE = 30;       // pas de simulation par seconde
 
@@ -23,6 +23,10 @@ const BRICK_TICKS = 10;
 const BASH_TICKS = 2;
 const DIG_TICKS = 3;
 const SHRUG_TICKS = 40;
+/* l'Échelle : on la pose contre un mur (pour monter) ou au bord d'un trou (pour descendre) */
+export const MAX_LADDER = 112;     // 7 cubes au plus
+const LADDER_REACH = 24;           // le mur ou le bord doit être à 1 cube et demi devant
+const LADDER_TICKS = 14;           // le temps de dresser l'échelle
 const SAVE_ANIM = 24;
 const LOST_ANIM = 70;
 
@@ -54,6 +58,7 @@ export function createWorld(level) {
     dirty: [],
     over: null,              // 'fini' ou 'temps' quand le niveau s'arrête
     onlyStops: false,        // il ne reste que des Stop debout
+    ladders: [],             // les échelles posées : { x, top, bottom, up }
   };
 
   const ev = (type, p, extra) => w.events.push({ type, p, x: p ? p.x : 0, y: p ? p.y : 0, ...extra });
@@ -96,7 +101,7 @@ export function createWorld(level) {
       return true;
     }
     const d = danger(p.x, p.y - 1) || danger(p.x, p.y - 6);
-    if (d) { lose(p, d === EAU ? 'eau' : 'ronces'); return true; }
+    if (d) { lose(p, d === EAU ? 'eau' : d === LAVE ? 'lave' : 'ronces'); return true; }
     if (p.y > H + 14) { lose(p, 'vide'); return true; }
     return false;
   }
@@ -133,6 +138,13 @@ export function createWorld(level) {
         p.dir = -p.dir;
         return;
       }
+    }
+    /* une échelle juste devant : on monte (en bas) ou on descend (en haut), dans les deux sens */
+    for (const L of w.ladders) {
+      const ahead = (L.x - p.x) * p.dir;
+      if (ahead < 1 || ahead > 4) continue;
+      if (Math.abs(p.y - L.bottom) <= 3) { mount(p, L, 'monte'); return; }
+      if (Math.abs(p.y - L.top) <= 3) { mount(p, L, 'descend'); return; }
     }
     const r = stepForward(p);
     if (r === 'edge') p.dir = -p.dir;
@@ -172,6 +184,76 @@ export function createWorld(level) {
       p.state = 'marche';
       ev('climbTop', p);
     }
+  }
+
+  /* ---------- L'Échelle ---------- */
+  function mount(p, L, way) {
+    p.x = L.x;
+    p.y = way === 'monte' ? L.bottom : L.top;
+    p.state = way;
+    p.ladder = L;
+    ev('ladderOn', p);
+  }
+  function climbLadder(p) {
+    const L = p.ladder;
+    if (p.state === 'monte') {
+      p.y -= 1;
+      if (checkFate(p)) return;
+      if (p.y <= L.top) {
+        /* en haut : on pose le pied sur le sol d'en haut */
+        p.y = L.top; p.x = L.x + L.up * 4; p.dir = L.up; p.state = 'marche';
+        ev('ladderOff', p);
+      }
+    } else {
+      p.y += 1;
+      if (checkFate(p)) return;
+      if (p.y >= L.bottom) {
+        p.y = L.bottom; p.x = L.x - L.up * 2; p.dir = -L.up; p.state = 'marche';
+        ev('ladderOff', p);
+      }
+    }
+  }
+  /* où l'échelle irait si ce Pompon la posait maintenant (ou pourquoi c'est impossible) */
+  function planLadder(p) {
+    const { dir } = p;
+    for (let dx = 1; dx <= LADDER_REACH; dx++) {
+      const cx = p.x + dir * dx;
+      if (cx < 0 || cx >= W) return { why: 'nothing' };
+      if (solid(cx, p.y - 1)) {
+        /* un mur : on mesure sa hauteur */
+        let t = p.y - 1;
+        while (t >= 0 && solid(cx, t)) t--;
+        const top = t + 1;
+        const h = p.y - top;
+        if (h <= STEP) return { why: 'nothing' };
+        if (t < 0 || h > MAX_LADDER) return { why: 'tooHigh' };
+        const lx = cx - dir * 3;
+        if (anyIn(lx, top - BODY_H, lx, p.y - 1, (k) => k !== VIDE)) return { why: 'blocked' };
+        return { L: { x: lx, top, bottom: p.y, up: dir } };
+      }
+      if (!solid(cx, p.y)) {
+        let k = 1;
+        while (k <= STEP && !solid(cx, p.y + k)) k++;
+        if (k <= STEP) continue;            // une petite marche qui descend : ce n'est pas un bord
+        /* un bord : l'échelle pend dans le vide jusqu'au sol d'en bas */
+        const lx = cx + dir * 2;
+        let g = p.y;
+        while (g < H && !solid(lx, g)) g++;
+        if (g >= H || g - p.y > MAX_LADDER) return { why: 'tooHigh' };
+        if (anyIn(lx, p.y - BODY_H, lx, g - 1, (q) => q !== VIDE)) return { why: 'blocked' };
+        return { L: { x: lx, top: p.y, bottom: g, up: -dir } };
+      }
+    }
+    return { why: 'nothing' };
+  }
+  function raiseLadder(p) {
+    p.work++;
+    if (p.work < LADDER_TICKS) return;
+    const L = { ...p.plan, id: w.ladders.length, born: w.tick };
+    w.ladders.push(L);
+    ev('ladder', p, { L });
+    /* celui qui l'a posée l'essaie le premier */
+    mount(p, L, L.up === p.dir ? 'monte' : 'descend');
   }
 
   function build(p) {
@@ -228,6 +310,7 @@ export function createWorld(level) {
     if (s === 'parti') return;
     if (s === 'sauve') { if (++p.work > SAVE_ANIM) p.state = 'parti'; return; }
     if (s === 'perdu') { if (++p.work > LOST_ANIM) p.state = 'parti'; return; }
+    if (s === 'monte' || s === 'descend') { climbLadder(p); return; }
     if (s !== 'tombe' && s !== 'grimpe' && !solid(p.x, p.y)) { p.state = 'tombe'; p.fall = 0; }
     switch (p.state) {
       case 'tombe': fall(p); return;
@@ -236,6 +319,7 @@ export function createWorld(level) {
       case 'pont': build(p); break;
       case 'tunnel': bash(p); break;
       case 'creuse': dig(p); return;
+      case 'echelle': raiseLadder(p); return;
       case 'hausse': if (++p.work > SHRUG_TICKS) p.state = 'marche'; return;
       case 'stop': return;
       default: return;
@@ -287,6 +371,11 @@ export function createWorld(level) {
     if (skill === 'creuse') {
       if (anyIn(p.x - 3, p.y, p.x + 3, p.y, (k) => k === ROCHE)) return 'rock';
     }
+    if (skill === 'echelle') {
+      if (p.state === 'stop') return 'busy';
+      const plan = planLadder(p);
+      if (!plan.L) return plan.why;
+    }
     return 'ok';
   };
 
@@ -299,6 +388,7 @@ export function createWorld(level) {
     else {
       p.state = skill; p.work = 0;
       if (skill === 'pont') p.bricks = BRICKS;
+      if (skill === 'echelle') p.plan = planLadder(p).L;
     }
     ev('assign', p, { skill });
     return 'ok';

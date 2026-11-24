@@ -47,6 +47,13 @@ export const SKILLS = [
     fait: 'Les graines de pissenlit ont un petit parachute de poils : le vent peut les emporter à plusieurs kilomètres avant qu’elles se posent.',
     icone: '☂️',
   },
+  {
+    id: 'echelle', nom: 'Échelle', touche: '7',
+    court: 'Il pose une échelle contre un mur ou au bord d’un trou.',
+    comment: 'Tout près d’un mur, le Pompon pose une échelle pour monter. Tout près d’un bord, il la pose pour descendre. L’échelle reste : tous les Pompons qui arrivent dessus montent… ou descendent ! Elle mesure 7 cubes au plus.',
+    fait: 'Les pompiers ont de très grandes échelles sur leurs camions : certaines montent à plus de 30 mètres, aussi haut qu’un immeuble de 10 étages !',
+    icone: '🔺',
+  },
 ];
 export const SKILL_BY_ID = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
 
@@ -65,6 +72,11 @@ export const PLUME = {
     autre: 'Il fait déjà ce métier !',
   },
   nothing: 'Il n’y a rien à creuser devant lui. Attends qu’il touche le mur !',
+  ladderNothing: 'Pour poser l’échelle, il faut être tout près d’un mur ou d’un bord !',
+  ladderHigh: 'Trop haut ! Une échelle mesure 7 cubes au plus.',
+  ladderBlocked: 'Quelque chose gêne : l’échelle ne peut pas se dresser ici.',
+  ladder: ['Et hop, une échelle ! Tout le monde va la prendre, dans les deux sens.', 'L’échelle est posée !'],
+  rumble: ['Le volcan gronde…', 'Ça tremble ! Vite, vite !'],
   rockAssign: 'Hou là ! C’est de la roche grise : impossible de la creuser.',
   rock: ['Bong ! La roche grise est trop dure.', 'Aïe, ça cogne ! La roche ne se creuse pas.'],
   bricksDone: ['Plus de briques ! Redonne-lui le métier Pont pour continuer.', 'Il hausse les épaules : son escalier est fini.'],
@@ -76,6 +88,7 @@ export const PLUME = {
     eau: ['Plouf ! Les Pompons ne savent pas nager.', 'Oh non, il est tombé à l’eau !'],
     ronces: ['Ouille, les ronces piquent !', 'Attention aux ronces !'],
     vide: ['Oh non, il est tombé dans le vide !'],
+    lave: ['Ouille, la lave est brûlante ! Sa bulle le ramène au village.', 'Attention à la lave ! Il faut un chemin sans feu.'],
   },
   lostAfter: '(Pas d’inquiétude : sa bulle le ramène tout doucement au village.)',
   onlyStops: 'Il ne reste que ton Stop. Touche-le pour qu’il reparte, ou appuie sur « Terminer ».',

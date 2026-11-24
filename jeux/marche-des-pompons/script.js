@@ -18,7 +18,7 @@ import { createWorld, playSolution, TICK_RATE } from './monde.js';
 import { TILE, TS, createTerrainPainter } from './terrain.js';
 import {
   drawPompon, drawEntrance, drawHome, drawWater, drawThorns, buildDecor, drawDecor, drawBigDecor,
-  drawBackground, drawSkillIcon, PLUME_SVG, POMPON_COLORS,
+  drawBackground, drawSkillIcon, PLUME_SVG, POMPON_COLORS, drawLava, drawLavaGlow, drawLadder,
 } from './art.js';
 import { SKILLS, SKILL_BY_ID, PLUME, STAR_TEXT } from './data.js';
 import { WORLDS, LEVELS, BIENTOT } from './levels/index.js';
@@ -414,6 +414,7 @@ function handleEvent(e) {
       if (e.why === 'eau') for (let i = 0; i < 14; i++) burst(e.x, e.y - 2, '#BFE8FF', 'drop');
       if (e.why === 'ronces') for (let i = 0; i < 8; i++) burst(e.x, e.y - 6, '#C9E07A', 'dot');
       if (e.why === 'chute') { shake = 0.25; for (let i = 0; i < 8; i++) burst(e.x, e.y - 3, '#FFFFFF', 'star'); }
+      if (e.why === 'lave') { shake = 0.3; for (let i = 0; i < 16; i++) burst(e.x, e.y - 3, i % 3 ? '#FF8A20' : '#FFE680', 'spark'); }
       say(pick(PLUME.lost[e.why] || PLUME.lost.vide), 1, 3600);
       buzz([30, 40, 30]);
       break;
@@ -450,6 +451,13 @@ function handleEvent(e) {
       break;
     case 'climb': sfx.climb(); break;
     case 'climbTop': sfx.climb(); break;
+    case 'ladder':
+      sfx.ladder();
+      e.L.drawUp = e.L.up === p.dir;
+      for (let i = 0; i < 6; i++) burst(e.L.x, e.L.drawUp ? e.L.top : e.L.bottom, '#FFFFFF', 'dust');
+      sayOnce('ladder', PLUME.ladder, 1);
+      break;
+    case 'ladderOn': sfx.climb(); break;
     case 'assign':
       sfx.assign();
       for (let i = 0; i < 8; i++) burst(e.x, e.y - 7, '#FFFFFF', 'spark');
@@ -493,6 +501,7 @@ function updateParticles(dt) {
     q.x += q.vx * dt;
     q.y += q.vy * dt;
     if (q.kind === 'chunk' || q.kind === 'drop' || q.kind === 'spark') q.vy += 220 * dt;
+    else if (q.kind === 'ember') { q.vy -= 10 * dt; q.vx += Math.sin(q.life * 6 + q.x) * 20 * dt; }
     else q.vy *= 0.92;
     q.vx *= 0.96;
   }
@@ -517,6 +526,10 @@ function drawParticles(c) {
       c.fill();
     } else if (q.kind === 'dust') {
       c.beginPath(); c.arc(q.x, q.y, 1.5 + (1 - k) * 2.5, 0, Math.PI * 2); c.fill();
+    } else if (q.kind === 'ember') {
+      c.globalCompositeOperation = 'lighter';
+      c.beginPath(); c.arc(q.x, q.y, q.size, 0, Math.PI * 2); c.fill();
+      c.globalCompositeOperation = 'source-over';
     } else {
       c.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
     }
@@ -528,6 +541,7 @@ function drawParticles(c) {
 const STATE_NAME = {
   marche: 'Marcheur', tombe: 'Il tombe !', grimpe: 'Grimpeur', stop: 'Stop', pont: 'Bâtisseur',
   tunnel: 'Tunnel', creuse: 'Creuseur', hausse: 'Il hausse les épaules',
+  echelle: 'Il pose une échelle', monte: 'Il monte l’échelle', descend: 'Il descend l’échelle',
 };
 function render(now, dt) {
   const t = now / 1000;
@@ -560,8 +574,11 @@ function render(now, dt) {
   drawThorns(c, T.thorns, TILE);
   drawDecor(c, decor.list, W_.solid, theme, t);
   if (T.sortie) drawHome(c, T.sortie, t, homeGlow);
+  for (const L of W_.ladders) drawLadder(c, L, t, (W_.tick - L.born) / TICK_RATE);
   for (const p of W_.pompons) if (p.state !== 'parti') drawPompon(c, p, t, { hover: p === hover });
   drawWater(c, T.water, t, theme.eau, TILE);
+  drawLava(c, T.lava, t, TILE);
+  drawLavaGlow(c, T.lava, t, TILE);
   if (T.entree) drawEntrance(c, T.entree, t, hatch, W_.total - W_.released);
   drawParticles(c);
   /* le nom du métier du Pompon sous la souris */
@@ -589,7 +606,55 @@ function render(now, dt) {
   }
   c.globalAlpha = 1;
   c.restore();
+  if (theme.fond === 'volcan') drawHeat(c, W, H, t);
   drawMinimap(now);
+}
+
+/* au Volcan : les bords de l'écran rougeoient, et tout flashe quand ça gronde */
+function drawHeat(c, W, H, t) {
+  const pulse = 0.28 + Math.sin(t * 1.7) * 0.08 + shake * 0.5;
+  const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  g.addColorStop(0, 'rgba(255,60,0,0)');
+  g.addColorStop(1, `rgba(200,30,0,${pulse})`);
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  if (shake > 0.2) {
+    c.fillStyle = `rgba(255,140,40,${(shake - 0.2) * 0.35})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
+/* les braises qui s'échappent de la lave, et le volcan qui gronde de temps en temps */
+let rumbleIn = 9;
+function volcanoLife(dt) {
+  if (!W_ || theme.fond !== 'volcan' || paused) return;
+  const tops = W_.T.lava;
+  if (tops.length && Math.random() < dt * 14) {
+    const l = tops[Math.floor(Math.random() * tops.length)];
+    if (l.top || l.fall) {
+      particles.push({
+        x: l.c * TILE + Math.random() * TILE, y: l.r * TILE + 1, col: Math.random() < 0.3 ? '#FFE680' : '#FF8A20', kind: 'ember',
+        vx: (Math.random() - 0.5) * 8, vy: -10 - Math.random() * 20, life: 0, max: 1.5 + Math.random() * 1.5, size: 0.6 + Math.random() * 0.8,
+      });
+    }
+  }
+  if (mode !== 'play') return;
+  rumbleIn -= dt;
+  if (rumbleIn <= 0) {
+    rumbleIn = 10 + Math.random() * 8;
+    shake = 0.7;
+    sfx.rumble();
+    buzz([60, 40, 80]);
+    if (!flags.rumble) { flags.rumble = true; say(pick(PLUME.rumble), 0, 2500); }
+    /* des cendres et des braises tombent du plafond */
+    const x0 = view.camX;
+    for (let i = 0; i < 14; i++) {
+      particles.push({
+        x: x0 + Math.random() * (view.W / view.z), y: -4, col: i % 3 ? '#FF7A20' : '#5A4A48', kind: i % 3 ? 'ember' : 'chunk',
+        vx: (Math.random() - 0.5) * 10, vy: 30 + Math.random() * 40, life: 0, max: 2.4, size: 0.8 + Math.random(),
+      });
+    }
+  }
 }
 
 function drawMinimap(now) {
@@ -612,6 +677,8 @@ function drawMinimap(now) {
     tc.drawImage(painter.canvas, ox, oy, T.W * k, T.H * k);
     tc.fillStyle = theme.eau;
     for (const w of T.water) tc.fillRect(ox + w.c * TILE * k, oy + w.r * TILE * k, TILE * k + 0.5, TILE * k + 0.5);
+    tc.fillStyle = '#FF7A1A';
+    for (const l of T.lava) tc.fillRect(ox + l.c * TILE * k, oy + l.r * TILE * k, TILE * k + 0.5, TILE * k + 0.5);
     thumbDirty = false;
     lastThumb = now;
   }
@@ -662,6 +729,7 @@ function frame(now) {
   homeGlow = Math.max(0, homeGlow - dt * 1.5);
   hatch = Math.max(0, hatch - dt * 2.5);
   shake = Math.max(0, shake - dt);
+  volcanoLife(dt);
   updateParticles(dt * (paused ? 0 : 1));
   if (mode === 'play') renderHud();
   updatePlume(now);
@@ -696,19 +764,21 @@ function tapPompon(p) {
     W_.events.length = 0;
     return;
   }
-  if (!selected) { say(PLUME.noSkill, 1, 2600); sfx.nope(); return; }
+  if (!selected) { say(PLUME.noSkill, 3, 2600); sfx.nope(); return; }
   const r = W_.assign(p, selected);
   for (const e of W_.events) handleEvent(e);
   W_.events.length = 0;
   if (r === 'ok') return;
   sfx.nope();
   const sk = SKILL_BY_ID[selected];
-  if (r === 'empty') say(PLUME.empty(sk.nom), 1, 2600);
-  else if (r === 'already') say(PLUME.already[selected] || PLUME.already.autre, 1, 2400);
-  else if (r === 'busy') say(PLUME.busy, 1, 2400);
-  else if (r === 'rock') say(PLUME.rockAssign, 1, 3000);
-  else if (r === 'nothing') say(PLUME.nothing, 1, 3000);
-  else if (r === 'gone') say(PLUME.gone, 1, 2000);
+  if (r === 'empty') say(PLUME.empty(sk.nom), 3, 2600);
+  else if (r === 'already') say(PLUME.already[selected] || PLUME.already.autre, 3, 2400);
+  else if (r === 'busy') say(PLUME.busy, 3, 2400);
+  else if (r === 'rock') say(PLUME.rockAssign, 3, 3000);
+  else if (r === 'nothing') say(selected === 'echelle' ? PLUME.ladderNothing : PLUME.nothing, 3, 3000);
+  else if (r === 'tooHigh') say(PLUME.ladderHigh, 3, 3000);
+  else if (r === 'blocked') say(PLUME.ladderBlocked, 3, 3000);
+  else if (r === 'gone') say(PLUME.gone, 3, 2000);
 }
 
 const ptr = { down: false, id: null, x0: 0, y0: 0, cam0: 0, drag: false };
@@ -932,7 +1002,7 @@ function finishLevel() {
   if (won && next >= 0) save.last = next;
   writeSave();
   const lastLevel = won && levelIndex === LEVELS.length - 1;
-  const firstEnding = lastLevel && !save.ending;
+  const firstEnding = lastLevel && save.ending !== LV.id;   // la fête, une fois, après le tout dernier niveau
   setTimeout(() => {
     if (won) { sfx.win(); launchConfetti(); } else sfx.fail();
     openDialog((card) => {
@@ -1041,10 +1111,10 @@ $('levelsClose').addEventListener('click', () => closeLevels());
 /* ---------- L'écran de départ et la carte des mondes ----------
    Un monde fini se rejoue quand on veut ; le monde où l'on en est s'ouvre au
    niveau à faire ; les mondes d'après restent fermés (tout est ouvert avec ?debug). */
-const MAP_POS = [[11, 70], [31, 30], [51, 70], [71, 30], [90, 66]];    // en % de la carte
+const MAP_POS = [[9, 70], [26, 30], [43, 70], [60, 30], [77, 68], [93, 30]];    // en % de la carte
 const MAP_DECOR = [
-  ['🌼', 4, 38], ['🌷', 21, 90], ['🌲', 20, 10], ['🍄', 41, 48], ['💎', 62, 90],
-  ['🦇', 42, 88], ['❄️', 61, 10], ['🏔️', 83, 10], ['🔥', 98, 90], ['☁️', 51, 12],
+  ['🌼', 3, 38], ['🌷', 17, 90], ['🌲', 16, 10], ['🍄', 35, 48], ['💎', 53, 90],
+  ['🦇', 34, 88], ['❄️', 51, 10], ['🏔️', 70, 10], ['🔥', 87, 90], ['🔥', 68, 92], ['☁️', 43, 12], ['✨', 97, 62],
 ];
 let mapSel = 0;
 const worldLevels = (wi) => LEVELS.filter((l) => l.wi === wi);
@@ -1057,7 +1127,7 @@ function worldState(wi) {
   return 'locked';
 }
 const worldStars = (wi) => worldLevels(wi).reduce((n, lv) => n + starsFor(lv, bestOf(lv)), 0);
-const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F08A5D'];
+const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F0603A', '#B9B4C8'];
 
 function renderWorldMap() {
   const map = $('worldMap');
@@ -1239,7 +1309,7 @@ function startEnding() {
     onEnd: () => { endOverlay.classList.add('show-text'); launchConfetti(); },
   });
   setTimeout(() => endOverlay.classList.add('show-text'), 15500);
-  save.ending = true;
+  save.ending = LEVELS[LEVELS.length - 1].id;
   writeSave();
 }
 $('endReplay').addEventListener('click', (e) => { e.currentTarget.blur(); startEnding(); });

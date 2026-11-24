@@ -17,6 +17,7 @@
 //         '='  planche de bois (fine, on peut la creuser)
 //         '~'  eau (les Pompons ne savent pas nager)
 //         '^'  ronces (elles piquent)
+//         'L'  lave (une colonne fine de « L » fait une cascade de lave)
 //         'E'  l'entrée : le nuage d'où tombent les Pompons
 //         'S'  la maison : la porte est posée sur le bas de la case
 //     pompons: 10,              // combien sortent du nuage
@@ -26,7 +27,7 @@
 //     temps: 180,               // secondes pour finir
 //     dir: 1,                   // sens de départ : 1 = vers la droite, -1 = vers la gauche
 //     metiers: { creuse: 2 },   // les métiers du niveau et leur nombre :
-//                               // stop, pont, creuse, tunnel, grimpe, parapluie
+//                               // stop, pont, creuse, tunnel, grimpe, parapluie, echelle
 //     intro: 'ce que dit Plume au début',
 //     astuce: 'l’indice du bouton 💡',
 //     solution: [ … ],          // pour le pilote automatique (?debug) : voir plus bas
@@ -37,6 +38,11 @@
 //   - une chute de plus de 70 pixels (4 cubes et un peu) est perdue, sauf avec un parapluie ;
 //   - l'entrée doit être à 4 cubes au plus au-dessus du sol (sinon les Pompons se perdent en sortant) ;
 //   - un Pont = 12 briques : il avance de 3 cubes et monte d'un cube et demi ;
+//   - une Échelle se pose contre un mur (pour monter) ou au bord d'un trou (pour
+//     descendre), à 1 cube et demi devant le Pompon au plus ; elle mesure 7 cubes
+//     au plus, et le sol doit être juste en dessous du bord. Elle marche dans les
+//     deux sens : tous ceux qui arrivent en bas montent, tous ceux qui arrivent
+//     en haut descendent ;
 //   - les bords gauche et droit du plan sont des murs, le bas est le vide.
 //
 // La solution : une liste d'étapes { p, metier, x?, y?, etat?, tick? }.
@@ -49,13 +55,14 @@
 //
 // POUR AJOUTER UN MONDE : ajoute une entrée dans WORLDS ci-dessous (couleurs
 // du terrain dans « theme », décor de fond dans « fond » : prairie, foret,
-// grotte ou montagne, voir art.js drawBackground).
+// grotte, montagne ou volcan, voir art.js drawBackground).
 // ============================================================================
 
 import prairie from './prairie.js';
 import foret from './foret.js';
 import grotte from './grotte.js';
 import montagne from './montagne.js';
+import volcan from './volcan.js';
 
 export const WORLDS = [
   {
@@ -118,10 +125,25 @@ export const WORLDS = [
     },
     niveaux: montagne,
   },
+  {
+    id: 'volcan',
+    nom: 'Le Volcan',
+    icone: '🌋',
+    histoire: 'Au cœur d’un immense volcan, des rivières de lave coulent partout. Avec le nouveau métier Échelle, il faudra monter, descendre… et ne jamais tomber dans le feu !',
+    theme: {
+      fond: 'volcan', braise: true,
+      ciel: ['#1A0404', '#6B1A08'],
+      terre: '#4A3634', terreFonce: '#2C1E1E', caillou: '#7A5A50',
+      herbe: '#5C2A1E', herbeClaire: '#9C4428',
+      roche: '#3E3A44', rocheFonce: '#1E1B24', contour: '#120808',
+      eau: '#FF7A1A',
+    },
+    niveaux: volcan,
+  },
 ];
 
 /* la suite, annoncée à la fin du dernier monde */
-export const BIENTOT = { icone: '🌋', nom: 'Le Volcan', texte: 'Bientôt : le Volcan, avec de la lave et un nouveau métier !' };
+export const BIENTOT = { icone: '❓', nom: 'La suite…', texte: 'Bientôt : de nouveaux mondes à explorer !' };
 
 /* tous les niveaux à la suite, avec leur monde */
 export const LEVELS = WORLDS.flatMap((w, wi) => w.niveaux.map((lv, li) => ({ ...lv, world: w, wi, li })));
