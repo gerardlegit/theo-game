@@ -50,10 +50,11 @@
 //   - un Toboggan se pose au bord d'un trou et descend en diagonale (on avance
 //     autant qu'on descend, 10 cubes au plus) jusqu'au premier sol ; on ne le
 //     prend que dans un sens : vers le bas ;
-//   - un clown gobe tout Pompon qui arrive sur lui. Une Friandise part en cloche
-//     (environ 9 cubes sur du plat, bien plus loin si on la lance d'en haut) ;
-//     si elle touche un clown, il s'envole en confettis. Les clowns ne tombent
-//     jamais : ils font demi-tour aux bords, aux murs et devant l'eau ou la lave ;
+//   - un clown gobe tout Pompon qui arrive sur lui. Une Friandise part en cloche,
+//     rebondit puis roule tout droit (en descendant les marches et les bords)
+//     jusqu'à toucher un clown, un mur, de l'eau ou de la lave ; si elle touche
+//     un clown, il s'envole en confettis. Les clowns ne tombent jamais : ils font
+//     demi-tour aux bords, aux murs et devant l'eau ou la lave ;
 //   - les bords gauche et droit du plan sont des murs, le bas est le vide.
 //
 // La solution : une liste d'étapes { p, metier, x?, y?, etat?, tick? }.

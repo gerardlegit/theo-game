@@ -57,7 +57,7 @@ export const SKILLS = [
   {
     id: 'friandise', nom: 'Friandise', touche: '8',
     court: 'Il lance une friandise sur un méchant clown.',
-    comment: 'Le Pompon lance une friandise droit devant lui, en cloche. Si elle touche un méchant clown, pouf ! le clown s’envole en confettis. Sur du plat, elle va à 9 cubes ; lancée d’en haut, elle va bien plus loin. Un mur l’arrête.',
+    comment: 'Le Pompon lance une friandise droit devant lui. Elle rebondit, puis roule tout droit jusqu’à toucher un méchant clown… ou un mur. Pouf ! le clown s’envole en confettis. Attention : l’eau et la lave l’arrêtent aussi.',
     fait: 'Il y a plus de 3 000 ans, en Égypte, on faisait déjà des friandises avec du miel, des dattes et des noix !',
     icone: '🍬',
   },
@@ -96,7 +96,7 @@ export const PLUME = {
   slideBlocked: 'Un mur gêne : le toboggan ne peut pas descendre par là.',
   slide: ['Wiiii ! Un toboggan ! On avance autant qu’on descend.', 'Le toboggan est posé : tout le monde glisse !'],
   clownDown: ['Pouf ! Le clown s’envole en confettis !', 'Bien visé ! Un clown de moins.'],
-  candyMiss: 'Raté ! La friandise doit retomber pile sur le clown. Lance-la plus tôt ou plus tard.',
+  candyMiss: 'Raté ! Un mur ou de l’eau a arrêté la friandise. Lance-la du bon côté, sans obstacle devant le clown.',
   rockAssign: 'Hou là ! C’est de la roche grise : impossible de la creuser.',
   rock: ['Bong ! La roche grise est trop dure.', 'Aïe, ça cogne ! La roche ne se creuse pas.'],
   bricksDone: ['Plus de briques ! Redonne-lui le métier Pont pour continuer.', 'Il hausse les épaules : son escalier est fini.'],

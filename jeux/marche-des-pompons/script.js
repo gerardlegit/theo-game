@@ -467,6 +467,7 @@ function handleEvent(e) {
       break;
     case 'slideOn': sfx.whee(); break;
     case 'throw': sfx.throw(); break;
+    case 'candyBounce': sfx.tick(); burst(e.x, e.y, '#FFFFFF', 'dust'); break;
     case 'clownDown':
       sfx.pouf();
       shake = Math.max(shake, 0.15);

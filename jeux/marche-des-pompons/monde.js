@@ -32,7 +32,9 @@ const LADDER_TICKS = 14;           // le temps de dresser l'échelle
 const CLOWN_EVERY = 2;             // un clown avance d'un pixel tous les 2 pas (deux fois moins vite qu'un Pompon)
 const CHEW_TICKS = 36;             // il mâche un moment après avoir gobé un Pompon
 const THROW_TICKS = 12;
-const CANDY_VX = 3.5, CANDY_VY = -1.5, CANDY_G = 0.08;   // une friandise part en cloche : environ 9 cubes sur du plat
+const CANDY_VX = 3.5, CANDY_VY = -1.5, CANDY_G = 0.08;   // une friandise part en cloche…
+const CANDY_ROLL = 3;              // … rebondit, puis roule tout droit jusqu'à un clown ou un mur
+const CANDY_LIFE = 900;            // (30 secondes au plus)
 const SLIDE_TICKS = 14;
 export const MAX_SLIDE = 160;      // un toboggan descend de 10 cubes au plus (et avance d'autant)
 const SAVE_ANIM = 24;
@@ -322,12 +324,51 @@ export function createWorld(level) {
     }
     if (p.work >= THROW_TICKS) p.state = p.after || 'marche';
   }
+  const candyStops = (k, why) => { k.alive = false; ev('candyLand', null, { x: k.x, y: Math.min(k.y, H), why }); };
+  /* la friandise touche le terrain : un mur l'arrête, un sol la fait rebondir, puis rouler */
+  function bounceCandy(k) {
+    const rx = Math.round(k.x);
+    const ry = Math.round(k.y);
+    if (rx < 0 || rx >= W) { candyStops(k, 'mur'); return; }
+    if (ry > H + 20 || k.t > CANDY_LIFE) { candyStops(k, 'vide'); return; }
+    if (danger(rx, ry)) { candyStops(k, 'eau'); return; }
+    if (!solid(rx, ry)) return;
+    const dir = Math.sign(k.vx) || 1;
+    /* on regarde le sol à cet endroit : une petite marche, on monte dessus ; plus haut, c'est un mur */
+    let up = 0;
+    while (up <= STEP + 1 && solid(rx, ry - up)) up++;
+    const sideways = solid(rx, Math.round(k.y - k.vy)) && !solid(rx - dir * 4, Math.round(k.y - k.vy));
+    if (sideways && up > STEP) { candyStops(k, 'mur'); return; }
+    k.y = ry - up;
+    if (k.rolling || Math.abs(k.vy) < 1.2) {
+      k.rolling = true;
+      k.vy = 0;
+      k.vx = dir * CANDY_ROLL;
+    } else {
+      k.vy = -Math.abs(k.vy) * 0.5;
+      k.vx = dir * Math.max(CANDY_ROLL, Math.abs(k.vx) * 0.9);
+      ev('candyBounce', null, { x: k.x, y: k.y });
+    }
+  }
   function moveCandies() {
     for (const k of w.candies) {
       k.t++;
-      k.x += k.vx;
-      k.y += k.vy;
-      k.vy += CANDY_G;
+      if (k.rolling) {
+        /* elle roule : elle suit le sol, et retombe si le sol s'arrête */
+        k.x += k.vx;
+        const rx = Math.round(k.x);
+        const ry = Math.round(k.y);
+        if (!solid(rx, ry + 1)) {
+          let d = 1;
+          while (d <= STEP && !solid(rx, ry + 1 + d)) d++;
+          if (d <= STEP) k.y += d;
+          else { k.rolling = false; k.vy = 0; }
+        }
+      } else {
+        k.x += k.vx;
+        k.y += k.vy;
+        k.vy += CANDY_G;
+      }
       for (const c of w.clowns) {
         if (c.state === 'pouf' || c.state === 'parti') continue;
         if (Math.abs(k.x - c.x) <= 9 && k.y >= c.y - 26 && k.y <= c.y + 1) {
@@ -338,19 +379,16 @@ export function createWorld(level) {
         }
       }
       if (!k.alive) continue;
-      const rx = Math.round(k.x);
-      const ry = Math.round(k.y);
-      if (rx < 0 || rx >= W || ry > H + 20 || k.t > 150 || solid(rx, ry)) {
-        k.alive = false;
-        ev('candyLand', null, { x: k.x, y: Math.min(k.y, H) });
-      }
+      bounceCandy(k);
     }
     w.candies = w.candies.filter((k) => k.alive);
   }
 
   /* ---------- Les méchants clowns ---------- */
   /* un Pompon qui arrive sur un clown se fait gober */
+  const onLadder = (p) => p.state === 'monte' || p.state === 'descend' || p.state === 'glisse';
   function eatenBy(p) {
+    if (onLadder(p)) return false;            // sur une échelle ou un toboggan, un clown ne peut pas l'attraper
     for (const c of w.clowns) {
       if (c.state === 'pouf' || c.state === 'parti') continue;
       if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
@@ -389,7 +427,7 @@ export function createWorld(level) {
       else if (!c.still && c.anim % CLOWN_EVERY === 0) clownStep(c);
       /* un clown qui avance sur un Pompon le gobe aussi */
       for (const p of w.pompons) {
-        if (p.state === 'parti' || p.state === 'sauve' || p.state === 'perdu') continue;
+        if (p.state === 'parti' || p.state === 'sauve' || p.state === 'perdu' || onLadder(p)) continue;
         if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
           c.state = 'mange'; c.work = CHEW_TICKS;
           lose(p, 'clown');
@@ -521,6 +559,7 @@ export function createWorld(level) {
     if (skill === 'grimpe') return p.grimpe ? 'already' : 'ok';
     if (skill === 'parapluie') return p.parapluie ? 'already' : 'ok';
     if (p.state === skill) return 'already';
+    if (skill === 'friandise' && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) return 'ok';   // on peut lancer depuis une échelle ou un toboggan
     if (!WORKABLE.includes(p.state)) return 'busy';
     if (skill === 'friandise') return 'ok';      // même un Stop peut lancer une friandise (et il reste un Stop)
     if (skill === 'tunnel') {
@@ -547,6 +586,14 @@ export function createWorld(level) {
     const why = w.canTake(p, skill);
     if (why !== 'ok') return why;
     w.skills[skill]--;
+    if (skill === 'friandise' && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) {
+      /* lancée depuis l'échelle ou le toboggan, vers le côté où l'on va arriver */
+      const d = p.state === 'glisse' ? p.slide.dir : p.state === 'monte' ? p.ladder.up : -p.ladder.up;
+      w.candies.push({ x: p.x + d * 4, y: p.y - 10, vx: CANDY_VX * d, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id });
+      ev('assign', p, { skill });
+      ev('throw', p);
+      return 'ok';
+    }
     p.prev = p.state;
     if (skill === 'grimpe') p.grimpe = true;
     else if (skill === 'parapluie') p.parapluie = true;
