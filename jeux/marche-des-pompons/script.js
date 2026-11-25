@@ -14,7 +14,7 @@
 // niveau N, et window.__pom donne verifie(), auto(), niveau(i)…
 // ============================================================================
 
-import { createWorld, playSolution, TICK_RATE } from './monde.js';
+import { createWorld, playSolution, stepReady, TICK_RATE } from './monde.js';
 import { TILE, TS, createTerrainPainter } from './terrain.js';
 import {
   drawPompon, drawEntrance, drawHome, drawWater, drawThorns, buildDecor, drawDecor, drawBigDecor,
@@ -215,7 +215,8 @@ function loadLevel(i) {
   renderGoal();
   renderHud(true);
   $('finishBtn').hidden = true;
-  const sk = SKILLS.find((s) => LV.metiers[s.id] > 0);
+  /* sur la Lune, on commence par les chaussures */
+  const sk = LV.apesanteur && LV.metiers.chaussures ? SKILL_BY_ID.chaussures : SKILLS.find((s) => LV.metiers[s.id] > 0);
   selectSkill(sk ? sk.id : null, true);
 }
 
@@ -287,7 +288,7 @@ function buildSkillBar() {
     count.className = 'sk-count';
     const kbd = document.createElement('kbd');
     kbd.className = 'desktop-only';
-    kbd.textContent = String(SKILLS.indexOf(s) + 1);
+    kbd.textContent = String(skillsEl.children.length + 1);   // les touches suivent l'ordre de la barre
     b.append(cv, name, count, kbd);
     b.addEventListener('click', (e) => {
       e.currentTarget.blur();
@@ -472,16 +473,21 @@ function handleEvent(e) {
       sfx.pouf();
       shake = Math.max(shake, 0.15);
       for (let i = 0; i < 30; i++) burst(e.x, e.y - 16, POMPON_COLORS[i % POMPON_COLORS.length], i % 3 ? 'spark' : 'star');
-      floatText('Pouf !', e.x, e.y - 40, '#FFD45E');
-      say(pick(PLUME.clownDown), 2, 2600);
+      floatText(theme.fond === 'lune' ? 'Zioup !' : 'Pouf !', e.x, e.y - 40, '#FFD45E');
+      if (theme.fond === 'lune') sfx.zioup();
+      say(pick(theme.fond === 'lune' ? PLUME.alienDown : PLUME.clownDown), 2, 2600);
       buzz(20);
       break;
     case 'candyLand':
       for (let i = 0; i < 5; i++) burst(e.x, e.y - 1, POMPON_COLORS[i % POMPON_COLORS.length], 'spark');
-      if (W_.clowns.some((cl) => cl.state !== 'pouf' && cl.state !== 'parti')) sayOnce('candyMiss', PLUME.candyMiss, 1);
+      if (W_.clowns.some((cl) => cl.state !== 'pouf' && cl.state !== 'parti')) sayOnce('candyMiss', theme.fond === 'lune' ? PLUME.stoneMiss : PLUME.candyMiss, 1);
+      break;
+    case 'boots':
+      sfx.boots();
+      sayOnce('boots', PLUME.boots, 1);
       break;
     case 'chomp':
-      sfx.chomp();
+      if (e.kind === 'alien') sfx.zap(); else sfx.chomp();
       for (let i = 0; i < 6; i++) burst(e.x, e.y - 24, '#FFF3C9', 'dust');
       break;
     case 'assign':
@@ -568,7 +574,8 @@ const STATE_NAME = {
   marche: 'Marcheur', tombe: 'Il tombe !', grimpe: 'Grimpeur', stop: 'Stop', pont: 'Bâtisseur',
   tunnel: 'Tunnel', creuse: 'Creuseur', hausse: 'Il hausse les épaules',
   echelle: 'Il pose une échelle', monte: 'Il monte l’échelle', descend: 'Il descend l’échelle',
-  toboggan: 'Il pose un toboggan', glisse: 'Il glisse !', lance: 'Il lance une friandise',
+  toboggan: 'Il pose un toboggan', glisse: 'Il glisse !', lance: 'Il lance',
+  flotte: 'Il flotte… (des chaussures ?)', pioche: 'Il creuse en pente',
 };
 function render(now, dt) {
   const t = now / 1000;
@@ -814,6 +821,7 @@ function tapPompon(p) {
   else if (r === 'tooHigh') say(selected === 'toboggan' ? PLUME.slideHigh : PLUME.ladderHigh, 3, 3000);
   else if (r === 'blocked') say(selected === 'toboggan' ? PLUME.slideBlocked : PLUME.ladderBlocked, 3, 3000);
   else if (r === 'gone') say(PLUME.gone, 3, 2000);
+  else if (r === 'flotte') say(PLUME.flotte, 3, 2600);
 }
 
 const ptr = { down: false, id: null, x0: 0, y0: 0, cam0: 0, drag: false };
@@ -879,7 +887,8 @@ document.addEventListener('keydown', (e) => {
   if (anyOverlay() || mode !== 'play') return;
   keysHeld[e.code] = true;
   const n = Number(e.key);
-  if (n >= 1 && n <= SKILLS.length) { selectSkill(SKILLS[n - 1].id); e.preventDefault(); return; }
+  const btns = skillsEl.querySelectorAll('.skill-btn');
+  if (n >= 1 && n <= btns.length) { selectSkill(btns[n - 1].dataset.skill); e.preventDefault(); return; }
   if (e.code === 'Space') { setPaused(!paused); e.preventDefault(); }
   else if (e.code === 'KeyF') setFast(!fast);
   else if (e.code === 'KeyR') restart();
@@ -1146,10 +1155,10 @@ $('levelsClose').addEventListener('click', () => closeLevels());
 /* ---------- L'écran de départ et la carte des mondes ----------
    Un monde fini se rejoue quand on veut ; le monde où l'on en est s'ouvre au
    niveau à faire ; les mondes d'après restent fermés (tout est ouvert avec ?debug). */
-const MAP_POS = [[8, 70], [22, 30], [36, 70], [50, 30], [64, 70], [79, 30], [93, 70]];    // en % de la carte
+const MAP_POS = [[7, 70], [19, 30], [31, 70], [43, 30], [55, 70], [68, 30], [81, 70], [94, 30]];    // en % de la carte
 const MAP_DECOR = [
-  ['🌼', 2, 38], ['🌷', 15, 90], ['🌲', 13, 10], ['🍄', 29, 48], ['💎', 44, 90], ['🦇', 29, 88], ['❄️', 42, 10],
-  ['🏔️', 58, 10], ['🔥', 72, 92], ['🔥', 57, 92], ['🎈', 71, 10], ['🎪', 87, 12], ['🍭', 85, 52], ['☁️', 36, 12], ['✨', 98, 40],
+  ['🌼', 2, 38], ['🌷', 13, 90], ['🌲', 11, 10], ['🍄', 25, 48], ['💎', 38, 90], ['🦇', 25, 88], ['❄️', 37, 10],
+  ['🏔️', 50, 10], ['🔥', 62, 92], ['🔥', 49, 92], ['🎈', 61, 10], ['🎪', 75, 12], ['🍭', 74, 52], ['⭐', 88, 92], ['🛸', 90, 52], ['☁️', 31, 12],
 ];
 let mapSel = 0;
 const worldLevels = (wi) => LEVELS.filter((l) => l.wi === wi);
@@ -1162,7 +1171,7 @@ function worldState(wi) {
   return 'locked';
 }
 const worldStars = (wi) => worldLevels(wi).reduce((n, lv) => n + starsFor(lv, bestOf(lv)), 0);
-const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F0603A', '#FF6FB1', '#B9B4C8'];
+const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F0603A', '#FF6FB1', '#9AA0C0', '#B9B4C8'];
 
 function renderWorldMap() {
   const map = $('worldMap');
@@ -1419,10 +1428,7 @@ function applyAuto() {
     if (s.done) continue;
     const p = W_.pompons[s.p];
     if (!p) continue;
-    if (s.tick != null && W_.tick < s.tick) continue;
-    if ((s.x != null || s.y != null) && p.state !== (s.etat || 'marche')) continue;
-    if (s.x != null && p.x !== s.x) continue;
-    if (s.y != null && p.y !== s.y) continue;
+    if (!stepReady(s, p, W_)) continue;
     s.done = true;
     if (s.metier === 'libere') W_.free(p); else W_.assign(p, s.metier);
   }

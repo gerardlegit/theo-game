@@ -125,6 +125,12 @@ export const sfx = {
   }),
   /* on pose un toboggan, puis wiiii quand on glisse */
   slide: () => play(() => [60, 64, 67, 72].forEach((n, i) => tone(NOTE(n), i * 0.07, 0.1, { type: 'triangle', vol: 0.08 }))),
+  /* des bottes de Lune : clonk ! */
+  boots: () => play(() => { tone(140, 0, 0.12, { type: 'square', vol: 0.06, to: 90 }); tone(NOTE(72), 0.08, 0.15, { type: 'triangle', vol: 0.06, to: NOTE(60) }); }, 'boots', 80),
+  /* un extraterrestre attrape un Pompon : zap ! */
+  zap: () => play(() => { tone(1400, 0, 0.3, { type: 'sawtooth', vol: 0.05, to: 200 }); tone(NOTE(60), 0.25, 0.25, { type: 'square', vol: 0.04, to: NOTE(48) }); }, 'zap', 200),
+  /* un extraterrestre touché repart dans sa soucoupe : zioup ! */
+  zioup: () => play(() => { tone(300, 0, 0.5, { type: 'sine', vol: 0.12, to: 2400 }); [88, 91, 96].forEach((n, i) => tone(NOTE(n), 0.3 + i * 0.06, 0.15, { type: 'triangle', vol: 0.07 })); }),
   whee: () => play(() => tone(NOTE(84), 0, 0.5, { type: 'sine', vol: 0.06, to: NOTE(67) }), 'whee', 250),
   /* le volcan gronde */
   rumble: () => play(() => { noise(0, 1.8, { vol: 0.45, freq: 120, to: 60, q: 0.7, type: 'lowpass' }); tone(48, 0, 1.6, { type: 'sine', vol: 0.18, to: 36 }); }),

@@ -185,6 +185,12 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
   c.globalAlpha = alpha;
   c.translate(x, y);
   c.scale(scale, scale);
+  if (p.state === 'flotte') {
+    /* en apesanteur : il tourne doucement sur lui-même */
+    c.translate(0, -7);
+    c.rotate(Math.sin(t * 1.3 + p.id) * 0.5 + t * 0.4 * (p.id % 2 ? 1 : -1));
+    c.translate(0, 7);
+  }
   const cy = -7 - bob;
   const R = 6;
 
@@ -219,7 +225,17 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
       if (p.state === 'tombe') { fx = s * 2.4; fy = -1.6; }
       if (p.state === 'grimpe') { fx = dir * 2 + s * 1.5; fy = -1.5 + (s > 0 ? Math.sin(a * 0.6) : -Math.sin(a * 0.6)) * 1.2; }
       if (onLadder) { fx = s * 2.6; fy = -1.2 + (s > 0 ? Math.sin(a * 0.5) : -Math.sin(a * 0.5)) * 1.4; }
-      c.beginPath(); c.ellipse(fx, fy, 2.1, 1.2, 0, 0, TAU); c.fill(); c.stroke();
+      if (p.state === 'flotte') { fx = s * 3; fy = -0.5 + Math.sin(t * 3 + s + p.id) * 1.2; }
+      if (p.bottes) {
+        /* les grosses bottes de Lune */
+        c.fillStyle = '#EEF2FA';
+        c.beginPath(); c.roundRect(fx - 2.6, fy - 2.4, 5.2, 3.6, 1.2); c.fill(); c.stroke();
+        c.fillStyle = '#4F8FE8';
+        c.fillRect(fx - 2.6, fy - 1.1, 5.2, 0.9);
+        c.fillStyle = darken(col, 0.45);
+      } else {
+        c.beginPath(); c.ellipse(fx, fy, 2.1, 1.2, 0, 0, TAU); c.fill(); c.stroke();
+      }
     }
   }
 
@@ -231,7 +247,11 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
     c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
     mitt(c, x2, y2, '#FFFFFF');
   };
-  if (p.state === 'stop') {
+  if (p.state === 'flotte') {
+    const w = Math.sin(t * 2.5 + p.id) * 1.5;
+    arm(-4, cy, -9, cy - 3 + w);
+    arm(4, cy, 9, cy - 3 - w);
+  } else if (p.state === 'stop') {
     arm(-4, cy + 1, -10.5, cy - 1.5);
     arm(4, cy + 1, 10.5, cy - 1.5);
   } else if (p.state === 'hausse') {
@@ -319,13 +339,13 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
       c.strokeRect(-dir * 6 - 2, cy + 3 - i * 1.6, 4, 1.4);
     }
     mitt(c, dir * 4.2, cy + 1.3, '#FFFFFF', 1.3);
-  } else if (p.state === 'tunnel') {
+  } else if (p.state === 'tunnel' || p.state === 'pioche') {
     const k = (p.work % 8) / 8;
     const sw = Math.sin(k * TAU) * 0.9;
     c.save();
     c.translate(dir * 3, cy);
     c.scale(dir, 1);
-    c.rotate(-0.6 + sw);
+    c.rotate(-0.6 + sw + (p.state === 'pioche' ? 0.8 : 0));
     c.strokeStyle = '#7A4A22'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(0, 0); c.lineTo(8, 0); c.stroke();
     c.strokeStyle = INK; c.lineWidth = 1.6;
     c.beginPath(); c.moveTo(8, -3.5); c.quadraticCurveTo(10.5, 0, 8, 3.5); c.stroke();
@@ -360,7 +380,7 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
     const hx = dir * (-5 + k * 11);
     const hy = cy - 3 - Math.sin(k * Math.PI) * 6;
     mitt(c, hx, hy, '#FFFFFF', 1.4);
-    if (k < 1) drawCandy(c, { x: hx, y: hy - 2, t: 0, id: p.id }, t);
+    if (k < 1) drawCandy(c, { x: hx, y: hy - 2, t: 0, id: p.id, kind: p.projectile }, t);
   } else if (p.state === 'toboggan') {
     /* il déroule un petit bout de toboggan devant lui */
     const k = Math.min(1, (p.work || 0) / 14);
@@ -759,8 +779,107 @@ export function drawLadder(c, L, t, age) {
 }
 
 /* ---------- La Fête foraine : les méchants clowns ---------- */
+/* ---------- La Lune : les extraterrestres ---------- */
+function drawAlien(c, cl, t) {
+  const k = cl.state === 'pouf' ? Math.min(1, cl.work / 30) : 0;
+  c.save();
+  c.translate(cl.x, cl.y - k * 40);
+  c.globalAlpha = 1 - k;
+  const dir = cl.dir || -1;
+  const walk = cl.still || cl.state !== 'marche' ? 0 : Math.sin(cl.anim * 0.25);
+  const zap = cl.state === 'mange';
+  c.lineWidth = 0.9;
+  c.strokeStyle = INK;
+  /* l'ombre et la petite lumière sous les pieds */
+  c.fillStyle = 'rgba(120,255,160,0.25)';
+  c.beginPath(); c.ellipse(0, 0.3, 9, 1.8, 0, 0, TAU); c.fill();
+  /* les tentacules-pattes */
+  c.strokeStyle = INK; c.lineWidth = 2.6; c.lineCap = 'round';
+  for (const s of [-1, 0, 1]) {
+    const w = Math.sin(cl.anim * 0.3 + s * 2) * 1.5 + walk * s;
+    c.beginPath(); c.moveTo(s * 4, -8); c.quadraticCurveTo(s * 6 + w, -4, s * 6.5 + w, -0.5); c.stroke();
+  }
+  c.strokeStyle = '#4FD68A'; c.lineWidth = 1.5;
+  for (const s of [-1, 0, 1]) {
+    const w = Math.sin(cl.anim * 0.3 + s * 2) * 1.5 + walk * s;
+    c.beginPath(); c.moveTo(s * 4, -8); c.quadraticCurveTo(s * 6 + w, -4, s * 6.5 + w, -0.5); c.stroke();
+  }
+  /* le corps en forme de goutte */
+  const g = c.createRadialGradient(-3, -20, 2, 0, -15, 12);
+  g.addColorStop(0, '#B8FFCB'); g.addColorStop(1, '#3CBF6E');
+  c.fillStyle = g; c.strokeStyle = INK; c.lineWidth = 0.9;
+  c.beginPath();
+  c.moveTo(0, -30);
+  c.bezierCurveTo(9, -29, 10, -12, 7, -7);
+  c.lineTo(-7, -7);
+  c.bezierCurveTo(-10, -12, -9, -29, 0, -30);
+  c.closePath(); c.fill(); c.stroke();
+  /* les deux antennes qui clignotent */
+  for (const s of [-1, 1]) {
+    c.strokeStyle = INK; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(s * 3, -29); c.quadraticCurveTo(s * 6, -34, s * 5 + Math.sin(t * 4 + s) * 1, -37); c.stroke();
+    const on = Math.sin(t * 6 + s * 2 + cl.id) > 0;
+    c.fillStyle = on ? '#FF4FD8' : '#9A3A8A';
+    c.beginPath(); c.arc(s * 5 + Math.sin(t * 4 + s) * 1, -37.5, 1.6, 0, TAU); c.fill(); c.stroke();
+  }
+  /* un seul grand œil, avec un sourcil méchant */
+  const ex = dir * 1.5;
+  c.fillStyle = '#FFFFFF';
+  c.beginPath(); c.ellipse(ex, -20, 4.2, 4.6, 0, 0, TAU); c.fill(); c.stroke();
+  c.fillStyle = '#8B1E6E';
+  c.beginPath(); c.arc(ex + dir * 1.3, -19.6, 2, 0, TAU); c.fill();
+  c.fillStyle = '#FFFFFF';
+  c.beginPath(); c.arc(ex + dir * 1.3 - 0.7, -20.4, 0.6, 0, TAU); c.fill();
+  c.strokeStyle = INK; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(ex - 4.5, -26.5); c.lineTo(ex + 4.5, -24.2); c.stroke();
+  /* la bouche */
+  c.lineWidth = 0.8;
+  c.beginPath();
+  if (zap) { c.ellipse(ex, -11.5, 2.2, 1.6, 0, 0, TAU); c.fillStyle = '#2A0F3A'; c.fill(); }
+  else { c.moveTo(ex - 3, -12); c.quadraticCurveTo(ex, -10.4, ex + 3, -12.6); }
+  c.stroke();
+  /* le petit pistolet à rayons */
+  c.fillStyle = '#C9CBD4'; c.strokeStyle = INK; c.lineWidth = 0.6;
+  c.beginPath(); c.rect(dir * 7, -15, dir * 5, 2.4); c.fill(); c.stroke();
+  if (zap) {
+    /* zap : un rayon vert */
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(120,255,170,0.9)'; c.lineWidth = 2.4;
+    c.beginPath(); c.moveTo(dir * 12, -14); c.lineTo(dir * 26, -12 + Math.sin(t * 40) * 2); c.stroke();
+    c.globalCompositeOperation = 'source-over';
+  }
+  /* celui qui garde a un petit bouclier lumineux */
+  if (cl.still && cl.state !== 'pouf') {
+    c.strokeStyle = `rgba(120,255,200,${0.35 + Math.sin(t * 3) * 0.15})`;
+    c.lineWidth = 1.2;
+    c.beginPath(); c.arc(0, -17, 15, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+  }
+  c.restore();
+}
+
+/* une pierre de Lune qui roule */
+function drawStone(c, k) {
+  c.save();
+  c.translate(k.x, k.y - 1.5);
+  c.rotate(k.t * 0.3);
+  c.fillStyle = '#8E909C'; c.strokeStyle = INK; c.lineWidth = 0.6;
+  c.beginPath();
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * TAU;
+    const r = 3.4 + ((i * 37) % 5) * 0.25;
+    c.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#5E606C';
+  c.beginPath(); c.arc(1, 0.5, 1, 0, TAU); c.arc(-1.4, -1, 0.7, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.5)';
+  c.beginPath(); c.arc(-1, -1.8, 0.6, 0, TAU); c.fill();
+  c.restore();
+}
+
 export function drawClown(c, cl, t) {
   if (cl.state === 'parti') return;
+  if (cl.kind === 'alien') { drawAlien(c, cl, t); return; }
   const k = cl.state === 'pouf' ? Math.min(1, cl.work / 30) : 0;
   c.save();
   c.translate(cl.x, cl.y);
@@ -865,6 +984,7 @@ export function drawClown(c, cl, t) {
 /* une friandise qui vole en tournant */
 const CANDY_COLS = ['#FF6F91', '#7FD1FF', '#FFD45E', '#9BE58A'];
 export function drawCandy(c, k, t) {
+  if (k.kind === 'pierre') { drawStone(c, k); return; }
   c.save();
   c.translate(k.x, k.y);
   c.scale(1.4, 1.4);
@@ -948,6 +1068,7 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
   const cave = theme.fond === 'grotte';
   const volcan = theme.fond === 'volcan';
   const foire = theme.fond === 'foire';
+  const lune = theme.fond === 'lune';
   for (let x = 3; x < W - 3; x += 4) {
     for (let y = 1; y < H; y++) {
       const floor = solid(x, y) && !solid(x, y - 1);
@@ -963,6 +1084,11 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
       /* gros décor (arbres, rochers) sur les sols bien plats, à l'air libre */
       if (!inside && h > 0.965 && solid(x - 14, y) && solid(x + 14, y) && !solid(x - 14, y - 1) && !solid(x + 14, y - 1)) {
         big.push({ kind: theme.fond, x, y, s: 0.8 + hash(x, y, seed + 2) * 0.5, v: hash(x, y, seed + 3) });
+        continue;
+      }
+      if (lune) {
+        if (h < 0.14) list.push({ kind: 'pebble', x, y, v: hash(x, y, seed + 5) });
+        else if (h < 0.24) list.push({ kind: 'cratere', x, y, v: hash(x, y, seed + 6) });
         continue;
       }
       if (foire) {
@@ -1052,6 +1178,14 @@ export function drawDecor(c, list, solid, theme, t) {
         }
         break;
       }
+      case 'cratere': {
+        const r = 2.5 + d.v * 3;
+        c.fillStyle = 'rgba(40,42,56,0.45)';
+        c.beginPath(); c.ellipse(x, y - 0.2, r, r * 0.3, 0, 0, TAU); c.fill();
+        c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 0.4;
+        c.beginPath(); c.ellipse(x, y - 0.2, r, r * 0.3, 0, Math.PI, TAU); c.stroke();
+        break;
+      }
       case 'confetti': {
         for (let i = 0; i < 4; i++) {
           c.fillStyle = POMPON_COLORS[Math.floor((d.v * 7 + i) % POMPON_COLORS.length)];
@@ -1127,6 +1261,15 @@ export function drawBigDecor(c, big, solid, theme, t) {
         c.beginPath(); c.moveTo(-w, yy); c.lineTo(0, yy - 10); c.lineTo(w, yy); c.closePath(); c.fillStyle = '#2F6F55'; c.fill(); c.stroke();
         c.beginPath(); c.moveTo(-w * 0.6, yy - 4); c.lineTo(0, yy - 10); c.lineTo(w * 0.6, yy - 4); c.quadraticCurveTo(0, yy - 6, -w * 0.6, yy - 4); c.fillStyle = '#FFFFFF'; c.fill();
       }
+    } else if (d.kind === 'lune') {
+      /* le drapeau des Pompons, planté sur la Lune */
+      c.fillStyle = '#C9CBD4';
+      c.fillRect(-0.6, -26, 1.2, 26);
+      c.strokeRect(-0.6, -26, 1.2, 26);
+      c.fillStyle = POMPON_COLORS[Math.floor(d.v * POMPON_COLORS.length)];
+      c.beginPath(); c.rect(0.6, -26, 13, 8); c.fill(); c.stroke();
+      c.fillStyle = '#FFFFFF';
+      c.beginPath(); c.arc(7, -22, 2.4, 0, TAU); c.fill();
     } else if (d.kind === 'foire') {
       /* un réverbère de fête, avec ses fanions */
       c.fillStyle = '#3A1E52';
@@ -1287,6 +1430,71 @@ export function drawBackground(c, theme, camX, z, W, H, t) {
     };
     layer(0.12, '#8CCBA9', H * 0.8, 120 * s, 1, 200 * s);
     layer(0.25, '#5FAE84', H * 0.92, 150 * s, 2, 220 * s);
+  } else if (kind === 'lune') {
+    /* l'espace : des étoiles partout, la Terre qui se lève, des montagnes grises */
+    for (let i = 0; i < 120; i++) {
+      const x = ((hash(i, 101) * W * 1.5 - camX * z * 0.02) % W + W) % W;
+      const y = hash(i, 102) * H * 0.9;
+      const a = 0.4 + Math.sin(t * (1 + hash(i, 103) * 2) + i) * 0.35;
+      c.fillStyle = `rgba(255,255,255,${a})`;
+      const r = hash(i, 104) < 0.1 ? 1.6 : 0.9;
+      c.fillRect(x, y, r * s * 0.8, r * s * 0.8);
+    }
+    /* la Terre */
+    const ex = W * 0.78 - camX * z * 0.02;
+    const ey = H * 0.22;
+    const er = 46 * s;
+    const glow = c.createRadialGradient(ex, ey, er * 0.8, ex, ey, er * 1.6);
+    glow.addColorStop(0, 'rgba(120,190,255,0.35)'); glow.addColorStop(1, 'rgba(120,190,255,0)');
+    c.fillStyle = glow;
+    c.beginPath(); c.arc(ex, ey, er * 1.6, 0, TAU); c.fill();
+    c.save();
+    c.beginPath(); c.arc(ex, ey, er, 0, TAU); c.clip();
+    c.fillStyle = '#2E7BD6'; c.fillRect(ex - er, ey - er, er * 2, er * 2);
+    c.fillStyle = '#4FBF6A';
+    const rot = t * 0.02;
+    for (const [dx, dy, rx, ry] of [[-0.3, -0.2, 0.35, 0.22], [0.25, 0.15, 0.3, 0.25], [-0.1, 0.45, 0.25, 0.12], [0.45, -0.45, 0.18, 0.12]]) {
+      c.beginPath(); c.ellipse(ex + ((dx + rot + 1.5) % 2 - 1) * er, ey + dy * er, rx * er, ry * er, 0.4, 0, TAU); c.fill();
+    }
+    c.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const [dx, dy, rx] of [[-0.5, 0.1, 0.4], [0.2, -0.35, 0.35], [0.1, 0.3, 0.3]]) {
+      c.beginPath(); c.ellipse(ex + ((dx + rot * 1.6 + 1.5) % 2 - 1) * er, ey + dy * er, rx * er, 0.07 * er, 0, 0, TAU); c.fill();
+    }
+    /* la nuit sur une moitié de la Terre */
+    const sh = c.createLinearGradient(ex - er, 0, ex + er, 0);
+    sh.addColorStop(0, 'rgba(3,4,12,0)'); sh.addColorStop(0.55, 'rgba(3,4,12,0.15)'); sh.addColorStop(1, 'rgba(3,4,12,0.8)');
+    c.fillStyle = sh; c.fillRect(ex - er, ey - er, er * 2, er * 2);
+    c.restore();
+    /* une étoile filante de temps en temps */
+    const sk = (t * 0.13) % 1;
+    if (sk < 0.08) {
+      const sx = W * (0.1 + hash(Math.floor(t * 0.13), 105) * 0.6) + sk * 900 * s;
+      const sy = H * 0.1 + sk * 300 * s;
+      c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx - 40 * s, sy - 14 * s); c.stroke();
+    }
+    /* les montagnes de la Lune, avec leurs cratères */
+    peaks(c, W, H, H * 0.86, 150 * s, 170 * s, camX * z * 0.1, '#3E4152', '#6E7180', 71);
+    hills(c, W, H, H * 0.9, 40 * s, 140 * s, camX * z * 0.22, '#55586A', 72);
+    const off = camX * z * 0.22;
+    for (let i = Math.floor(off / (90 * s)) - 1; i <= Math.ceil((off + W) / (90 * s)) + 1; i++) {
+      const cx = i * 90 * s - off + hash(i, 73) * 40 * s;
+      const cy = H * 0.94 + hash(i, 74) * H * 0.04;
+      c.fillStyle = 'rgba(30,32,44,0.55)';
+      c.beginPath(); c.ellipse(cx, cy, (10 + hash(i, 75) * 14) * s, (3 + hash(i, 76) * 3) * s, 0, 0, TAU); c.fill();
+    }
+    /* une soucoupe d'extraterrestres qui passe au loin */
+    const uk = (t * 0.04) % 1;
+    const ux = -80 + uk * (W + 160);
+    const uy = H * 0.3 + Math.sin(t * 1.5) * 10;
+    c.fillStyle = '#9AA0B8';
+    c.beginPath(); c.ellipse(ux, uy, 22 * s * 0.6, 6 * s * 0.6, 0, 0, TAU); c.fill();
+    c.fillStyle = 'rgba(160,255,200,0.8)';
+    c.beginPath(); c.ellipse(ux, uy - 4 * s * 0.6, 9 * s * 0.6, 6 * s * 0.6, 0, Math.PI, TAU); c.fill();
+    for (let i = 0; i < 3; i++) {
+      c.fillStyle = Math.floor(t * 4 + i) % 2 ? '#FF4FD8' : '#FFD45E';
+      c.beginPath(); c.arc(ux + (i - 1) * 9 * s * 0.6, uy + 2, 1.6, 0, TAU); c.fill();
+    }
   } else if (kind === 'foire') {
     /* le soir à la fête foraine : étoiles, grande roue, chapiteaux, guirlandes */
     for (let i = 0; i < 40; i++) {
@@ -1559,7 +1767,7 @@ export function drawSkillIcon(cv, skill) {
   const k = S / 30;
   c.save();
   c.scale(k, k);
-  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4, echelle: 2, friandise: 0, toboggan: 3 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
+  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4, echelle: 2, friandise: 0, toboggan: 3, chaussures: 4, pioche: 5, pierre: 1 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
   if (skill === 'stop') p.state = 'stop';
   if (skill === 'pont') {
     p.state = 'pont';
@@ -1584,6 +1792,16 @@ export function drawSkillIcon(cv, skill) {
     c.strokeStyle = INK; c.lineWidth = 0.6; c.strokeRect(22, 0, 8, 30);
   }
   if (skill === 'parapluie') { p.state = 'tombe'; p.parapluie = true; p.fall = 30; p.y = 30; }
+  if (skill === 'chaussures') { p.bottes = true; p.state = 'tombe'; p.y = 24; }
+  if (skill === 'pioche') {
+    p.state = 'pioche'; p.x = 12; p.y = 22;
+    c.fillStyle = '#A3A5B1'; c.beginPath(); c.moveTo(0, 25); c.lineTo(30, 25); c.lineTo(30, 30); c.lineTo(0, 30); c.fill();
+    c.fillStyle = '#4A4C5A'; c.beginPath(); c.moveTo(8, 22); c.lineTo(28, 30); c.lineTo(20, 30); c.lineTo(6, 25); c.fill();
+  }
+  if (skill === 'pierre') {
+    p.x = 9; p.state = 'lance'; p.work = 3; p.projectile = 'pierre';
+    drawStone(c, { x: 22, y: 13, t: 4 });
+  }
   if (skill === 'friandise') {
     p.x = 9; p.state = 'lance'; p.work = 3;
     drawCandy(c, { x: 22, y: 12, t: 4, id: 2 }, 0);
@@ -1599,7 +1817,7 @@ export function drawSkillIcon(cv, skill) {
     c.strokeStyle = INK; c.lineWidth = 0.6; c.strokeRect(22, 6, 8, 19);
     drawLadder(c, { x: 18.5, top: 9, bottom: 25, up: 1 }, 0, 2);
   }
-  if (skill !== 'creuse' && skill !== 'parapluie') {
+  if (skill !== 'creuse' && skill !== 'parapluie' && skill !== 'chaussures' && skill !== 'pioche') {
     c.fillStyle = '#58C46B'; c.fillRect(skill === 'toboggan' ? 18 : 0, 25, skill === 'tunnel' ? 20 : 30, 5);
   }
   drawPompon(c, p, 0.3);

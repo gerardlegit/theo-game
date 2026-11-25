@@ -1,15 +1,18 @@
 // ============================================================================
 // La simulation d'un niveau, sans aucun dessin : les Pompons tombent du
 // nuage, marchent tout droit, font leur métier (Stop, Pont, Creuseur, Tunnel,
-// Grimpeur, Parapluie, Échelle, Friandise, Toboggan), rentrent à la maison…
-// ou se perdent (dans l'eau, la lave, les ronces… ou dans la bouche d'un clown).
+// Grimpeur, Parapluie, Échelle, Friandise, Toboggan, Chaussures, Pioche,
+// Pierre), rentrent à la maison… ou se perdent (dans l'eau, la lave, les
+// ronces, dans la bouche d'un clown ou le rayon d'un extraterrestre).
+// Sur la Lune, ils flottent en apesanteur jusqu'à ce qu'on leur mette des
+// chaussures, et ils tombent doucement.
 // Tout avance par petits pas réguliers (30 par seconde), toujours de la même
 // façon : une même partie rejouée donne exactement le même résultat, ce qui
 // permet au pilote automatique (?debug) de vérifier les solutions des niveaux.
 // Le jeu (script.js) lit w.events pour les bruits, les étincelles et Plume.
 // ============================================================================
 
-import { parseLevel, makeQueries, VIDE, TERRE, ROCHE, BRIQUE, PLANCHE, EAU, RONCES, LAVE } from './terrain.js';
+import { parseLevel, makeQueries, hash, VIDE, TERRE, ROCHE, BRIQUE, PLANCHE, EAU, RONCES, LAVE } from './terrain.js';
 
 export const TICK_RATE = 30;       // pas de simulation par seconde
 
@@ -36,6 +39,12 @@ const CANDY_VX = 3.5, CANDY_VY = -1.5, CANDY_G = 0.08;   // une friandise part e
 const CANDY_ROLL = 3;              // … rebondit, puis roule tout droit jusqu'à un clown ou un mur
 const CANDY_LIFE = 900;            // (30 secondes au plus)
 const SLIDE_TICKS = 14;
+/* la Lune : on flotte, puis on tombe doucement */
+const FLOAT_SPEED = 0.8;           // vitesse d'un Pompon qui flotte en apesanteur
+const MOON_FALL_V = 2;             // on tombe moins vite…
+export const MOON_MAX_FALL = 120;  // … et on peut tomber de 7 cubes et demi sans se faire mal
+const MINE_TICKS = 3;              // la Pioche avance d'un pixel en diagonale tous les 3 pas
+const PROJECTILES = ['friandise', 'pierre'];
 export const MAX_SLIDE = 160;      // un toboggan descend de 10 cubes au plus (et avance d'autant)
 const SAVE_ANIM = 24;
 const LOST_ANIM = 70;
@@ -71,9 +80,13 @@ export function createWorld(level) {
     ladders: [],             // les échelles posées : { x, top, bottom, up }
     slides: [],              // les toboggans : { x0, top, x1, bottom, dir }
     candies: [],             // les friandises en vol
-    clowns: (T.clowns || []).map((c, i) => ({ id: i, x: c.x, y: c.y, dir: -1, still: c.still, state: 'marche', work: 0, anim: i * 11 })),
+    clowns: (T.clowns || []).map((c, i) => ({ id: i, x: c.x, y: c.y, dir: -1, still: c.still, kind: c.kind || 'clown', state: 'marche', work: 0, anim: i * 11 })),
   };
 
+  const LUNE = !!(level.world && level.world.theme && level.world.theme.lune);
+  const ZONE = level.apesanteur
+    ? { x0: level.apesanteur[0] * 16, y0: level.apesanteur[1] * 16, x1: (level.apesanteur[2] + 1) * 16, y1: (level.apesanteur[3] + 1) * 16 }
+    : null;
   const ev = (type, p, extra) => w.events.push({ type, p, x: p ? p.x : 0, y: p ? p.y : 0, ...extra });
 
   /* ---------- Changer le terrain ---------- */
@@ -177,11 +190,12 @@ export function createWorld(level) {
   }
 
   function fall(p) {
-    const v = p.parapluie && p.fall > FLOAT_OPEN ? FLOAT_V : FALL_V;
+    const v = LUNE ? MOON_FALL_V : p.parapluie && p.fall > FLOAT_OPEN ? FLOAT_V : FALL_V;
     for (let i = 0; i < v; i++) {
       if (solid(p.x, p.y)) {
-        const soft = p.parapluie && p.fall > FLOAT_OPEN;
-        if (p.fall > MAX_FALL && !soft) { lose(p, 'chute'); return; }
+        const soft = (p.parapluie && p.fall > FLOAT_OPEN) || p.doux;   // la première descente après les chaussures est toute douce
+        p.doux = false;
+        if (p.fall > (LUNE ? MOON_MAX_FALL : MAX_FALL) && !soft) { lose(p, 'chute'); return; }
         p.state = 'marche';
         if (p.fall > 8) ev('land', p, { soft });
         return;
@@ -316,10 +330,44 @@ export function createWorld(level) {
   }
 
   /* ---------- La Friandise ---------- */
+  /* ---------- L'apesanteur (la Lune) ---------- */
+  const bumps = (x, y) => solid(x, y) || solid(x, y - BODY_H) || solid(x - 6, y - 7) || solid(x + 6, y - 7);
+  function floatMove(p) {
+    /* de temps en temps, le Pompon part dans une autre direction, n'importe comment */
+    if (p.anim % 75 === 0) {
+      const a = hash(p.id, Math.floor(p.anim / 75), 17) * Math.PI * 2;
+      p.vx = Math.cos(a) * FLOAT_SPEED;
+      p.vy = Math.sin(a) * FLOAT_SPEED;
+    }
+    const nx = p.fx + p.vx;
+    if (nx < ZONE.x0 + 6 || nx > ZONE.x1 - 6 || bumps(Math.round(nx), Math.round(p.fy))) p.vx = -p.vx;
+    else p.fx = nx;
+    const ny = p.fy + p.vy;
+    if (ny < ZONE.y0 + BODY_H + 1 || ny > ZONE.y1 || bumps(Math.round(p.fx), Math.round(ny))) p.vy = -p.vy;
+    else p.fy = ny;
+    p.x = Math.round(p.fx);
+    p.y = Math.round(p.fy);
+    if (Math.abs(p.vx) > 0.05) p.dir = p.vx > 0 ? 1 : -1;
+  }
+
+  /* ---------- La Pioche : un tunnel en diagonale, vers le bas ---------- */
+  const rockDown = (p) => anyIn(p.x + p.dir, p.y - 8, p.x + p.dir * 7, p.y + 2, (k) => k === ROCHE);
+  function mine(p) {
+    p.work++;
+    if (p.work % MINE_TICKS !== 0) return;
+    if (rockDown(p)) { p.state = 'marche'; ev('rock', p); return; }
+    if (!anyIn(p.x + p.dir, p.y - BODY_H, p.x + p.dir * 12, p.y + 1, diggable)) { p.state = 'marche'; return; }
+    if (carve(p.x + p.dir, p.y - BODY_H, p.x + p.dir * 8, p.y) && p.work % 9 === 0) ev('bash', p);
+    p.x += p.dir;
+    p.y += 1;
+    if (!anyIn(p.x - 3, p.y, p.x + 3, p.y + 1, (k) => k !== VIDE)) { p.state = 'tombe'; p.fall = 0; return; }
+    checkFate(p);
+  }
+
   function throwCandy(p) {
     p.work++;
     if (p.work === 6) {
-      w.candies.push({ x: p.x + p.dir * 4, y: p.y - 10, vx: CANDY_VX * p.dir, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id });
+      w.candies.push({ x: p.x + p.dir * 4, y: p.y - 10, vx: CANDY_VX * p.dir, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id, kind: p.projectile || 'friandise' });
       ev('throw', p);
     }
     if (p.work >= THROW_TICKS) p.state = p.after || 'marche';
@@ -339,6 +387,12 @@ export function createWorld(level) {
     while (up <= STEP + 1 && solid(rx, ry - up)) up++;
     const sideways = solid(rx, Math.round(k.y - k.vy)) && !solid(rx - dir * 4, Math.round(k.y - k.vy));
     if (sideways && up > STEP) { candyStops(k, 'mur'); return; }
+    if (!sideways && k.vy < 0) {
+      /* un plafond (dans un tunnel) : elle rebondit dessus et retombe */
+      k.y -= k.vy;
+      k.vy = Math.abs(k.vy) * 0.3;
+      return;
+    }
     k.y = ry - up;
     if (k.rolling || Math.abs(k.vy) < 1.2) {
       k.rolling = true;
@@ -393,8 +447,8 @@ export function createWorld(level) {
       if (c.state === 'pouf' || c.state === 'parti') continue;
       if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
         c.state = 'mange'; c.work = CHEW_TICKS;
-        lose(p, 'clown');
-        ev('chomp', null, { x: c.x, y: c.y });
+        lose(p, c.kind);
+        ev('chomp', null, { x: c.x, y: c.y, kind: c.kind });
         return true;
       }
     }
@@ -427,11 +481,11 @@ export function createWorld(level) {
       else if (!c.still && c.anim % CLOWN_EVERY === 0) clownStep(c);
       /* un clown qui avance sur un Pompon le gobe aussi */
       for (const p of w.pompons) {
-        if (p.state === 'parti' || p.state === 'sauve' || p.state === 'perdu' || onLadder(p)) continue;
+        if (p.state === 'parti' || p.state === 'sauve' || p.state === 'perdu' || p.state === 'flotte' || onLadder(p)) continue;
         if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
           c.state = 'mange'; c.work = CHEW_TICKS;
-          lose(p, 'clown');
-          ev('chomp', null, { x: c.x, y: c.y });
+          lose(p, c.kind);
+          ev('chomp', null, { x: c.x, y: c.y, kind: c.kind });
         }
       }
     }
@@ -503,6 +557,7 @@ export function createWorld(level) {
     if (s === 'perdu') { if (++p.work > LOST_ANIM) p.state = 'parti'; return; }
     if (s === 'monte' || s === 'descend') { climbLadder(p); return; }
     if (s === 'glisse') { slide(p); return; }
+    if (s === 'flotte') { floatMove(p); return; }
     if (s !== 'tombe' && s !== 'grimpe' && !solid(p.x, p.y)) { p.state = 'tombe'; p.fall = 0; }
     switch (p.state) {
       case 'tombe': fall(p); return;
@@ -514,6 +569,7 @@ export function createWorld(level) {
       case 'echelle': raiseLadder(p); return;
       case 'toboggan': raiseSlide(p); return;
       case 'lance': throwCandy(p); return;
+      case 'pioche': mine(p); return;
       case 'hausse': if (++p.work > SHRUG_TICKS) p.state = 'marche'; return;
       case 'stop': return;
       default: return;
@@ -527,11 +583,18 @@ export function createWorld(level) {
     w.tick++;
     if (w.released < w.total && w.tick >= w.nextRelease && T.entree) {
       const id = w.released++;
-      w.pompons.push({
+      const p = {
         id, x: T.entree.x, y: T.entree.y, dir: level.dir || 1,
         state: 'tombe', fall: 0, work: 0, bricks: 0, anim: (id * 7) % 30,
         grimpe: false, parapluie: false, why: null,
-      });
+      };
+      if (ZONE) {
+        /* sur la Lune, il sort du nuage en flottant, dans une direction au hasard */
+        const a = hash(id, 0, 23) * Math.PI * 2;
+        Object.assign(p, { state: 'flotte', fx: p.x, fy: p.y + 8, vx: Math.cos(a) * FLOAT_SPEED, vy: Math.sin(a) * FLOAT_SPEED, anim: 1 });
+        p.y = Math.round(p.fy);
+      }
+      w.pompons.push(p);
       w.nextRelease += w.cadence;
       ev('release', w.pompons[id]);
     }
@@ -558,10 +621,16 @@ export function createWorld(level) {
     if (!(w.skills[skill] > 0)) return 'empty';
     if (skill === 'grimpe') return p.grimpe ? 'already' : 'ok';
     if (skill === 'parapluie') return p.parapluie ? 'already' : 'ok';
+    if (skill === 'chaussures') return p.state === 'flotte' ? 'ok' : p.bottes ? 'already' : 'busy';
+    if (p.state === 'flotte') return 'flotte';   // il faut d'abord lui mettre des chaussures
     if (p.state === skill) return 'already';
-    if (skill === 'friandise' && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) return 'ok';   // on peut lancer depuis une échelle ou un toboggan
+    if (PROJECTILES.includes(skill) && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) return 'ok';   // on peut lancer depuis une échelle ou un toboggan
     if (!WORKABLE.includes(p.state)) return 'busy';
-    if (skill === 'friandise') return 'ok';      // même un Stop peut lancer une friandise (et il reste un Stop)
+    if (PROJECTILES.includes(skill)) return 'ok';   // même un Stop peut lancer (et il reste un Stop)
+    if (skill === 'pioche') {
+      if (rockDown(p)) return 'rock';
+      if (!anyIn(p.x + p.dir, p.y - BODY_H, p.x + p.dir * 12, p.y + 1, diggable)) return 'nothing';
+    }
     if (skill === 'tunnel') {
       if (rockAhead(p)) return 'rock';
       if (!anyIn(p.x + p.dir, p.y - BODY_H, p.x + p.dir * 14, p.y - 1, diggable)) return 'nothing';
@@ -586,10 +655,16 @@ export function createWorld(level) {
     const why = w.canTake(p, skill);
     if (why !== 'ok') return why;
     w.skills[skill]--;
-    if (skill === 'friandise' && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) {
+    if (skill === 'chaussures') {
+      p.bottes = true; p.doux = true; p.state = 'tombe'; p.fall = 0; p.dir = p.vx >= 0 ? 1 : -1;
+      ev('assign', p, { skill });
+      ev('boots', p);
+      return 'ok';
+    }
+    if (PROJECTILES.includes(skill) && (p.state === 'monte' || p.state === 'descend' || p.state === 'glisse')) {
       /* lancée depuis l'échelle ou le toboggan, vers le côté où l'on va arriver */
       const d = p.state === 'glisse' ? p.slide.dir : p.state === 'monte' ? p.ladder.up : -p.ladder.up;
-      w.candies.push({ x: p.x + d * 4, y: p.y - 10, vx: CANDY_VX * d, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id });
+      w.candies.push({ x: p.x + d * 4, y: p.y - 10, vx: CANDY_VX * d, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id, kind: skill });
       ev('assign', p, { skill });
       ev('throw', p);
       return 'ok';
@@ -602,7 +677,7 @@ export function createWorld(level) {
       if (skill === 'pont') p.bricks = BRICKS;
       if (skill === 'echelle') p.plan = planLadder(p).L;
       if (skill === 'toboggan') p.plan = planSlide(p).S;
-      if (skill === 'friandise') { p.after = p.prev === 'stop' ? 'stop' : 'marche'; p.state = 'lance'; }
+      if (PROJECTILES.includes(skill)) { p.after = p.prev === 'stop' ? 'stop' : 'marche'; p.state = 'lance'; p.projectile = skill; }
     }
     ev('assign', p, { skill });
     return 'ok';
@@ -623,6 +698,19 @@ export function createWorld(level) {
    Chaque étape : { p, metier, x?, tick? } — le Pompon n° p (dans l'ordre de
    sortie) reçoit son métier quand il marche exactement en x (et pas avant le
    pas « tick »). « libere » remet un Stop en route. */
+/* une étape de solution est-elle prête ? (tick, x/y exacts dans l'état « etat »,
+   ou bien une zone xmin…xmax, pour les Pompons qui flottent sur la Lune) */
+export function stepReady(s, p, w) {
+  if (s.tick != null && w.tick < s.tick) return false;
+  if (s.etat && p.state !== s.etat) return false;
+  if ((s.x != null || s.y != null) && p.state !== (s.etat || 'marche')) return false;
+  if (s.x != null && p.x !== s.x) return false;
+  if (s.y != null && p.y !== s.y) return false;
+  if (s.xmin != null && (p.x < s.xmin || p.x > s.xmax)) return false;
+  if (s.ymin != null && (p.y < s.ymin || p.y > s.ymax)) return false;
+  return true;
+}
+
 export function playSolution(level, steps = level.solution || [], maxTicks = 20000) {
   const w = createWorld(level);
   const todo = steps.map((s) => ({ ...s, done: false }));
@@ -632,10 +720,7 @@ export function playSolution(level, steps = level.solution || [], maxTicks = 200
       if (s.done) continue;
       const p = w.pompons[s.p];
       if (!p) continue;
-      if (s.tick != null && w.tick < s.tick) continue;
-      if ((s.x != null || s.y != null) && p.state !== (s.etat || 'marche')) continue;
-      if (s.x != null && p.x !== s.x) continue;
-      if (s.y != null && p.y !== s.y) continue;
+      if (!stepReady(s, p, w)) continue;
       s.done = true;
       if (s.metier === 'libere') { if (!w.free(p)) fails.push({ ...s, why: 'pas un Stop' }); continue; }
       const r = w.assign(p, s.metier);

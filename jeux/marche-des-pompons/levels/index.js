@@ -20,9 +20,12 @@
 //         'L'  lave (une colonne fine de « L » fait une cascade de lave)
 //         'C'  un méchant clown qui se promène (posé sur le bas de la case)
 //         'K'  un méchant clown qui ne bouge pas (il garde un passage)
+//         'A'  un extraterrestre qui se promène, 'Y' un extraterrestre qui garde
 //         'E'  l'entrée : le nuage d'où tombent les Pompons
 //         'S'  la maison : la porte est posée sur le bas de la case
 //     difficulte: 'difficile',  // facultatif : 'difficile' ou 'tres-difficile' (affiché au joueur)
+//     apesanteur: [c0, r0, c1, r1], // facultatif : les Pompons y flottent en sortant du nuage,
+//                               // il faut leur mettre des Chaussures pour qu'ils tombent
 //     pompons: 10,              // combien sortent du nuage
 //     besoin: 6,                // combien doivent rentrer pour gagner
 //     etoiles: [6, 8, 10],      // ★, ★★, ★★★ (facultatif)
@@ -31,7 +34,7 @@
 //     dir: 1,                   // sens de départ : 1 = vers la droite, -1 = vers la gauche
 //     metiers: { creuse: 2 },   // les métiers du niveau et leur nombre :
 //                               // stop, pont, creuse, tunnel, grimpe, parapluie, echelle,
-//                               // friandise, toboggan
+//                               // friandise, toboggan, chaussures, pioche, pierre
 //     intro: 'ce que dit Plume au début',
 //     astuce: 'l’indice du bouton 💡',
 //     solution: [ … ],          // pour le pilote automatique (?debug) : voir plus bas
@@ -55,6 +58,9 @@
 //     jusqu'à toucher un clown, un mur, de l'eau ou de la lave ; si elle touche
 //     un clown, il s'envole en confettis. Les clowns ne tombent jamais : ils font
 //     demi-tour aux bords, aux murs et devant l'eau ou la lave ;
+//   - sur la Lune (theme.lune), on tombe doucement : 7 cubes et demi sans se faire mal.
+//     La Pioche creuse un tunnel en diagonale vers le bas (on avance d'autant qu'on
+//     descend) ; la Pierre se lance comme la Friandise et chasse les extraterrestres ;
 //   - les bords gauche et droit du plan sont des murs, le bas est le vide.
 //
 // La solution : une liste d'étapes { p, metier, x?, y?, etat?, tick? }.
@@ -67,7 +73,7 @@
 //
 // POUR AJOUTER UN MONDE : ajoute une entrée dans WORLDS ci-dessous (couleurs
 // du terrain dans « theme », décor de fond dans « fond » : prairie, foret,
-// grotte, montagne, volcan ou foire, voir art.js drawBackground).
+// grotte, montagne, volcan, foire ou lune, voir art.js drawBackground).
 // ============================================================================
 
 import prairie from './prairie.js';
@@ -76,6 +82,7 @@ import grotte from './grotte.js';
 import montagne from './montagne.js';
 import volcan from './volcan.js';
 import foire from './foire.js';
+import lune from './lune.js';
 
 export const WORLDS = [
   {
@@ -167,6 +174,21 @@ export const WORLDS = [
       eau: '#4FC3F2',
     },
     niveaux: foire,
+  },
+  {
+    id: 'lune',
+    nom: 'La Lune',
+    icone: '🌕',
+    histoire: 'Sur la Lune, les Pompons flottent dans tous les sens ! Mets-leur des chaussures pour qu’ils tombent au sol, creuse des tunnels tout droit ou en pente, construis des ponts et lance des pierres sur les extraterrestres. Que des niveaux très difficiles !',
+    theme: {
+      fond: 'lune', lune: true,
+      ciel: ['#03040C', '#18203E'],
+      terre: '#A3A5B1', terreFonce: '#6C6F7E', caillou: '#D3D5DE',
+      herbe: '#C9CBD4', herbeClaire: '#E8EAF0',
+      roche: '#4E5160', rocheFonce: '#2A2C38', contour: '#191B24',
+      eau: '#6FE3F2',
+    },
+    niveaux: lune,
   },
 ];
 

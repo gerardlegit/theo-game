@@ -80,6 +80,8 @@ export function parseLevel(level) {
         case 'E': entree = { x: x0 + TILE / 2, y: y0 + TILE / 2 }; break;
         case 'C': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: false }); break;
         case 'K': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: true }); break;
+        case 'A': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: false, kind: 'alien' }); break;
+        case 'Y': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: true, kind: 'alien' }); break;
         case 'S': sortie = { x: x0 + TILE / 2, y: y0 + TILE }; break;
         default: break;
       }
@@ -175,8 +177,8 @@ export function createTerrainPainter(T, theme, seed = 1) {
       return mix(mix(P.terre, P.terreFonce, Math.min(1, Math.max(0, shade + strata + (hash(cx, cy, seed + 3) - 0.5) * 0.3 + 0.15))), [0, 0, 0], n * 0.1);
     }
     if (k === ROCHE) {
-      /* au Volcan, la roche dure est de l'obsidienne : noire, brillante, sans joints */
-      if (theme.braise) {
+      /* au Volcan, la roche dure est de l'obsidienne (noire, brillante, sans joints) ; sur la Lune, du basalte */
+      if (theme.braise || theme.lune) {
         const v = smooth(x, y, 11, seed + 9);
         const shine = Math.abs(((x - y * 0.6) % 23 + 23) % 23 - 11) < 0.8 ? 0.25 : 0;
         return mix(mix(P.rocheFonce, P.roche, v), [200, 170, 255], shine + n * 0.05);
