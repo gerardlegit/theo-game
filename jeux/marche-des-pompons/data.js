@@ -54,6 +54,20 @@ export const SKILLS = [
     fait: 'Les pompiers ont de très grandes échelles sur leurs camions : certaines montent à plus de 30 mètres, aussi haut qu’un immeuble de 10 étages !',
     icone: '🔺',
   },
+  {
+    id: 'friandise', nom: 'Friandise', touche: '8',
+    court: 'Il lance une friandise sur un méchant clown.',
+    comment: 'Le Pompon lance une friandise droit devant lui, en cloche. Si elle touche un méchant clown, pouf ! le clown s’envole en confettis. Sur du plat, elle va à 9 cubes ; lancée d’en haut, elle va bien plus loin. Un mur l’arrête.',
+    fait: 'Il y a plus de 3 000 ans, en Égypte, on faisait déjà des friandises avec du miel, des dattes et des noix !',
+    icone: '🍬',
+  },
+  {
+    id: 'toboggan', nom: 'Toboggan', touche: '9',
+    court: 'Il pose un toboggan pour descendre en diagonale.',
+    comment: 'Tout près d’un bord, le Pompon pose un toboggan qui descend en diagonale jusqu’au premier sol. Tous ceux qui arrivent au bord glissent dessus, mais seulement vers le bas. Attention : on avance autant qu’on descend !',
+    fait: 'Dans les fêtes foraines anglaises, le « helter skelter » est une grande tour avec un toboggan qui tourne autour : on glisse assis sur un petit tapis !',
+    icone: '🎢',
+  },
 ];
 export const SKILL_BY_ID = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
 
@@ -77,6 +91,12 @@ export const PLUME = {
   ladderBlocked: 'Quelque chose gêne : l’échelle ne peut pas se dresser ici.',
   ladder: ['Et hop, une échelle ! Tout le monde va la prendre, dans les deux sens.', 'L’échelle est posée !'],
   rumble: ['Le volcan gronde…', 'Ça tremble ! Vite, vite !'],
+  slideNothing: 'Pour poser le toboggan, il faut être tout près d’un bord !',
+  slideHigh: 'Trop long ! Le toboggan ne trouve pas de sol en dessous.',
+  slideBlocked: 'Un mur gêne : le toboggan ne peut pas descendre par là.',
+  slide: ['Wiiii ! Un toboggan ! On avance autant qu’on descend.', 'Le toboggan est posé : tout le monde glisse !'],
+  clownDown: ['Pouf ! Le clown s’envole en confettis !', 'Bien visé ! Un clown de moins.'],
+  candyMiss: 'Raté ! La friandise doit retomber pile sur le clown. Lance-la plus tôt ou plus tard.',
   rockAssign: 'Hou là ! C’est de la roche grise : impossible de la creuser.',
   rock: ['Bong ! La roche grise est trop dure.', 'Aïe, ça cogne ! La roche ne se creuse pas.'],
   bricksDone: ['Plus de briques ! Redonne-lui le métier Pont pour continuer.', 'Il hausse les épaules : son escalier est fini.'],
@@ -89,6 +109,7 @@ export const PLUME = {
     ronces: ['Ouille, les ronces piquent !', 'Attention aux ronces !'],
     vide: ['Oh non, il est tombé dans le vide !'],
     lave: ['Ouille, la lave est brûlante ! Sa bulle le ramène au village.', 'Attention à la lave ! Il faut un chemin sans feu.'],
+    clown: ['Miam ! Le méchant clown l’a gobé… mais sa bulle le ramène au village. Vite, une friandise !', 'Oh non, un clown ! Lance-lui une friandise avant que les autres arrivent.'],
   },
   lostAfter: '(Pas d’inquiétude : sa bulle le ramène tout doucement au village.)',
   onlyStops: 'Il ne reste que ton Stop. Touche-le pour qu’il reparte, ou appuie sur « Terminer ».',

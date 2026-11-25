@@ -111,6 +111,21 @@ export const sfx = {
   }, 'lost', 150),
   /* une échelle qu'on pose : toc toc toc */
   ladder: () => play(() => [0, 0.08, 0.16, 0.26].forEach((d, i) => { tone(NOTE(64 + i * 3), d, 0.07, { type: 'triangle', vol: 0.09 }); noise(d, 0.05, { vol: 0.1, freq: 1800, q: 3 }); })),
+  /* une friandise qu'on lance : fiouuu */
+  throw: () => play(() => tone(NOTE(76), 0, 0.22, { type: 'sine', vol: 0.08, to: NOTE(91) }), 'throw', 80),
+  /* un clown gobe un Pompon : glouf ! puis un rire de méchant */
+  chomp: () => play(() => {
+    tone(180, 0, 0.12, { type: 'square', vol: 0.08, to: 90 });
+    [0.18, 0.32, 0.46].forEach((d, i) => tone(NOTE(55 - i * 2), d, 0.12, { type: 'sawtooth', vol: 0.05 }));
+  }, 'chomp', 200),
+  /* un clown touché : pouf, et des confettis qui tintent */
+  pouf: () => play(() => {
+    noise(0, 0.25, { vol: 0.25, freq: 900, to: 4000, q: 0.8 });
+    [84, 88, 91, 96].forEach((n, i) => tone(NOTE(n), 0.08 + i * 0.06, 0.18, { type: 'triangle', vol: 0.08 }));
+  }),
+  /* on pose un toboggan, puis wiiii quand on glisse */
+  slide: () => play(() => [60, 64, 67, 72].forEach((n, i) => tone(NOTE(n), i * 0.07, 0.1, { type: 'triangle', vol: 0.08 }))),
+  whee: () => play(() => tone(NOTE(84), 0, 0.5, { type: 'sine', vol: 0.06, to: NOTE(67) }), 'whee', 250),
   /* le volcan gronde */
   rumble: () => play(() => { noise(0, 1.8, { vol: 0.45, freq: 120, to: 60, q: 0.7, type: 'lowpass' }); tone(48, 0, 1.6, { type: 'sine', vol: 0.18, to: 36 }); }),
   /* Plume parle : « hou hou » */

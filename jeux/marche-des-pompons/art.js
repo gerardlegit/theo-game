@@ -170,6 +170,8 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
   } else if (p.state === 'grimpe') {
     mood = 'work';
     bob = Math.sin(a * 0.6) * 0.6;
+  } else if (p.state === 'glisse') {
+    mood = 'happy';
   } else if (p.state === 'monte' || p.state === 'descend') {
     mood = p.state === 'monte' ? 'up' : 'normal';
     bob = Math.sin(a * 0.5) * 0.5;
@@ -196,7 +198,7 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
 
   /* ombre */
   const onLadder = p.state === 'monte' || p.state === 'descend';
-  if (p.state !== 'tombe' && p.state !== 'perdu' && p.state !== 'grimpe' && !onLadder) {
+  if (p.state !== 'tombe' && p.state !== 'perdu' && p.state !== 'grimpe' && p.state !== 'glisse' && !onLadder) {
     c.beginPath(); c.ellipse(0, 0.2, 5, 1.2, 0, 0, TAU);
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.fill();
   }
@@ -347,6 +349,29 @@ export function drawPompon(c, p, t, { hover = false } = {}) {
     const k = Math.sin(a * 0.5);
     mitt(c, -4.2, cy - 6 + k * 1.6, '#FFFFFF', 1.4);
     mitt(c, 4.2, cy - 6 - k * 1.6, '#FFFFFF', 1.4);
+  } else if (p.state === 'glisse') {
+    /* les bras en l'air : wiiii ! */
+    const w = Math.sin(t * 16 + p.id) * 0.8;
+    mitt(c, -6, cy - 8 + w, '#FFFFFF', 1.4);
+    mitt(c, 6, cy - 8 - w, '#FFFFFF', 1.4);
+  } else if (p.state === 'lance') {
+    /* il lance la friandise : le bras part en arrière, puis en avant */
+    const k = Math.min(1, (p.work || 0) / 6);
+    const hx = dir * (-5 + k * 11);
+    const hy = cy - 3 - Math.sin(k * Math.PI) * 6;
+    mitt(c, hx, hy, '#FFFFFF', 1.4);
+    if (k < 1) drawCandy(c, { x: hx, y: hy - 2, t: 0, id: p.id }, t);
+  } else if (p.state === 'toboggan') {
+    /* il déroule un petit bout de toboggan devant lui */
+    const k = Math.min(1, (p.work || 0) / 14);
+    c.save();
+    c.translate(dir * 5, cy + 5);
+    for (let i = 0; i < 4; i++) {
+      c.fillStyle = i % 2 ? '#FFFFFF' : '#E8414E';
+      c.fillRect(dir * i * 3 * k, i * 3 * k, 3.2 * dir, 2.4);
+    }
+    c.restore();
+    mitt(c, dir * 4.5, cy + 1, '#FFFFFF', 1.3);
   } else if (p.state === 'echelle') {
     /* il dresse une petite échelle devant lui */
     const k = Math.min(1, (p.work || 0) / 14);
@@ -733,6 +758,184 @@ export function drawLadder(c, L, t, age) {
   c.restore();
 }
 
+/* ---------- La Fête foraine : les méchants clowns ---------- */
+export function drawClown(c, cl, t) {
+  if (cl.state === 'parti') return;
+  const k = cl.state === 'pouf' ? Math.min(1, cl.work / 30) : 0;
+  c.save();
+  c.translate(cl.x, cl.y);
+  c.globalAlpha = 1 - k;
+  c.scale(1 + k * 0.7, 1 + k * 0.7);
+  const dir = cl.dir || -1;
+  const walk = cl.still || cl.state !== 'marche' ? 0 : Math.sin(cl.anim * 0.22);
+  const chew = cl.state === 'mange';
+  const bob = Math.abs(walk) * 0.8;
+  c.lineWidth = 0.9;
+  c.strokeStyle = INK;
+  /* l'ombre */
+  c.fillStyle = 'rgba(0,0,0,0.25)';
+  c.beginPath(); c.ellipse(0, 0.3, 9, 1.6, 0, 0, TAU); c.fill();
+  /* les grandes chaussures */
+  for (const s of [-1, 1]) {
+    c.fillStyle = '#E8414E';
+    c.beginPath(); c.ellipse(s * 4 + dir * 1.5 + walk * s * 1.6, -1.6, 4.4, 2.1, 0, 0, TAU); c.fill(); c.stroke();
+  }
+  c.translate(0, -bob);
+  /* le pantalon bouffant à pois */
+  c.fillStyle = '#7B4FD6';
+  c.beginPath(); c.moveTo(-6, -11); c.lineTo(6, -11); c.lineTo(7, -3); c.lineTo(-7, -3); c.closePath(); c.fill(); c.stroke();
+  /* le ventre rond à pois */
+  c.fillStyle = '#9B6BF2';
+  c.beginPath(); c.ellipse(0, -14, 7.5, 7, 0, 0, TAU); c.fill(); c.stroke();
+  c.fillStyle = '#FFD45E';
+  for (const [px, py] of [[-3, -16], [3, -13], [-1, -10], [4, -18], [-5, -6], [3, -6]]) { c.beginPath(); c.arc(px, py, 1.1, 0, TAU); c.fill(); }
+  /* les bras qui se balancent, avec des gants blancs */
+  for (const s of [-1, 1]) {
+    const sw = walk * s * 2 + (chew ? -3 : 0);
+    c.strokeStyle = INK; c.lineWidth = 2.6; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(s * 6, -17); c.lineTo(s * 9.5, -11 + sw); c.stroke();
+    c.strokeStyle = '#9B6BF2'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(s * 6, -17); c.lineTo(s * 9.5, -11 + sw); c.stroke();
+    c.fillStyle = '#FFFFFF'; c.strokeStyle = INK; c.lineWidth = 0.7;
+    c.beginPath(); c.arc(s * 10, -10.5 + sw, 2, 0, TAU); c.fill(); c.stroke();
+  }
+  /* la collerette */
+  c.fillStyle = '#FFFFFF'; c.strokeStyle = INK; c.lineWidth = 0.6;
+  c.beginPath();
+  for (let i = 0; i <= 12; i++) {
+    const a = (i / 12) * TAU;
+    const r = i % 2 ? 7.5 : 5.5;
+    c.lineTo(Math.cos(a) * r, -21 + Math.sin(a) * r * 0.35);
+  }
+  c.closePath(); c.fill(); c.stroke();
+  /* les cheveux verts en touffes */
+  c.fillStyle = '#3ED68A';
+  for (const s of [-1, 1]) for (const [hx, hy, r] of [[7.5, -29, 2.6], [8.5, -26, 2.4], [6.5, -32, 2.2]]) {
+    c.beginPath(); c.arc(s * hx, hy, r, 0, TAU); c.fill(); c.stroke();
+  }
+  /* la tête */
+  c.fillStyle = '#FFF6EE'; c.lineWidth = 0.9;
+  c.beginPath(); c.arc(0, -28, 6.5, 0, TAU); c.fill(); c.stroke();
+  /* le petit chapeau pointu */
+  c.save();
+  c.translate(0, -34);
+  c.rotate(-dir * 0.25);
+  c.fillStyle = '#FF6F91';
+  c.beginPath(); c.moveTo(-3.5, 0); c.lineTo(0, -8); c.lineTo(3.5, 0); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#FFD45E';
+  c.beginPath(); c.arc(0, -8.5, 1.6, 0, TAU); c.fill(); c.stroke();
+  c.restore();
+  /* le visage méchant (mais rigolo) */
+  const fx = dir * 1.2;
+  c.strokeStyle = INK; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(fx - 4.2, -32); c.lineTo(fx - 1.2, -30.3); c.moveTo(fx + 4.2, -32); c.lineTo(fx + 1.2, -30.3); c.stroke();
+  c.fillStyle = '#FFFFFF';
+  for (const s of [-1, 1]) { c.beginPath(); c.ellipse(fx + s * 2.4, -29.2, 1.5, 1.2, 0, 0, TAU); c.fill(); c.stroke(); }
+  c.fillStyle = '#B8143A';
+  for (const s of [-1, 1]) { c.beginPath(); c.arc(fx + s * 2.4 + dir * 0.4, -29.1, 0.7, 0, TAU); c.fill(); }
+  /* la bouche : un grand sourire, ou grande ouverte quand il mâche */
+  const open = chew ? 2.5 + Math.abs(Math.sin(cl.anim * 0.5)) * 2 : 0;
+  c.fillStyle = '#7A1430';
+  c.beginPath();
+  c.moveTo(fx - 4.2, -25.6);
+  c.quadraticCurveTo(fx, -22.4 + open, fx + 4.2, -25.6);
+  c.quadraticCurveTo(fx, -24.4 - open * 0.3, fx - 4.2, -25.6);
+  c.fill(); c.stroke();
+  if (!chew) {
+    c.fillStyle = '#FFFFFF';
+    for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(fx + i * 1.8 - 0.7, -25); c.lineTo(fx + i * 1.8, -23.8); c.lineTo(fx + i * 1.8 + 0.7, -25); c.fill(); }
+  }
+  /* le nez rouge */
+  c.fillStyle = '#FF2E4D';
+  c.beginPath(); c.arc(fx + dir * 0.6, -27.3, 1.9, 0, TAU); c.fill(); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,0.7)';
+  c.beginPath(); c.arc(fx + dir * 0.6 - 0.6, -28, 0.6, 0, TAU); c.fill();
+  /* un clown qui ne bouge pas tient un panneau « défendu » */
+  if (cl.still && cl.state !== 'pouf') {
+    c.strokeStyle = INK; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(-dir * 11, -11); c.lineTo(-dir * 11, -27); c.stroke();
+    c.fillStyle = '#FFD45E';
+    c.beginPath(); c.arc(-dir * 11, -30, 4, 0, TAU); c.fill(); c.stroke();
+    c.strokeStyle = '#E8414E'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-dir * 11 - 2.2, -32.2); c.lineTo(-dir * 11 + 2.2, -27.8); c.stroke();
+  }
+  c.restore();
+}
+
+/* une friandise qui vole en tournant */
+const CANDY_COLS = ['#FF6F91', '#7FD1FF', '#FFD45E', '#9BE58A'];
+export function drawCandy(c, k, t) {
+  c.save();
+  c.translate(k.x, k.y);
+  c.scale(1.4, 1.4);
+  c.rotate(k.t * 0.35);
+  const col = CANDY_COLS[Math.abs(Math.round(k.id)) % CANDY_COLS.length];
+  c.strokeStyle = INK; c.lineWidth = 0.5;
+  for (const s of [-1, 1]) {
+    c.fillStyle = col;
+    c.beginPath(); c.moveTo(s * 2.4, 0); c.lineTo(s * 5, -2); c.lineTo(s * 5, 2); c.closePath(); c.fill(); c.stroke();
+  }
+  c.fillStyle = col;
+  c.beginPath(); c.ellipse(0, 0, 3, 2.3, 0, 0, TAU); c.fill(); c.stroke();
+  c.strokeStyle = '#FFFFFF'; c.lineWidth = 0.8;
+  c.beginPath(); c.moveTo(-1.5, -1.8); c.lineTo(0.5, 1.8); c.moveTo(0.5, -2); c.lineTo(2.2, 1.2); c.stroke();
+  c.restore();
+}
+
+/* un toboggan de fête foraine, rayé rouge et blanc, sur ses poteaux */
+export function drawSlide(c, S, t, age, solid) {
+  if (!S.poles) {
+    S.poles = [];
+    const len = Math.abs(S.x1 - S.x0);
+    for (let d = 12; d < len - 4; d += 22) {
+      const x = S.x0 + S.dir * d;
+      const y = S.top + d + 5;
+      let g = y;
+      while (g < y + 400 && !solid(x, g)) g++;
+      S.poles.push([x, y, g]);
+    }
+  }
+  const grow = Math.min(1, age / 0.4);
+  const len = Math.abs(S.x1 - S.x0) * grow;
+  const x1 = S.x0 + S.dir * len;
+  const y1 = S.top + len;
+  c.save();
+  c.lineCap = 'round';
+  /* les poteaux */
+  for (const [x, y, g] of S.poles) {
+    if (Math.abs(x - S.x0) > len) continue;
+    c.strokeStyle = INK; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x, g); c.stroke();
+    c.strokeStyle = '#FFD45E'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x, g); c.stroke();
+  }
+  /* la glissière : une bande avec des rayures */
+  const steps = Math.max(1, Math.floor(len / 5));
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * len;
+    const b = ((i + 1) / steps) * len;
+    c.fillStyle = i % 2 ? '#FFFFFF' : '#E8414E';
+    c.beginPath();
+    c.moveTo(S.x0 + S.dir * a, S.top + a + 0.5);
+    c.lineTo(S.x0 + S.dir * b, S.top + b + 0.5);
+    c.lineTo(S.x0 + S.dir * b, S.top + b + 5);
+    c.lineTo(S.x0 + S.dir * a, S.top + a + 5);
+    c.closePath();
+    c.fill();
+  }
+  c.strokeStyle = INK; c.lineWidth = 0.9;
+  c.beginPath(); c.moveTo(S.x0, S.top + 0.5); c.lineTo(x1, y1 + 0.5); c.moveTo(S.x0, S.top + 5); c.lineTo(x1, y1 + 5); c.stroke();
+  /* le rebord jaune */
+  c.strokeStyle = '#FFC93C'; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(S.x0, S.top - 2); c.lineTo(x1, y1 - 2); c.stroke();
+  /* un petit fanion en haut */
+  c.strokeStyle = INK; c.lineWidth = 0.7;
+  c.beginPath(); c.moveTo(S.x0 - S.dir * 2, S.top + 5); c.lineTo(S.x0 - S.dir * 2, S.top - 12); c.stroke();
+  c.fillStyle = '#7FD1FF';
+  c.beginPath(); c.moveTo(S.x0 - S.dir * 2, S.top - 12); c.lineTo(S.x0 - S.dir * 2 + S.dir * 7, S.top - 10 + Math.sin(t * 6) * 0.8); c.lineTo(S.x0 - S.dir * 2, S.top - 8); c.closePath(); c.fill(); c.stroke();
+  c.restore();
+}
+
 /* ---------- Les petits décors posés sur le terrain ---------- */
 export function buildDecor(T, solid, theme, seed, avoid = []) {
   const list = [];
@@ -744,6 +947,7 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
   for (let x = 0; x < W; x++) { let y = 0; while (y < H && !solid(x, y)) y++; top[x] = y; }
   const cave = theme.fond === 'grotte';
   const volcan = theme.fond === 'volcan';
+  const foire = theme.fond === 'foire';
   for (let x = 3; x < W - 3; x += 4) {
     for (let y = 1; y < H; y++) {
       const floor = solid(x, y) && !solid(x, y - 1);
@@ -759,6 +963,12 @@ export function buildDecor(T, solid, theme, seed, avoid = []) {
       /* gros décor (arbres, rochers) sur les sols bien plats, à l'air libre */
       if (!inside && h > 0.965 && solid(x - 14, y) && solid(x + 14, y) && !solid(x - 14, y - 1) && !solid(x + 14, y - 1)) {
         big.push({ kind: theme.fond, x, y, s: 0.8 + hash(x, y, seed + 2) * 0.5, v: hash(x, y, seed + 3) });
+        continue;
+      }
+      if (foire) {
+        if (h < 0.22) list.push({ kind: 'tuft', x, y, s: 0.7 + hash(x, y, seed + 4) * 0.6 });
+        else if (h < 0.34) list.push({ kind: 'confetti', x, y, v: hash(x, y, seed + 5) });
+        else if (h < 0.36 && !inside) list.push({ kind: 'ballon', x, y, v: hash(x, y, seed + 6) });
         continue;
       }
       if (volcan) {
@@ -842,6 +1052,25 @@ export function drawDecor(c, list, solid, theme, t) {
         }
         break;
       }
+      case 'confetti': {
+        for (let i = 0; i < 4; i++) {
+          c.fillStyle = POMPON_COLORS[Math.floor((d.v * 7 + i) % POMPON_COLORS.length)];
+          c.fillRect(x - 3 + i * 1.8, y - 0.8 - (i % 2) * 0.6, 1.1, 0.9);
+        }
+        break;
+      }
+      case 'ballon': {
+        /* un ballon attaché au sol, qui se balance */
+        const sw = Math.sin(t * 1.5 + d.v * 9) * 1.5;
+        c.strokeStyle = 'rgba(58,42,74,0.7)'; c.lineWidth = 0.4;
+        c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + sw, y - 8, x + sw * 1.5, y - 14); c.stroke();
+        c.fillStyle = POMPON_COLORS[Math.floor(d.v * POMPON_COLORS.length)];
+        c.strokeStyle = INK; c.lineWidth = 0.5;
+        c.beginPath(); c.ellipse(x + sw * 1.5, y - 17.5, 3, 3.7, 0, 0, TAU); c.fill(); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.6)';
+        c.beginPath(); c.ellipse(x + sw * 1.5 - 1, y - 18.8, 0.8, 1.2, 0, 0, TAU); c.fill();
+        break;
+      }
       case 'ember': {
         /* une braise qui rougeoie */
         const glow = 0.6 + Math.sin(t * 3 + d.v * 20) * 0.35;
@@ -897,6 +1126,20 @@ export function drawBigDecor(c, big, solid, theme, t) {
       for (const [w, yy] of [[9, -5], [7, -12], [5, -18]]) {
         c.beginPath(); c.moveTo(-w, yy); c.lineTo(0, yy - 10); c.lineTo(w, yy); c.closePath(); c.fillStyle = '#2F6F55'; c.fill(); c.stroke();
         c.beginPath(); c.moveTo(-w * 0.6, yy - 4); c.lineTo(0, yy - 10); c.lineTo(w * 0.6, yy - 4); c.quadraticCurveTo(0, yy - 6, -w * 0.6, yy - 4); c.fillStyle = '#FFFFFF'; c.fill();
+      }
+    } else if (d.kind === 'foire') {
+      /* un réverbère de fête, avec ses fanions */
+      c.fillStyle = '#3A1E52';
+      c.fillRect(-0.8, -28, 1.6, 28);
+      c.strokeRect(-0.8, -28, 1.6, 28);
+      const glow = 0.7 + Math.sin(t * 3 + x) * 0.2;
+      c.fillStyle = `rgba(255,230,140,${glow * 0.35})`;
+      c.beginPath(); c.arc(0, -30, 9, 0, TAU); c.fill();
+      c.fillStyle = '#FFE38A';
+      c.beginPath(); c.arc(0, -30, 3, 0, TAU); c.fill(); c.stroke();
+      for (let i = 0; i < 4; i++) {
+        c.fillStyle = POMPON_COLORS[i % POMPON_COLORS.length];
+        c.beginPath(); c.moveTo(1 + i * 4, -24 + i * 1.2); c.lineTo(5 + i * 4, -24 + (i + 1) * 1.2); c.lineTo(3 + i * 4, -20 + i * 1.2); c.closePath(); c.fill();
       }
     } else if (d.kind === 'volcan') {
       /* une aiguille d'obsidienne fendue de braises */
@@ -1044,6 +1287,108 @@ export function drawBackground(c, theme, camX, z, W, H, t) {
     };
     layer(0.12, '#8CCBA9', H * 0.8, 120 * s, 1, 200 * s);
     layer(0.25, '#5FAE84', H * 0.92, 150 * s, 2, 220 * s);
+  } else if (kind === 'foire') {
+    /* le soir à la fête foraine : étoiles, grande roue, chapiteaux, guirlandes */
+    for (let i = 0; i < 40; i++) {
+      const x = hash(i, 71) * W;
+      const y = hash(i, 72) * H * 0.45;
+      c.fillStyle = `rgba(255,255,255,${0.35 + Math.sin(t * 2 + i) * 0.3})`;
+      c.fillRect(x, y, 1.6, 1.6);
+    }
+    /* la grande roue (elle tourne doucement) */
+    const span = W + 600;
+    const wx = ((W * 0.72 - camX * z * 0.06) % span + span) % span - 300;
+    const R = H * 0.3;
+    const wy = H * 0.42;
+    c.strokeStyle = '#3A1E52'; c.lineWidth = 6 * s;
+    c.beginPath(); c.moveTo(wx - R * 0.55, H); c.lineTo(wx, wy); c.lineTo(wx + R * 0.55, H); c.stroke();
+    const rot = t * 0.12;
+    c.strokeStyle = '#5A3A7A'; c.lineWidth = 2 * s;
+    for (let i = 0; i < 12; i++) {
+      const a = rot + (i / 12) * TAU;
+      c.beginPath(); c.moveTo(wx, wy); c.lineTo(wx + Math.cos(a) * R, wy + Math.sin(a) * R); c.stroke();
+    }
+    c.lineWidth = 4 * s;
+    c.beginPath(); c.arc(wx, wy, R, 0, TAU); c.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = rot + (i / 12) * TAU;
+      const gx = wx + Math.cos(a) * R;
+      const gy = wy + Math.sin(a) * R;
+      c.fillStyle = POMPON_COLORS[i % POMPON_COLORS.length];
+      c.beginPath(); c.roundRect(gx - 7 * s, gy, 14 * s, 10 * s, 3 * s); c.fill();
+    }
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 36; i++) {
+      const a = rot + (i / 36) * TAU;
+      const on = Math.floor(t * 4 + i) % 3 !== 0;
+      c.fillStyle = on ? ['rgba(255,220,120,0.95)', 'rgba(255,120,180,0.95)', 'rgba(120,220,255,0.95)'][i % 3] : 'rgba(80,60,90,0.5)';
+      c.beginPath(); c.arc(wx + Math.cos(a) * R, wy + Math.sin(a) * R, 2.2 * s, 0, TAU); c.fill();
+    }
+    c.restore();
+    /* les chapiteaux rayés */
+    const off = camX * z * 0.2;
+    const step = 260 * s;
+    const first = Math.floor(off / step) - 1;
+    const last = Math.ceil((off + W) / step) + 1;
+    for (let i = first; i <= last; i++) {
+      const cx = i * step - off + hash(i, 81) * step * 0.3;
+      const tw = (70 + hash(i, 82) * 40) * s;
+      const th = (60 + hash(i, 83) * 40) * s;
+      const base = H * 0.86;
+      for (let k = 0; k < 6; k++) {
+        c.fillStyle = k % 2 ? '#F4E6F0' : '#C9365A';
+        c.beginPath();
+        c.moveTo(cx, base - th * 1.55);
+        c.lineTo(cx - tw + (k * 2 * tw) / 6, base - th * 0.8);
+        c.lineTo(cx - tw + ((k + 1) * 2 * tw) / 6, base - th * 0.8);
+        c.closePath(); c.fill();
+        c.fillRect(cx - tw + (k * 2 * tw) / 6, base - th * 0.8, (2 * tw) / 6 + 0.5, th * 0.8 + H);
+      }
+      c.fillStyle = 'rgba(42,24,86,0.35)';
+      c.fillRect(cx - tw, base - th * 0.8, tw * 2, th * 0.8 + H);
+      c.strokeStyle = '#3A1E52'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(cx, base - th * 1.55); c.lineTo(cx, base - th * 1.8); c.stroke();
+      c.fillStyle = '#FFD45E';
+      c.beginPath(); c.moveTo(cx, base - th * 1.8); c.lineTo(cx + 14 * s, base - th * 1.75 + Math.sin(t * 4 + i) * 2); c.lineTo(cx, base - th * 1.68); c.closePath(); c.fill();
+    }
+    /* les guirlandes d'ampoules */
+    const off2 = camX * z * 0.35;
+    const seg = 220 * s;
+    const f2 = Math.floor(off2 / seg) - 1;
+    const l2 = Math.ceil((off2 + W) / seg) + 1;
+    c.strokeStyle = 'rgba(30,15,40,0.8)'; c.lineWidth = 1.2;
+    for (let i = f2; i <= l2; i++) {
+      const xa = i * seg - off2;
+      const y0 = H * 0.08;
+      c.beginPath(); c.moveTo(xa, y0); c.quadraticCurveTo(xa + seg / 2, y0 + 60 * s, xa + seg, y0); c.stroke();
+    }
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    for (let i = f2; i <= l2; i++) {
+      const xa = i * seg - off2;
+      const y0 = H * 0.08;
+      for (let k = 1; k < 10; k++) {
+        const u = k / 10;
+        const bx = xa + seg * u;
+        const by = y0 + 2 * (1 - u) * u * 60 * s + 3;
+        const on = (Math.floor(t * 3) + k + i) % 4 !== 0;
+        c.fillStyle = on ? ['#FFD45E', '#FF6F91', '#7FD1FF', '#9BE58A'][(k + i) & 3] : 'rgba(90,70,90,0.6)';
+        c.beginPath(); c.arc(bx, by, 2.4 * s, 0, TAU); c.fill();
+        if (on) { c.globalAlpha = 0.25; c.beginPath(); c.arc(bx, by, 7 * s, 0, TAU); c.fill(); c.globalAlpha = 1; }
+      }
+    }
+    c.restore();
+    /* des ballons qui s'envolent */
+    for (let i = 0; i < 6; i++) {
+      const k = (t * 0.03 + hash(i, 91)) % 1;
+      const bx = ((hash(i, 92) * W * 1.3 - camX * z * 0.25) % (W + 100) + W + 100) % (W + 100) - 50 + Math.sin(t + i) * 10;
+      const by = H * (1.1 - k * 1.3);
+      c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(bx, by + 10 * s); c.lineTo(bx + Math.sin(t * 2 + i) * 3, by + 26 * s); c.stroke();
+      c.fillStyle = POMPON_COLORS[i % POMPON_COLORS.length];
+      c.beginPath(); c.ellipse(bx, by, 8 * s, 10 * s, 0, 0, TAU); c.fill();
+    }
   } else if (kind === 'volcan') {
     /* l'intérieur d'un immense volcan : tout rougeoie, tout tremble */
     const pulse = 0.5 + Math.sin(t * 1.3) * 0.25 + Math.sin(t * 4.1) * 0.08;
@@ -1214,7 +1559,7 @@ export function drawSkillIcon(cv, skill) {
   const k = S / 30;
   c.save();
   c.scale(k, k);
-  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4, echelle: 2 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
+  const p = { id: { stop: 0, pont: 1, creuse: 5, tunnel: 2, grimpe: 3, parapluie: 4, echelle: 2, friandise: 0, toboggan: 3 }[skill] || 0, x: 15, y: 25, dir: 1, state: 'marche', work: 4, anim: 3, fall: 0, bricks: 9, grimpe: false, parapluie: false };
   if (skill === 'stop') p.state = 'stop';
   if (skill === 'pont') {
     p.state = 'pont';
@@ -1239,6 +1584,15 @@ export function drawSkillIcon(cv, skill) {
     c.strokeStyle = INK; c.lineWidth = 0.6; c.strokeRect(22, 0, 8, 30);
   }
   if (skill === 'parapluie') { p.state = 'tombe'; p.parapluie = true; p.fall = 30; p.y = 30; }
+  if (skill === 'friandise') {
+    p.x = 9; p.state = 'lance'; p.work = 3;
+    drawCandy(c, { x: 22, y: 12, t: 4, id: 2 }, 0);
+  }
+  if (skill === 'toboggan') {
+    c.fillStyle = '#58C46B'; c.fillRect(0, 12, 9, 3);
+    drawSlide(c, { x0: 9, top: 12, x1: 22, bottom: 25, dir: 1, poles: [[13, 17, 25], [19, 23, 25]] }, 0, 2, () => true);
+    p.state = 'glisse'; p.x = 15; p.y = 18;
+  }
   if (skill === 'echelle') {
     p.x = 11; p.id = 2;
     c.fillStyle = '#4A3634'; c.fillRect(22, 6, 8, 19);
@@ -1246,7 +1600,7 @@ export function drawSkillIcon(cv, skill) {
     drawLadder(c, { x: 18.5, top: 9, bottom: 25, up: 1 }, 0, 2);
   }
   if (skill !== 'creuse' && skill !== 'parapluie') {
-    c.fillStyle = '#58C46B'; c.fillRect(0, 25, skill === 'tunnel' ? 20 : 30, 5);
+    c.fillStyle = '#58C46B'; c.fillRect(skill === 'toboggan' ? 18 : 0, 25, skill === 'tunnel' ? 20 : 30, 5);
   }
   drawPompon(c, p, 0.3);
   c.restore();

@@ -18,8 +18,11 @@
 //         '~'  eau (les Pompons ne savent pas nager)
 //         '^'  ronces (elles piquent)
 //         'L'  lave (une colonne fine de « L » fait une cascade de lave)
+//         'C'  un méchant clown qui se promène (posé sur le bas de la case)
+//         'K'  un méchant clown qui ne bouge pas (il garde un passage)
 //         'E'  l'entrée : le nuage d'où tombent les Pompons
 //         'S'  la maison : la porte est posée sur le bas de la case
+//     difficulte: 'difficile',  // facultatif : 'difficile' ou 'tres-difficile' (affiché au joueur)
 //     pompons: 10,              // combien sortent du nuage
 //     besoin: 6,                // combien doivent rentrer pour gagner
 //     etoiles: [6, 8, 10],      // ★, ★★, ★★★ (facultatif)
@@ -27,7 +30,8 @@
 //     temps: 180,               // secondes pour finir
 //     dir: 1,                   // sens de départ : 1 = vers la droite, -1 = vers la gauche
 //     metiers: { creuse: 2 },   // les métiers du niveau et leur nombre :
-//                               // stop, pont, creuse, tunnel, grimpe, parapluie, echelle
+//                               // stop, pont, creuse, tunnel, grimpe, parapluie, echelle,
+//                               // friandise, toboggan
 //     intro: 'ce que dit Plume au début',
 //     astuce: 'l’indice du bouton 💡',
 //     solution: [ … ],          // pour le pilote automatique (?debug) : voir plus bas
@@ -43,6 +47,13 @@
 //     au plus, et le sol doit être juste en dessous du bord. Elle marche dans les
 //     deux sens : tous ceux qui arrivent en bas montent, tous ceux qui arrivent
 //     en haut descendent ;
+//   - un Toboggan se pose au bord d'un trou et descend en diagonale (on avance
+//     autant qu'on descend, 10 cubes au plus) jusqu'au premier sol ; on ne le
+//     prend que dans un sens : vers le bas ;
+//   - un clown gobe tout Pompon qui arrive sur lui. Une Friandise part en cloche
+//     (environ 9 cubes sur du plat, bien plus loin si on la lance d'en haut) ;
+//     si elle touche un clown, il s'envole en confettis. Les clowns ne tombent
+//     jamais : ils font demi-tour aux bords, aux murs et devant l'eau ou la lave ;
 //   - les bords gauche et droit du plan sont des murs, le bas est le vide.
 //
 // La solution : une liste d'étapes { p, metier, x?, y?, etat?, tick? }.
@@ -55,7 +66,7 @@
 //
 // POUR AJOUTER UN MONDE : ajoute une entrée dans WORLDS ci-dessous (couleurs
 // du terrain dans « theme », décor de fond dans « fond » : prairie, foret,
-// grotte, montagne ou volcan, voir art.js drawBackground).
+// grotte, montagne, volcan ou foire, voir art.js drawBackground).
 // ============================================================================
 
 import prairie from './prairie.js';
@@ -63,6 +74,7 @@ import foret from './foret.js';
 import grotte from './grotte.js';
 import montagne from './montagne.js';
 import volcan from './volcan.js';
+import foire from './foire.js';
 
 export const WORLDS = [
   {
@@ -139,6 +151,21 @@ export const WORLDS = [
       eau: '#FF7A1A',
     },
     niveaux: volcan,
+  },
+  {
+    id: 'foire',
+    nom: 'La Fête foraine',
+    icone: '🎡',
+    histoire: 'Une fête foraine pleine de lumières… mais de méchants clowns y gobent les Pompons ! Lance-leur des friandises et glisse sur les toboggans. Ici, 25 Pompons et que des niveaux difficiles !',
+    theme: {
+      fond: 'foire', confettis: true,
+      ciel: ['#2A1856', '#E8689A'],
+      terre: '#B9844E', terreFonce: '#8C5A30', caillou: '#FFD45E',
+      herbe: '#4FC46A', herbeClaire: '#8FE07A',
+      roche: '#D9475A', rocheFonce: '#8E2433', contour: '#3A1A2E',
+      eau: '#4FC3F2',
+    },
+    niveaux: foire,
   },
 ];
 

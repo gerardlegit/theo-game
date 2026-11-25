@@ -49,6 +49,7 @@ export function parseLevel(level) {
   const lava = [];
   let entree = null;
   let sortie = null;
+  const clowns = [];
 
   const fill = (x0, y0, w, h, k, grid = ter) => {
     for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) grid[y * W + x] = k;
@@ -77,6 +78,8 @@ export function parseLevel(level) {
         case '^': fill(x0, y0 + 6, TILE, TILE - 6, RONCES, haz); thorns.push({ c, r }); break;
         case 'L': fill(x0, y0, TILE, TILE, LAVE, haz); lava.push({ c, r }); break;
         case 'E': entree = { x: x0 + TILE / 2, y: y0 + TILE / 2 }; break;
+        case 'C': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: false }); break;
+        case 'K': clowns.push({ x: x0 + TILE / 2, y: y0 + TILE, still: true }); break;
         case 'S': sortie = { x: x0 + TILE / 2, y: y0 + TILE }; break;
         default: break;
       }
@@ -92,7 +95,7 @@ export function parseLevel(level) {
     l.fall = !isLava(l.c - 1, l.r) && !isLava(l.c + 1, l.r) && (isLava(l.c, l.r - 1) || isLava(l.c, l.r + 1));
   });
 
-  return { W, H, cols, rowsN: rows.length, ter, haz, water, thorns, lava, entree, sortie };
+  return { W, H, cols, rowsN: rows.length, ter, haz, water, thorns, lava, clowns, entree, sortie };
 }
 
 /* ---------- Questions sur la grille ---------- */
@@ -110,6 +113,7 @@ export function makeQueries(T) {
 }
 
 /* ---------- La peinture du terrain ---------- */
+const CONFETTIS = [[255, 111, 145], [255, 201, 60], [79, 184, 232], [88, 201, 123], [180, 130, 255], [255, 255, 255]];
 const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
@@ -152,7 +156,11 @@ export function createTerrainPainter(T, theme, seed = 1) {
         const px = cx * 7 + 1 + Math.floor(hash(cx, cy, seed + 8) * 5);
         const py = cy * 7 + 1 + Math.floor(hash(cx, cy, seed + 9) * 5);
         const d = (x - px) * (x - px) + (y - py) * (y - py);
-        if (d <= (hp < 0.07 ? 3 : 1)) return mix(P.caillou, [255, 255, 255], d === 0 ? 0.25 : 0);
+        if (d <= (hp < 0.07 ? 3 : 1)) {
+          /* à la Fête foraine, les cailloux sont des confettis */
+          if (theme.confettis) return CONFETTIS[Math.floor(hash(cx, cy, seed + 10) * CONFETTIS.length)];
+          return mix(P.caillou, [255, 255, 255], d === 0 ? 0.25 : 0);
+        }
       }
       /* au Volcan, des veines de braise brillent dans la roche */
       if (theme.braise) {
@@ -241,7 +249,7 @@ export function createTerrainPainter(T, theme, seed = 1) {
   const bg = back.getContext('2d');
   const bimg = bg.createImageData(W, H);
   const bd = bimg.data;
-  const wall = theme.braise ? mix(P.terreFonce, [70, 10, 4], 0.5) : mix(P.terreFonce, [20, 16, 30], theme.fond === 'grotte' ? 0.45 : 0.35);
+  const wall = theme.confettis ? mix(P.terreFonce, [70, 30, 90], 0.45) : theme.braise ? mix(P.terreFonce, [70, 10, 4], 0.5) : mix(P.terreFonce, [20, 16, 30], theme.fond === 'grotte' ? 0.45 : 0.35);
   for (let x = 0; x < W; x++) {
     let top = 0;
     while (top < H && ter[top * W + x] === VIDE) top++;

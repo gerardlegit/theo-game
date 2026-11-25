@@ -1,7 +1,8 @@
 // ============================================================================
 // La simulation d'un niveau, sans aucun dessin : les Pompons tombent du
 // nuage, marchent tout droit, font leur métier (Stop, Pont, Creuseur, Tunnel,
-// Grimpeur, Parapluie, Échelle), rentrent à la maison… ou se perdent.
+// Grimpeur, Parapluie, Échelle, Friandise, Toboggan), rentrent à la maison…
+// ou se perdent (dans l'eau, la lave, les ronces… ou dans la bouche d'un clown).
 // Tout avance par petits pas réguliers (30 par seconde), toujours de la même
 // façon : une même partie rejouée donne exactement le même résultat, ce qui
 // permet au pilote automatique (?debug) de vérifier les solutions des niveaux.
@@ -27,6 +28,13 @@ const SHRUG_TICKS = 40;
 export const MAX_LADDER = 112;     // 7 cubes au plus
 const LADDER_REACH = 24;           // le mur ou le bord doit être à 1 cube et demi devant
 const LADDER_TICKS = 14;           // le temps de dresser l'échelle
+/* la Fête foraine : les clowns, les friandises qu'on leur lance, les toboggans */
+const CLOWN_EVERY = 2;             // un clown avance d'un pixel tous les 2 pas (deux fois moins vite qu'un Pompon)
+const CHEW_TICKS = 36;             // il mâche un moment après avoir gobé un Pompon
+const THROW_TICKS = 12;
+const CANDY_VX = 3.5, CANDY_VY = -1.5, CANDY_G = 0.08;   // une friandise part en cloche : environ 9 cubes sur du plat
+const SLIDE_TICKS = 14;
+export const MAX_SLIDE = 160;      // un toboggan descend de 10 cubes au plus (et avance d'autant)
 const SAVE_ANIM = 24;
 const LOST_ANIM = 70;
 
@@ -59,6 +67,9 @@ export function createWorld(level) {
     over: null,              // 'fini' ou 'temps' quand le niveau s'arrête
     onlyStops: false,        // il ne reste que des Stop debout
     ladders: [],             // les échelles posées : { x, top, bottom, up }
+    slides: [],              // les toboggans : { x0, top, x1, bottom, dir }
+    candies: [],             // les friandises en vol
+    clowns: (T.clowns || []).map((c, i) => ({ id: i, x: c.x, y: c.y, dir: -1, still: c.still, state: 'marche', work: 0, anim: i * 11 })),
   };
 
   const ev = (type, p, extra) => w.events.push({ type, p, x: p ? p.x : 0, y: p ? p.y : 0, ...extra });
@@ -102,6 +113,7 @@ export function createWorld(level) {
     }
     const d = danger(p.x, p.y - 1) || danger(p.x, p.y - 6);
     if (d) { lose(p, d === EAU ? 'eau' : d === LAVE ? 'lave' : 'ronces'); return true; }
+    if (eatenBy(p)) return true;
     if (p.y > H + 14) { lose(p, 'vide'); return true; }
     return false;
   }
@@ -133,7 +145,7 @@ export function createWorld(level) {
 
   function walk(p) {
     for (const b of w.pompons) {
-      if (b !== p && b.state === 'stop' && Math.abs(b.y - p.y) <= 10
+      if (b !== p && (b.state === 'stop' || (b.state === 'lance' && b.after === 'stop')) && Math.abs(b.y - p.y) <= 10
         && (b.x - p.x) * p.dir > 0 && Math.abs(b.x - p.x) <= 6) {
         p.dir = -p.dir;
         return;
@@ -145,6 +157,14 @@ export function createWorld(level) {
       if (ahead < 1 || ahead > 4) continue;
       if (Math.abs(p.y - L.bottom) <= 3) { mount(p, L, 'monte'); return; }
       if (Math.abs(p.y - L.top) <= 3) { mount(p, L, 'descend'); return; }
+    }
+    /* le haut d'un toboggan, dans le bon sens : on glisse ! */
+    for (const S of w.slides) {
+      const ahead = (S.x0 - p.x) * p.dir;
+      if (p.dir !== S.dir || ahead < 1 || ahead > 4 || Math.abs(p.y - S.top) > 3) continue;
+      p.x = S.x0; p.y = S.top; p.state = 'glisse'; p.slide = S;
+      ev('slideOn', p);
+      return;
     }
     const r = stepForward(p);
     if (r === 'edge') p.dir = -p.dir;
@@ -246,6 +266,139 @@ export function createWorld(level) {
     }
     return { why: 'nothing' };
   }
+  /* ---------- Le Toboggan ---------- */
+  function planSlide(p) {
+    const { dir } = p;
+    let ex = -1;
+    for (let dx = 1; dx <= LADDER_REACH; dx++) {
+      const cx = p.x + dir * dx;
+      if (cx < 0 || cx >= W || solid(cx, p.y - 1)) return { why: 'nothing' };
+      if (!solid(cx, p.y)) {
+        let k = 1;
+        while (k <= STEP && !solid(cx, p.y + k)) k++;
+        if (k <= STEP) continue;
+        ex = cx;
+        break;
+      }
+    }
+    if (ex < 0) return { why: 'nothing' };
+    /* il descend en diagonale (on avance autant qu'on descend) jusqu'au premier sol */
+    for (let k = 1; k <= MAX_SLIDE; k++) {
+      const x = ex + dir * k;
+      const y = p.y + k;
+      if (x < 0 || x >= W || y >= H) return { why: 'tooHigh' };
+      if (solid(x, y)) {
+        if (solid(x, y - 1)) return { why: 'blocked' };
+        return { S: { x0: ex, top: p.y, x1: x, bottom: y, dir } };
+      }
+    }
+    return { why: 'tooHigh' };
+  }
+  function raiseSlide(p) {
+    p.work++;
+    if (p.work < SLIDE_TICKS) return;
+    const S = { ...p.plan, id: w.slides.length, born: w.tick };
+    w.slides.push(S);
+    ev('slide', p, { S });
+    p.x = S.x0; p.y = S.top; p.dir = S.dir; p.state = 'glisse'; p.slide = S;
+  }
+  function slide(p) {
+    const S = p.slide;
+    p.x += S.dir * 2;
+    p.y += 2;
+    if ((p.x - S.x1) * S.dir >= 0) {
+      p.x = S.x1; p.y = S.bottom; p.dir = S.dir; p.state = 'marche';
+      ev('slideOff', p);
+    }
+    checkFate(p);
+  }
+
+  /* ---------- La Friandise ---------- */
+  function throwCandy(p) {
+    p.work++;
+    if (p.work === 6) {
+      w.candies.push({ x: p.x + p.dir * 4, y: p.y - 10, vx: CANDY_VX * p.dir, vy: CANDY_VY, t: 0, alive: true, id: w.tick * 100 + p.id });
+      ev('throw', p);
+    }
+    if (p.work >= THROW_TICKS) p.state = p.after || 'marche';
+  }
+  function moveCandies() {
+    for (const k of w.candies) {
+      k.t++;
+      k.x += k.vx;
+      k.y += k.vy;
+      k.vy += CANDY_G;
+      for (const c of w.clowns) {
+        if (c.state === 'pouf' || c.state === 'parti') continue;
+        if (Math.abs(k.x - c.x) <= 9 && k.y >= c.y - 26 && k.y <= c.y + 1) {
+          k.alive = false;
+          c.state = 'pouf'; c.work = 0;
+          ev('clownDown', null, { x: c.x, y: c.y });
+          break;
+        }
+      }
+      if (!k.alive) continue;
+      const rx = Math.round(k.x);
+      const ry = Math.round(k.y);
+      if (rx < 0 || rx >= W || ry > H + 20 || k.t > 150 || solid(rx, ry)) {
+        k.alive = false;
+        ev('candyLand', null, { x: k.x, y: Math.min(k.y, H) });
+      }
+    }
+    w.candies = w.candies.filter((k) => k.alive);
+  }
+
+  /* ---------- Les méchants clowns ---------- */
+  /* un Pompon qui arrive sur un clown se fait gober */
+  function eatenBy(p) {
+    for (const c of w.clowns) {
+      if (c.state === 'pouf' || c.state === 'parti') continue;
+      if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
+        c.state = 'mange'; c.work = CHEW_TICKS;
+        lose(p, 'clown');
+        ev('chomp', null, { x: c.x, y: c.y });
+        return true;
+      }
+    }
+    return false;
+  }
+  function clownStep(c) {
+    const nx = c.x + c.dir;
+    if (nx < 3 || nx >= W - 3) { c.dir = -c.dir; return; }
+    let ny = c.y;
+    if (solid(nx, c.y - 1)) {
+      let k = 1;
+      while (k <= STEP && solid(nx, c.y - 1 - k)) k++;
+      if (k > STEP) { c.dir = -c.dir; return; }
+      ny = c.y - k;
+    } else if (!solid(nx, c.y)) {
+      let k = 1;
+      while (k <= STEP && !solid(nx, c.y + k)) k++;
+      if (k > STEP) { c.dir = -c.dir; return; }   // un clown ne saute jamais dans le vide
+      ny = c.y + k;
+    }
+    if (danger(nx + c.dir * 4, ny - 1)) { c.dir = -c.dir; return; }
+    c.x = nx; c.y = ny;
+  }
+  function moveClowns() {
+    for (const c of w.clowns) {
+      c.anim++;
+      if (c.state === 'parti') continue;
+      if (c.state === 'pouf') { if (++c.work > 30) c.state = 'parti'; continue; }
+      if (c.state === 'mange') { if (--c.work <= 0) c.state = 'marche'; }
+      else if (!c.still && c.anim % CLOWN_EVERY === 0) clownStep(c);
+      /* un clown qui avance sur un Pompon le gobe aussi */
+      for (const p of w.pompons) {
+        if (p.state === 'parti' || p.state === 'sauve' || p.state === 'perdu') continue;
+        if (Math.abs(p.x - c.x) <= 6 && p.y >= c.y - 20 && p.y <= c.y + 3) {
+          c.state = 'mange'; c.work = CHEW_TICKS;
+          lose(p, 'clown');
+          ev('chomp', null, { x: c.x, y: c.y });
+        }
+      }
+    }
+  }
+
   function raiseLadder(p) {
     p.work++;
     if (p.work < LADDER_TICKS) return;
@@ -311,6 +464,7 @@ export function createWorld(level) {
     if (s === 'sauve') { if (++p.work > SAVE_ANIM) p.state = 'parti'; return; }
     if (s === 'perdu') { if (++p.work > LOST_ANIM) p.state = 'parti'; return; }
     if (s === 'monte' || s === 'descend') { climbLadder(p); return; }
+    if (s === 'glisse') { slide(p); return; }
     if (s !== 'tombe' && s !== 'grimpe' && !solid(p.x, p.y)) { p.state = 'tombe'; p.fall = 0; }
     switch (p.state) {
       case 'tombe': fall(p); return;
@@ -320,6 +474,8 @@ export function createWorld(level) {
       case 'tunnel': bash(p); break;
       case 'creuse': dig(p); return;
       case 'echelle': raiseLadder(p); return;
+      case 'toboggan': raiseSlide(p); return;
+      case 'lance': throwCandy(p); return;
       case 'hausse': if (++p.work > SHRUG_TICKS) p.state = 'marche'; return;
       case 'stop': return;
       default: return;
@@ -342,6 +498,8 @@ export function createWorld(level) {
       ev('release', w.pompons[id]);
     }
     for (const p of w.pompons) update(p);
+    moveCandies();
+    moveClowns();
     if (w.timeLeft > 0) w.timeLeft--;
     if (w.timeLeft <= 0) { w.over = 'temps'; return; }
     if (w.released >= w.total) {
@@ -364,6 +522,7 @@ export function createWorld(level) {
     if (skill === 'parapluie') return p.parapluie ? 'already' : 'ok';
     if (p.state === skill) return 'already';
     if (!WORKABLE.includes(p.state)) return 'busy';
+    if (skill === 'friandise') return 'ok';      // même un Stop peut lancer une friandise (et il reste un Stop)
     if (skill === 'tunnel') {
       if (rockAhead(p)) return 'rock';
       if (!anyIn(p.x + p.dir, p.y - BODY_H, p.x + p.dir * 14, p.y - 1, diggable)) return 'nothing';
@@ -376,6 +535,11 @@ export function createWorld(level) {
       const plan = planLadder(p);
       if (!plan.L) return plan.why;
     }
+    if (skill === 'toboggan') {
+      if (p.state === 'stop') return 'busy';
+      const plan = planSlide(p);
+      if (!plan.S) return plan.why;
+    }
     return 'ok';
   };
 
@@ -383,12 +547,15 @@ export function createWorld(level) {
     const why = w.canTake(p, skill);
     if (why !== 'ok') return why;
     w.skills[skill]--;
+    p.prev = p.state;
     if (skill === 'grimpe') p.grimpe = true;
     else if (skill === 'parapluie') p.parapluie = true;
     else {
       p.state = skill; p.work = 0;
       if (skill === 'pont') p.bricks = BRICKS;
       if (skill === 'echelle') p.plan = planLadder(p).L;
+      if (skill === 'toboggan') p.plan = planSlide(p).S;
+      if (skill === 'friandise') { p.after = p.prev === 'stop' ? 'stop' : 'marche'; p.state = 'lance'; }
     }
     ev('assign', p, { skill });
     return 'ok';

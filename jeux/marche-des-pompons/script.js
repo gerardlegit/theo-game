@@ -19,6 +19,7 @@ import { TILE, TS, createTerrainPainter } from './terrain.js';
 import {
   drawPompon, drawEntrance, drawHome, drawWater, drawThorns, buildDecor, drawDecor, drawBigDecor,
   drawBackground, drawSkillIcon, PLUME_SVG, POMPON_COLORS, drawLava, drawLavaGlow, drawLadder,
+  drawClown, drawCandy, drawSlide,
 } from './art.js';
 import { SKILLS, SKILL_BY_ID, PLUME, STAR_TEXT } from './data.js';
 import { WORLDS, LEVELS, BIENTOT } from './levels/index.js';
@@ -28,6 +29,7 @@ import { sfx, isSoundOn, toggleSound } from './sound.js';
 const SAVE_KEY = 'marche-des-pompons-v1';
 const SAVE_VERSION = 1;
 const STEP_S = 1 / TICK_RATE;
+const DIFF_LABEL = { difficile: '🔥 Difficile', 'tres-difficile': '🔥🔥 Très difficile' };
 const FAST = 3;                    // vitesse du bouton ⏩
 const MIN_VIEW_W = 300;            // on voit toujours au moins 300 pixels du monde en largeur
 const MAX_ZOOM = 2.6;
@@ -253,7 +255,7 @@ function showBanner() {
   const el = $('levelBanner');
   el.innerHTML = '';
   const sm = document.createElement('small');
-  sm.textContent = `${LV.world.icone} ${LV.world.nom} · niveau ${LV.li + 1}`;
+  sm.textContent = `${LV.world.icone} ${LV.world.nom} · niveau ${LV.li + 1}${LV.difficulte ? ` · ${DIFF_LABEL[LV.difficulte]}` : ''}`;
   const b = document.createElement('b');
   b.textContent = LV.nom;
   el.append(sm, b);
@@ -322,7 +324,7 @@ function renderGoal() {
   name.className = 'goal-name';
   name.textContent = LV.nom;
   const sm = document.createElement('small');
-  sm.textContent = `${LV.world.nom} · niveau ${LV.li + 1} / ${LV.world.niveaux.length}`;
+  sm.textContent = `${LV.world.nom} · niveau ${LV.li + 1} / ${LV.world.niveaux.length}${LV.difficulte ? ` · ${DIFF_LABEL[LV.difficulte]}` : ''}`;
   name.appendChild(sm);
   const line = document.createElement('p');
   line.className = 'goal-line';
@@ -458,6 +460,29 @@ function handleEvent(e) {
       sayOnce('ladder', PLUME.ladder, 1);
       break;
     case 'ladderOn': sfx.climb(); break;
+    case 'slide':
+      sfx.slide();
+      for (let i = 0; i < 6; i++) burst(e.S.x0, e.S.top, '#FFFFFF', 'dust');
+      sayOnce('slide', PLUME.slide, 1);
+      break;
+    case 'slideOn': sfx.whee(); break;
+    case 'throw': sfx.throw(); break;
+    case 'clownDown':
+      sfx.pouf();
+      shake = Math.max(shake, 0.15);
+      for (let i = 0; i < 30; i++) burst(e.x, e.y - 16, POMPON_COLORS[i % POMPON_COLORS.length], i % 3 ? 'spark' : 'star');
+      floatText('Pouf !', e.x, e.y - 40, '#FFD45E');
+      say(pick(PLUME.clownDown), 2, 2600);
+      buzz(20);
+      break;
+    case 'candyLand':
+      for (let i = 0; i < 5; i++) burst(e.x, e.y - 1, POMPON_COLORS[i % POMPON_COLORS.length], 'spark');
+      if (W_.clowns.some((cl) => cl.state !== 'pouf' && cl.state !== 'parti')) sayOnce('candyMiss', PLUME.candyMiss, 1);
+      break;
+    case 'chomp':
+      sfx.chomp();
+      for (let i = 0; i < 6; i++) burst(e.x, e.y - 24, '#FFF3C9', 'dust');
+      break;
     case 'assign':
       sfx.assign();
       for (let i = 0; i < 8; i++) burst(e.x, e.y - 7, '#FFFFFF', 'spark');
@@ -542,6 +567,7 @@ const STATE_NAME = {
   marche: 'Marcheur', tombe: 'Il tombe !', grimpe: 'Grimpeur', stop: 'Stop', pont: 'Bâtisseur',
   tunnel: 'Tunnel', creuse: 'Creuseur', hausse: 'Il hausse les épaules',
   echelle: 'Il pose une échelle', monte: 'Il monte l’échelle', descend: 'Il descend l’échelle',
+  toboggan: 'Il pose un toboggan', glisse: 'Il glisse !', lance: 'Il lance une friandise',
 };
 function render(now, dt) {
   const t = now / 1000;
@@ -574,11 +600,14 @@ function render(now, dt) {
   drawThorns(c, T.thorns, TILE);
   drawDecor(c, decor.list, W_.solid, theme, t);
   if (T.sortie) drawHome(c, T.sortie, t, homeGlow);
+  for (const S of W_.slides) drawSlide(c, S, t, (W_.tick - S.born) / TICK_RATE, W_.solid);
   for (const L of W_.ladders) drawLadder(c, L, t, (W_.tick - L.born) / TICK_RATE);
+  for (const cl of W_.clowns) drawClown(c, cl, t);
   for (const p of W_.pompons) if (p.state !== 'parti') drawPompon(c, p, t, { hover: p === hover });
   drawWater(c, T.water, t, theme.eau, TILE);
   drawLava(c, T.lava, t, TILE);
   drawLavaGlow(c, T.lava, t, TILE);
+  for (const k of W_.candies) drawCandy(c, k, t);
   if (T.entree) drawEntrance(c, T.entree, t, hatch, W_.total - W_.released);
   drawParticles(c);
   /* le nom du métier du Pompon sous la souris */
@@ -698,6 +727,11 @@ function drawMinimap(now) {
     m.fillStyle = POMPON_COLORS[p.id % POMPON_COLORS.length];
     m.fillRect(ox + p.x * k - dpr, oy + (p.y - 6) * k - dpr, 2.4 * dpr, 2.4 * dpr);
   }
+  for (const cl of W_.clowns) {
+    if (cl.state === 'pouf' || cl.state === 'parti') continue;
+    m.fillStyle = '#9B6BF2';
+    m.beginPath(); m.arc(ox + cl.x * k, oy + (cl.y - 12) * k, 3 * dpr, 0, Math.PI * 2); m.fill();
+  }
   /* ce qu'on voit à l'écran */
   if (view.maxX > 0) {
     m.strokeStyle = '#FFFFFF';
@@ -775,9 +809,9 @@ function tapPompon(p) {
   else if (r === 'already') say(PLUME.already[selected] || PLUME.already.autre, 3, 2400);
   else if (r === 'busy') say(PLUME.busy, 3, 2400);
   else if (r === 'rock') say(PLUME.rockAssign, 3, 3000);
-  else if (r === 'nothing') say(selected === 'echelle' ? PLUME.ladderNothing : PLUME.nothing, 3, 3000);
-  else if (r === 'tooHigh') say(PLUME.ladderHigh, 3, 3000);
-  else if (r === 'blocked') say(PLUME.ladderBlocked, 3, 3000);
+  else if (r === 'nothing') say(selected === 'echelle' ? PLUME.ladderNothing : selected === 'toboggan' ? PLUME.slideNothing : PLUME.nothing, 3, 3000);
+  else if (r === 'tooHigh') say(selected === 'toboggan' ? PLUME.slideHigh : PLUME.ladderHigh, 3, 3000);
+  else if (r === 'blocked') say(selected === 'toboggan' ? PLUME.slideBlocked : PLUME.ladderBlocked, 3, 3000);
   else if (r === 'gone') say(PLUME.gone, 3, 2000);
 }
 
@@ -1111,10 +1145,10 @@ $('levelsClose').addEventListener('click', () => closeLevels());
 /* ---------- L'écran de départ et la carte des mondes ----------
    Un monde fini se rejoue quand on veut ; le monde où l'on en est s'ouvre au
    niveau à faire ; les mondes d'après restent fermés (tout est ouvert avec ?debug). */
-const MAP_POS = [[9, 70], [26, 30], [43, 70], [60, 30], [77, 68], [93, 30]];    // en % de la carte
+const MAP_POS = [[8, 70], [22, 30], [36, 70], [50, 30], [64, 70], [79, 30], [93, 70]];    // en % de la carte
 const MAP_DECOR = [
-  ['🌼', 3, 38], ['🌷', 17, 90], ['🌲', 16, 10], ['🍄', 35, 48], ['💎', 53, 90],
-  ['🦇', 34, 88], ['❄️', 51, 10], ['🏔️', 70, 10], ['🔥', 87, 90], ['🔥', 68, 92], ['☁️', 43, 12], ['✨', 97, 62],
+  ['🌼', 2, 38], ['🌷', 15, 90], ['🌲', 13, 10], ['🍄', 29, 48], ['💎', 44, 90], ['🦇', 29, 88], ['❄️', 42, 10],
+  ['🏔️', 58, 10], ['🔥', 72, 92], ['🔥', 57, 92], ['🎈', 71, 10], ['🎪', 87, 12], ['🍭', 85, 52], ['☁️', 36, 12], ['✨', 98, 40],
 ];
 let mapSel = 0;
 const worldLevels = (wi) => LEVELS.filter((l) => l.wi === wi);
@@ -1127,7 +1161,7 @@ function worldState(wi) {
   return 'locked';
 }
 const worldStars = (wi) => worldLevels(wi).reduce((n, lv) => n + starsFor(lv, bestOf(lv)), 0);
-const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F0603A', '#B9B4C8'];
+const REGION_COLORS = ['#7FD89A', '#3E9B55', '#8E7CC3', '#A9C4E8', '#F0603A', '#FF6FB1', '#B9B4C8'];
 
 function renderWorldMap() {
   const map = $('worldMap');
