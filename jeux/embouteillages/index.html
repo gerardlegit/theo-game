@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#3C8C4E">
+<title>Jeu des panneaux de signalisation pour enfants – Les Embouteillages de Bouchonville | La Cabane à Jeux</title>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "LearningResource", "name": "Les Embouteillages de Bouchonville", "url": "https://www.la-cabane.app/jeux/embouteillages/", "description": "Jeu de logique gratuit : pose des panneaux STOP et Cédez-le-passage pour décoincer les carrefours, et découvre le code de la route en t’amusant !", "inLanguage": "fr", "isAccessibleForFree": true, "learningResourceType": "Jeu éducatif", "interactivityType": "active", "about": "Logique", "teaches": "les panneaux de signalisation, la priorité aux carrefours, anticiper", "audience": {"@type": "EducationalAudience", "educationalRole": "student"}, "image": "https://www.la-cabane.app/og-image.jpg", "isPartOf": {"@type": "WebSite", "@id": "https://www.la-cabane.app/#website", "name": "La Cabane à Jeux", "url": "https://www.la-cabane.app/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "La Cabane à Jeux", "item": "https://www.la-cabane.app/"}, {"@type": "ListItem", "position": 2, "name": "Les Embouteillages de Bouchonville", "item": "https://www.la-cabane.app/jeux/embouteillages/"}]}]}</script>
+<meta name="description" content="Jeu de logique gratuit : pose des panneaux STOP et Cédez-le-passage pour décoincer les carrefours, et découvre le code de la route en t’amusant !">
+<link rel="canonical" href="https://www.la-cabane.app/jeux/embouteillages/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Cabane à Jeux">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="https://www.la-cabane.app/jeux/embouteillages/">
+<meta property="og:title" content="Les Embouteillages de Bouchonville — La Cabane à Jeux">
+<meta property="og:description" content="Jeu de logique gratuit : pose des panneaux STOP et Cédez-le-passage pour décoincer les carrefours, et découvre le code de la route en t’amusant !">
+<meta property="og:image" content="https://www.la-cabane.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La Cabane à Jeux : une cabane dans un arbre, des jeux éducatifs pour apprendre en s'amusant">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Même base que Mission Cosmos et La Marche des Pompons, plus ce qui est propre à Bouchonville -->
+<link rel="stylesheet" href="../espace/style.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/guide.css">
+</head>
+<body>
+
+  <a class="back-link" href="../../">← La Cabane</a>
+
+  <!-- Toujours visible, même par-dessus les fenêtres du jeu -->
+  <button id="quitBtn" class="exit-btn" aria-label="Quitter le jeu">🏠 <span class="btn-label">Quitter</span></button>
+
+  <header class="game-header">
+    <h1>🚦 Les Embouteillages de Bouchonville</h1>
+    <p>Plus personne ne sait qui doit passer… c’est toi qui poses les panneaux !</p>
+  </header>
+
+  <div class="hud">
+    <button id="mapBtn" class="hud-btn level-item" aria-label="Choisir un niveau" title="Choisir un niveau">🗺️ <span class="btn-label" id="levelName">Niveau 1</span></button>
+    <div class="hud-item arrived-item" id="arrivedItem" title="Voitures arrivées à bon port">🏁 <span id="arrivedCount">0</span><span class="need-goal"> / <b id="totalCount">0</b></span></div>
+    <div class="hud-item calm-item" id="calmItem" title="Conducteurs restés calmes (pour les étoiles)">😊 <span id="calmCount">0</span></div>
+    <div class="hud-item time-item" id="timeItem" title="Le temps qu’il reste">⏱️ <span id="timeLeft">0:00</span></div>
+    <button id="pauseBtn" class="hud-btn" aria-label="Pause" title="Pause (Espace) : tu peux poser tes panneaux pendant la pause">⏸</button>
+    <button id="fastBtn" class="hud-btn" aria-label="Accélérer" title="Plus vite (F)">⏩</button>
+    <button id="restartBtn" class="hud-btn" aria-label="Recommencer le niveau" title="Recommencer (R)">🔁</button>
+    <button id="soundBtn" class="hud-btn" aria-label="Couper ou remettre le son">🔊</button>
+    <button id="fsBtn" class="hud-btn desktop-only" aria-label="Plein écran" title="Plein écran">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path class="fs-in" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+        <path class="fs-out" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <section class="game-layout">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="gameCanvas" aria-label="La ville : choisis un panneau puis touche un rond au bord d’un carrefour"></canvas>
+
+        <div class="mission-panel goal-panel" id="goalPanel">
+          <button class="mission-head" id="goalToggle" aria-expanded="true">
+            🎯 <span class="mission-head-text">Objectif</span>
+          </button>
+          <div class="goal-body" id="goalBody"></div>
+        </div>
+
+        <div class="copilot" id="copilot">
+          <div class="zaza-slot" id="zazaSlot"></div>
+          <div class="bubble" id="bubble"></div>
+        </div>
+
+        <div class="level-banner" id="levelBanner" hidden></div>
+        <div class="pause-veil" id="pauseVeil" hidden><span>⏸ Pause : pose tes panneaux tranquillement</span></div>
+
+        <div class="tool-bar" id="toolBar" role="toolbar" aria-label="Les panneaux">
+          <div class="tools" id="tools"></div>
+          <div class="bar-extra">
+            <button id="hintBtn" class="bar-btn hint-btn" title="Un conseil de Zaza">💡 <span class="btn-label">Conseil</span></button>
+          </div>
+        </div>
+      </div>
+
+      <p class="desk-help desktop-only">
+        <kbd>1</kbd> <kbd>2</kbd> choisir un panneau · clic sur un rond pour le poser · clic sur une voiture pour voir où elle va ·
+        molette pour zoomer · <kbd>Espace</kbd> pause · <kbd>F</kbd> plus vite · <kbd>R</kbd> recommencer
+      </p>
+    </div>
+  </section>
+
+  <!-- Écran de départ -->
+  <div class="start-overlay" id="startOverlay" hidden>
+    <div class="order-card start-card">
+      <p class="order-title">🚦 Les Embouteillages de Bouchonville</p>
+      <div class="start-body">
+        <!-- La carte des quartiers (script.js : renderWorldMap) -->
+        <div class="map-box">
+          <p class="map-title">🗺️ Le plan de Bouchonville</p>
+          <div class="world-map" id="worldMap"></div>
+          <p class="map-legend">✅ fini : rejoue-le quand tu veux · 📍 tu en es là · 🔒 pas encore ouvert · 🚧 en travaux</p>
+        </div>
+        <div class="start-info">
+          <p class="start-level" id="startLevel"></p>
+          <p class="start-goal" id="startGoal"></p>
+          <p class="start-done" id="startDone" hidden></p>
+          <div class="start-levels" id="startLevels"></div>
+          <div class="order-actions">
+            <button id="startBtn">▶ Jouer !</button>
+            <button id="newGameBtn" class="ghost-btn" hidden>🆕 Nouvelle partie</button>
+            <button id="introBtn" class="ghost-btn">🎬 Le film</button>
+            <a class="ghost-btn quit-link" href="../../">🏠 Quitter</a>
+          </div>
+        </div>
+      </div>
+      <ul class="how-to" id="howTo">
+        <li>👇 Choisis un <b>panneau</b> en bas de l’écran, puis <b>touche un rond</b> au bord d’un carrefour</li>
+        <li>🛑 STOP : on s’arrête et on regarde · 🔻 Cédez-le-passage : on ralentit et on laisse passer</li>
+        <li>🛣️ Dans chaque carrefour, une route reste <b>sans panneau</b> : c’est la route prioritaire</li>
+        <li>🌳 Là où de grandes haies cachent la vue, il faut un STOP !</li>
+        <li>⭐ Toutes les voitures arrivées = une étoile ; des conducteurs calmes = trois étoiles</li>
+      </ul>
+      <p class="save-note">💾 Tes étoiles sont gardées toutes seules : tu peux revenir quand tu veux.</p>
+      <p class="cab-guide-line"><button type="button" class="cab-guide-btn" data-guide-open>👪 Parents et enseignants</button></p>
+    </div>
+  </div>
+
+  <!-- La carte des niveaux -->
+  <div class="levels-overlay" id="levelsOverlay" hidden>
+    <div class="levels-card" role="dialog" aria-labelledby="levelsTitle">
+      <button class="carnet-close" id="levelsClose" aria-label="Fermer">✕</button>
+      <h2 id="levelsTitle">🗺️ Les quartiers de Bouchonville</h2>
+      <p class="levels-sub" id="levelsSub"></p>
+      <div class="worlds" id="worldsList"></div>
+    </div>
+  </div>
+
+  <!-- Fenêtres : nouveau panneau, nouveau quartier, fin du niveau, conseil… -->
+  <div class="dlg-overlay" id="dialog" hidden>
+    <div class="dlg-card" id="dialogCard" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <!-- L'animation de départ : la grande tempête (intro.js) -->
+  <div class="intro-overlay" id="introOverlay" hidden>
+    <canvas id="introCanvas"></canvas>
+    <button id="introSkip" class="intro-skip">Passer ⏭</button>
+  </div>
+
+  <!-- Quitter le jeu -->
+  <div class="quit-overlay" id="quitOverlay" hidden>
+    <div class="quit-card" role="dialog" aria-labelledby="quitTitle">
+      <p class="quit-title" id="quitTitle">Quitter le jeu ?</p>
+      <p class="quit-sub">Pas de panique : tes étoiles sont sauvegardées 💾</p>
+      <div class="quit-actions">
+        <button id="quitYes">🏠 Retour à la Cabane</button>
+        <button id="quitNo" class="ghost-btn">Non, je continue 🚗</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script type="module" src="script.js"></script>
+
+  <section class="cab-guide is-overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+    <div class="cab-guide-card">
+      <button type="button" class="cab-guide-close" data-guide-close aria-label="Fermer">✕</button>
+      <p class="cab-guide-kicker">👪 Pour les parents et les enseignants</p>
+      <h2 id="guide-title">Les Embouteillages de Bouchonville&nbsp;: les panneaux de signalisation et la priorité</h2>
+      <p class="cab-guide-lead">Une tempête a emporté tous les panneaux de Bouchonville&nbsp;: aux carrefours, plus personne ne sait qui doit passer, et les voitures restent bloquées en klaxonnant. L’enfant plante des panneaux STOP et Cédez-le-passage pour que la circulation redevienne fluide et que chaque voiture arrive à son lieu (école, hôpital, boulangerie, piscine).</p>
+      <h3>Pour quel niveau&nbsp;?</h3>
+      <p>De 6 à 11 ans, du CP au CM2. Le jeu se joue presque sans lire&nbsp;: Zaza, la zèbre agente de la circulation, explique chaque panneau avec une fiche «&nbsp;Le savais-tu&nbsp;?&nbsp;».</p>
+      <h3>Ce que l’enfant apprend</h3>
+      <p>Il découvre la forme et le sens des panneaux (l’octogone du STOP, le triangle pointe en bas du Cédez-le-passage), les marquages au sol (ligne continue, ligne en pointillés), et la notion de route prioritaire. Il comprend pourquoi on met un STOP là où la visibilité est mauvaise. C’est une bonne préparation à l’Attestation de première éducation à la route (APER) de l’école primaire. Le jeu fait aussi travailler la logique&nbsp;: observer, prévoir l’effet d’une règle, corriger une erreur.</p>
+      <h3>Comment jouer</h3>
+      <p>On choisit un panneau en bas de l’écran, puis on touche un emplacement au bord d’un carrefour. Toucher une voiture montre son chemin. Une étoile quand toutes les voitures sont arrivées, trois étoiles si les conducteurs sont restés calmes. La pause permet de réfléchir et de poser les panneaux tranquillement.</p>
+      <h3>En classe ou à la maison</h3>
+      <p>Après une partie, regardez ensemble un vrai carrefour du quartier&nbsp;: quelle route est prioritaire&nbsp;? Où sont le STOP et le Cédez-le-passage&nbsp;? L’enfant peut aussi dessiner son propre plan de ville et y placer les panneaux.</p>
+    </div>
+  </section>
+  <script type="module" src="../../shared/guide.js"></script>
+</body>
+</html>
