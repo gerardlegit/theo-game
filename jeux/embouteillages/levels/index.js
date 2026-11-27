@@ -32,6 +32,11 @@
 //     solution: [ { noeud: [c, r], cote: 'n', panneau: 'stop', t: 0 }, … ],
 //                               // les panneaux du pilote automatique (?debug) : le carrefour
 //                               // en (c, r), la route qui arrive par le côté n, s, e ou o.
+//                               // Le bouton « 👀 Montre-moi » du conseil 💡 s'en sert aussi :
+//                               // Zaza montre un panneau qui manque (ou un panneau à enlever).
+//     lecon: [ … ],             // (facultatif) un niveau guidé pas à pas, comme « La leçon
+//                               // de Zaza » dans centre.js, où chaque étape est expliquée ;
+//                               // pas de minuterie ni de conseil, et la fenêtre de fin dit « fin ».
 //   }
 //
 // Règles à garder en tête en dessinant un plan :
@@ -40,7 +45,10 @@
 //     deux avec un panneau) qui se croisent : les voitures se disputent ;
 //   - les voitures prennent toujours le plus court chemin ;
 //   - avec ?debug, __emb.verifie() rejoue chaque solution : toutes les voitures
-//     doivent arriver, et sans aucun panneau la ville doit rester bloquée.
+//     doivent arriver, et sans aucun panneau la ville doit rester bloquée ;
+//   - une leçon : les voitures doivent bloquer chaque carrefour juste après
+//     l'étape d'avant (le temps est arrêté pendant les explications, donc
+//     tout se joue en secondes de simulation). __emb.cible() donne où toucher.
 //
 // POUR AJOUTER UN QUARTIER : ajoute une entrée dans QUARTIERS ci-dessous.
 // ============================================================================

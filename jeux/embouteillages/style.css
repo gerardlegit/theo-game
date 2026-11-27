@@ -721,3 +721,197 @@ body.phone .tool-btn { width: 52px; }
 @media (max-width: 900px) {
   .tool-btn { width: 64px; }
 }
+
+/* ---------- La leçon de Zaza : sa grande bulle et sa main ---------- */
+.tuto {
+  position: absolute;
+  top: 62px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(640px, calc(100% - 24px));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .55rem .8rem .55rem .55rem;
+  border-radius: 20px;
+  background: #FFFDF6;
+  color: var(--ink);
+  border: 3px solid var(--yellow);
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.18), 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+.tuto[hidden] { display: none; }
+.tuto.show { animation: tutoIn .4s cubic-bezier(.2, 1.4, .4, 1); }
+.tuto.nope { animation: tutoNope .45s ease; }
+@keyframes tutoIn { from { opacity: 0; transform: translateY(-14px) scale(.94); } }
+@keyframes tutoNope {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+.tuto-face {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 40% 35%, #D8F3C8, #7DCB6E);
+}
+.tuto-face .bip { width: 54px; height: 58px; filter: none; }
+.tuto-body { flex: 1 1 auto; display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.tuto-text { margin: 0; flex: 1 1 auto; font-size: 1.08rem; line-height: 1.35; font-weight: 600; }
+.tuto-next {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  padding: .5rem 1.1rem;
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 0 #d9a21e;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: soonPulse 1.4s ease-in-out infinite;
+}
+.tuto-next:hover { transform: translateY(1px); }
+.tuto-next[hidden] { display: none; }
+body.tuto-on .copilot { display: none; }
+body.lecon #timeItem,
+body.lecon .bar-extra { display: none; }
+
+.tuto-hand {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 2.8rem;
+  line-height: 1;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+}
+.tuto-hand[hidden] { display: none; }
+.tuto-hand > span { display: block; }
+.tuto-hand[data-dir="haut"] { transform: translate(-50%, 0); }
+.tuto-hand[data-dir="haut"] > span { animation: handUp .8s ease-in-out infinite; }
+.tuto-hand[data-dir="bas"] { transform: translate(-50%, -100%); }
+.tuto-hand[data-dir="bas"] > span { animation: handDown .8s ease-in-out infinite; }
+.tuto-hand[data-dir="droite"] { transform: translate(-100%, -50%); }
+.tuto-hand[data-dir="droite"] > span { animation: handRight .8s ease-in-out infinite; }
+@keyframes handUp { 50% { transform: translateY(12px); } }
+@keyframes handDown { 50% { transform: translateY(-12px); } }
+@keyframes handRight { 50% { transform: translateX(-12px); } }
+.tuto-glow { animation: tutoGlow 1s ease-in-out infinite !important; position: relative; z-index: 2; }
+@keyframes tutoGlow {
+  0%, 100% { box-shadow: 0 0 0 3px #FFFFFF, 0 0 0 6px var(--yellow), 0 0 18px 6px rgba(255, 225, 77, 0.8); }
+  50% { box-shadow: 0 0 0 3px #FFFFFF, 0 0 0 9px var(--yellow), 0 0 30px 12px rgba(255, 225, 77, 0.9); }
+}
+
+/* ---------- Le bouton « Toute la ville » (quand on a zoomé) ---------- */
+.zoom-out-btn {
+  position: absolute;
+  top: 62px;
+  right: 12px;
+  z-index: 4;
+  border: none;
+  border-radius: 999px;
+  padding: .4rem .9rem;
+  background: rgba(23, 33, 66, 0.82);
+  color: var(--white);
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: .95rem;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.zoom-out-btn[hidden] { display: none; }
+body.lecon .zoom-out-btn { top: auto; bottom: calc(var(--bar-h) + 24px); }
+
+/* ---------- Téléphone : la leçon ---------- */
+body.phone .tuto {
+  top: var(--under-hud);
+  width: min(600px, calc(100% - 16px));
+  gap: .45rem;
+  padding: .3rem .5rem .3rem .3rem;
+  border-radius: 14px;
+  border-width: 2px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+body.phone .tuto-face { width: 42px; height: 42px; }
+body.phone .tuto-face .bip { width: 36px; height: 40px; }
+body.phone .tuto-body { gap: .45rem; }
+body.phone .tuto-text { font-size: .82rem; line-height: 1.25; }
+body.phone .tuto-next { font-size: .85rem; padding: .3rem .75rem; box-shadow: 0 3px 0 #d9a21e; }
+body.phone .tuto-hand { font-size: 2.2rem; }
+body.phone .zoom-out-btn { top: var(--under-hud); right: max(8px, env(safe-area-inset-right)); font-size: .8rem; padding: .25rem .6rem; }
+body.phone .zoom-out-btn .zo-label { display: none; }
+
+/* ---------- Téléphone couché : la barre des panneaux debout, à droite ---------- */
+body.phone.side-bar .tool-bar {
+  left: auto;
+  right: max(6px, env(safe-area-inset-right));
+  bottom: auto;
+  top: calc(50% + 20px);
+  transform: translateY(-50%);
+  flex-direction: column;
+  padding: .3rem .25rem;
+  max-height: calc(100% - var(--under-hud) - 6px);
+}
+body.phone.side-bar .tools { flex-direction: column; gap: .3rem; }
+body.phone.side-bar .tool-btn.on { transform: translateX(-4px); }
+body.phone.side-bar .tool-btn:hover { transform: none; }
+body.phone.side-bar .bar-extra { flex-direction: row; justify-content: center; }
+body.phone.side-bar .copilot { bottom: max(6px, env(safe-area-inset-bottom)); max-width: calc(100% - 90px); }
+body.phone.side-bar .bubble { max-width: min(300px, 40vw); }
+body.phone.side-bar .tuto { right: 74px; width: auto; max-width: 640px; left: 8px; }
+body.phone.side-bar .zoom-out-btn { right: 74px; }
+body.phone.side-bar.lecon .zoom-out-btn { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); }
+body.phone.side-bar .pause-veil span { font-size: 1rem; }
+body.phone.side-bar .level-banner { left: calc(50% - 35px); }
+
+/* ---------- Téléphone tenu debout : « Tourne ton téléphone » ---------- */
+.rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, #3C8C4E 0%, #1F4A35 80%);
+  color: var(--white);
+  text-align: center;
+}
+.rotate-overlay[hidden] { display: none; }
+.rotate-phone { font-size: 4.5rem; line-height: 1; animation: rotatePhone 2.4s ease-in-out infinite; }
+.rotate-title { margin: 1.2rem 0 .3rem; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.7rem; color: #FFE14D; }
+.rotate-sub { margin: 0 auto; max-width: 300px; font-size: 1.05rem; line-height: 1.4; color: #E4F4DC; }
+@keyframes rotatePhone {
+  0%, 25% { transform: rotate(0deg); }
+  55%, 100% { transform: rotate(-90deg); }
+}
+
+/* ---------- Écran bas (téléphone couché) : des fenêtres plus compactes ---------- */
+@media (max-height: 500px) {
+  body[class] .dlg-overlay { padding: .4rem; }
+  body[class] .dlg-card { padding: .5rem .8rem .55rem; max-width: 560px; border-radius: 16px; }
+  body[class] .dlg-head { margin-bottom: .3rem; }
+  body[class] .dlg-face { width: 46px; height: 46px; }
+  body[class] .dlg-face .bip { width: 38px; height: 42px; }
+  body[class] .dlg-face canvas { width: 44px; height: 44px; }
+  body[class] .dlg-name { font-size: 1.1rem; }
+  body[class] .dlg-say { font-size: .85rem; line-height: 1.3; padding: .35rem .6rem; margin-bottom: .3rem; }
+  body[class] .dlg-fact { font-size: .8rem; line-height: 1.3; padding: .35rem .6rem; margin-bottom: .2rem; }
+  body[class] .dlg-actions { margin-top: .3rem; gap: .35rem; }
+  body[class] .dlg-card button.primary,
+  body[class] .dlg-card button.secondary { font-size: .92rem; padding: .32rem .95rem; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2); }
+  body[class] .result-title { font-size: 1.25rem; }
+  body[class] .result-stars { font-size: 1.7rem; margin: 0 0 .1rem; }
+  body[class] .result-count { font-size: .9rem; margin-bottom: .15rem; }
+  body[class] .result-count b { font-size: 1.1rem; }
+  body[class] .result-faces { gap: 2px; margin-bottom: .2rem; }
+  body[class] .result-faces i { font-size: .8rem; padding: 1px; border-width: 2px; }
+  body[class] .result-calm { font-size: .85rem; margin-bottom: .25rem; }
+  body[class] .result-best, body[class] .result-soon { font-size: .78rem; margin-top: .15rem; }
+}

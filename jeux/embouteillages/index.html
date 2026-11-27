@@ -76,6 +76,16 @@
           <div class="bubble" id="bubble"></div>
         </div>
 
+        <!-- La leçon de Zaza : sa grande bulle (script.js, « La leçon de Zaza ») -->
+        <div class="tuto" id="tuto" hidden>
+          <div class="tuto-face" id="tutoFace" aria-hidden="true"></div>
+          <div class="tuto-body">
+            <p class="tuto-text" id="tutoText" aria-live="polite"></p>
+            <button id="tutoNext" class="tuto-next">Suivant ▶</button>
+          </div>
+        </div>
+        <button id="zoomOutBtn" class="zoom-out-btn" hidden aria-label="Voir toute la ville">🔍 <span class="zo-label">Toute la ville</span></button>
+
         <div class="level-banner" id="levelBanner" hidden></div>
         <div class="pause-veil" id="pauseVeil" hidden><span>⏸ Pause : pose tes panneaux tranquillement</span></div>
 
@@ -163,6 +173,18 @@
     </div>
   </div>
 
+  <!-- La main de Zaza : elle montre quoi toucher pendant la leçon -->
+  <div class="tuto-hand" id="tutoHand" hidden aria-hidden="true"><span>👆</span></div>
+
+  <!-- Téléphone tenu debout : la ville se joue en paysage -->
+  <div class="rotate-overlay" id="rotateOverlay" hidden>
+    <div class="rotate-card">
+      <div class="rotate-phone" aria-hidden="true">📱</div>
+      <p class="rotate-title">Tourne ton téléphone&nbsp;!</p>
+      <p class="rotate-sub">Toute la ville tient sur l’écran quand le téléphone est couché&nbsp;🔄</p>
+    </div>
+  </div>
+
   <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
 
   <script type="module" src="script.js"></script>
@@ -178,7 +200,7 @@
       <h3>Ce que l’enfant apprend</h3>
       <p>Il découvre la forme et le sens des panneaux (l’octogone du STOP, le triangle pointe en bas du Cédez-le-passage), les marquages au sol (ligne continue, ligne en pointillés), et la notion de route prioritaire. Il comprend pourquoi on met un STOP là où la visibilité est mauvaise. C’est une bonne préparation à l’Attestation de première éducation à la route (APER) de l’école primaire. Le jeu fait aussi travailler la logique&nbsp;: observer, prévoir l’effet d’une règle, corriger une erreur.</p>
       <h3>Comment jouer</h3>
-      <p>On choisit un panneau en bas de l’écran, puis on touche un emplacement au bord d’un carrefour. Toucher une voiture montre son chemin. Une étoile quand toutes les voitures sont arrivées, trois étoiles si les conducteurs sont restés calmes. La pause permet de réfléchir et de poser les panneaux tranquillement.</p>
+      <p>Le premier niveau est une leçon guidée&nbsp;: Zaza arrête le temps, explique et montre du doigt quoi toucher. Ensuite, on choisit un panneau, puis on touche un emplacement au bord d’un carrefour&nbsp;; si l’enfant bloque, le bouton 💡 montre où poser le panneau suivant. Une étoile quand toutes les voitures sont arrivées, trois étoiles si les conducteurs sont restés calmes. La pause permet de réfléchir.</p>
       <h3>En classe ou à la maison</h3>
       <p>Après une partie, regardez ensemble un vrai carrefour du quartier&nbsp;: quelle route est prioritaire&nbsp;? Où sont le STOP et le Cédez-le-passage&nbsp;? L’enfant peut aussi dessiner son propre plan de ville et y placer les panneaux.</p>
     </div>

@@ -10,9 +10,12 @@
 //
 // Ce fichier : le déroulé (écran de départ, carte des quartiers, fenêtres),
 // la caméra, le toucher et la souris, la boucle de dessin, les étincelles et
-// les bruits. La simulation est dans ville.js, les dessins dans art.js.
+// les bruits, la leçon guidée du premier niveau et le « Montre-moi » du
+// conseil. Sur téléphone : le jeu se joue couché (barre des panneaux à
+// droite), et un toucher près d'un carrefour vu de loin zoome d'abord dessus.
+// La simulation est dans ville.js, les dessins dans art.js.
 // Avec ?debug : tous les niveaux sont ouverts, ?debug&niveau=N ouvre le
-// niveau N, et window.__emb donne verifie(), auto(), bench()…
+// niveau N, et window.__emb donne verifie(), auto(), bench(), cible()…
 // ============================================================================
 
 import { createWorld, playSolution, pointAt, turnOf, TICK_RATE, TILE } from './ville.js';
@@ -53,7 +56,11 @@ const levelsOverlay = $('levelsOverlay');
 const introOverlay = $('introOverlay');
 const quitOverlay = $('quitOverlay');
 const confettiLayer = $('confettiLayer');
+const tutoEl = $('tuto');
+const tutoHand = $('tutoHand');
+const rotateOverlay = $('rotateOverlay');
 $('zazaSlot').innerHTML = ZAZA_SVG;
+$('tutoFace').innerHTML = ZAZA_SVG;
 
 /* ---------- La sauvegarde ---------- */
 let save = { v: SAVE_VERSION, best: {}, seenIntro: false, seenSigns: {}, seenQuartiers: {}, last: 0 };
@@ -76,7 +83,7 @@ const starsFor = (lv, calm) => lv.etoiles.filter((n) => calm >= n).length;
 const bestOf = (lv) => save.best[lv.id] || null;
 const bestStars = (lv) => (bestOf(lv) ? bestOf(lv).stars : 0);
 const isWon = (lv) => bestStars(lv) > 0;
-const isOpen = (i) => DEBUG || i === 0 || isWon(LEVELS[i - 1]);
+const isOpen = (i) => DEBUG || i === 0 || isWon(LEVELS[i - 1]) || isWon(LEVELS[i]);
 const totalStars = () => LEVELS.reduce((n, lv) => n + bestStars(lv), 0);
 const firstUnfinished = () => {
   const i = LEVELS.findIndex((lv) => !isWon(lv));
@@ -109,14 +116,20 @@ let jamSince = {};                 // depuis quand un carrefour est bloqué
 let autoSteps = null;
 let feteT = 0;
 let animT = 0;
+let tuto = null;                   // la leçon guidée en cours (ou un « Montre-moi »)
+let cam = null;                    // un mouvement de caméra en cours
+let camFocus = null;               // le point que la caméra garde en vue (leçon, loupe)
+let loupeBack = 0;                 // le retour à toute la ville, après un zoom « loupe »
 
 /* la caméra : zoom z (zoom pour tout voir × zoom de l'enfant), centre (cx, cy) dans le monde */
-const view = { W: 800, H: 600, dpr: 1, z: 1, fitZ: 1, user: 1, cx: 0, cy: 0, top: 58, bottom: 100, left: 0 };
+const view = { W: 800, H: 600, dpr: 1, z: 1, fitZ: 1, user: 1, cx: 0, cy: 0, top: 58, bottom: 100, left: 0, right: 0 };
 
 /* ---------- Zaza ---------- */
 let zaza = { until: 0, prio: 0 };
 let lastTalk = 0;
 function say(text, prio = 1, dur = 4800) {
+  /* pendant la leçon, Zaza parle seulement dans sa grande bulle */
+  if (tuto) return;
   const now = performance.now();
   if (now < zaza.until && prio < zaza.prio) return;
   bubble.textContent = fr(text);
@@ -139,7 +152,7 @@ function updateZaza(now) {
     copilot.classList.remove('talking');
     zaza = { until: 0, prio: 0 };
   }
-  if (mode === 'play' && !paused && !anyOverlay() && now - lastTalk > 30000) {
+  if (mode === 'play' && !paused && !anyOverlay() && !tuto && now - lastTalk > 30000) {
     say(Math.random() < 0.65 ? pick(ZAZA.idle) : pick(ZAZA.blagues), 0, 6000);
   }
 }
@@ -154,21 +167,27 @@ function fit() {
   canvas.height = Math.round(view.H * view.dpr);
   if (!W_) return;
   const phone = document.body.classList.contains('phone');
+  const side = document.body.classList.contains('side-bar');
   const bar = $('toolBar');
   view.top = phone ? 44 : 56;
-  view.bottom = (bar ? bar.offsetHeight : 80) + (phone ? 10 : 16);
+  /* téléphone couché : la barre des panneaux est debout, à droite */
+  view.bottom = side ? 6 : (bar ? bar.offsetHeight : 80) + (phone ? 10 : 16);
+  view.right = side && bar ? bar.offsetWidth + 14 : 0;
   const mapW = M.W * TILE, mapH = M.H * TILE;
   const availH = Math.max(120, view.H - view.top - view.bottom);
   view.left = 0;
-  view.fitZ = Math.min(availH / mapH, (view.W - 16) / mapW);
+  view.fitZ = Math.min(availH / mapH, (view.W - view.right - 16) / mapW);
   /* s'il y a la place, la ville se pousse à droite du panneau de l'objectif */
   const panel = $('goalPanel');
   if (!phone && panel && !panel.classList.contains('collapsed')) {
     const reserve = panel.offsetWidth + 18;
-    const z2 = Math.min(availH / mapH, (view.W - reserve - 12) / mapW);
+    const z2 = Math.min(availH / mapH, (view.W - view.right - reserve - 12) / mapW);
     if (z2 >= view.fitZ * 0.9) { view.fitZ = z2; view.left = reserve; }
   }
-  setZoom(view.user);
+  /* la leçon garde son carrefour bien en vue */
+  cam = null;
+  if (camFocus) camTo(camFocus.pt, camFocus.user, true, camFocus.loupe);
+  else setZoom(view.user);
 }
 function setZoom(u, ax, ay) {
   const mapW = M.W * TILE, mapH = M.H * TILE;
@@ -184,17 +203,58 @@ function setZoom(u, ax, ay) {
   if (view.user === 1) { view.cx = mapW / 2; view.cy = mapH / 2; }
   clampCam();
 }
-const midX = () => view.left + (view.W - view.left) / 2;
+const midX = () => view.left + (view.W - view.left - view.right) / 2;
 const midY = () => view.top + (view.H - view.top - view.bottom) / 2;
 function clampCam() {
   const mapW = M.W * TILE, mapH = M.H * TILE;
-  const hw = (view.W - view.left) / view.z / 2;
+  const hw = (view.W - view.left - view.right) / view.z / 2;
   const hh = (view.H - view.top - view.bottom) / view.z / 2;
   view.cx = mapW <= hw * 2 ? mapW / 2 : Math.max(hw - 20, Math.min(mapW - hw + 20, view.cx));
   view.cy = mapH <= hh * 2 ? mapH / 2 : Math.max(hh - 20, Math.min(mapH - hh + 20, view.cy));
 }
 function toWorld(sx, sy, z = view.z) { return [(sx - midX()) / z + view.cx, (sy - midY()) / z + view.cy]; }
 function toScreen(wx, wy) { return [(wx - view.cx) * view.z + midX(), (wy - view.cy) * view.z + midY()]; }
+
+/* La caméra qui glisse jusqu'à un carrefour (leçon, loupe) ou recule pour
+   montrer toute la ville (pt = null). user : le zoom voulu, sinon celui où un
+   carrefour et ses rues remplissent l'écran. */
+function focusZoom() {
+  const w = view.W - view.left - view.right, h = view.H - view.top - view.bottom;
+  /* assez près pour viser les ronds au doigt, sans perdre les rues autour */
+  return Math.max(1, Math.min(1.6, w / (8 * TILE), h / (5 * TILE)) / view.fitZ);
+}
+function camTo(pt, user, instant = false, loupe = false) {
+  if (!M) return;
+  camFocus = pt ? { pt, user, loupe } : null;
+  const u = pt ? Math.max(1, Math.min(MAX_ZOOM / view.fitZ, user || focusZoom())) : 1;
+  const z = view.fitZ * u;
+  let to = { x: M.W * TILE / 2, y: M.H * TILE / 2, u };
+  if (pt) {
+    /* le carrefour se place au milieu de ce qui reste visible sous la bulle de la leçon */
+    let shift = 0;
+    if (!tutoEl.hidden) {
+      const sr = stage.getBoundingClientRect();
+      const b = tutoEl.getBoundingClientRect().bottom - sr.top;
+      shift = Math.max(0, (b - view.top) / 2);
+    }
+    to = { x: pt.x, y: pt.y - shift / z, u };
+  }
+  if (instant) { cam = { t: 1, dur: 1, from: to, to }; updateCam(0); return; }
+  cam = { t: 0, dur: 0.8, from: { x: view.cx, y: view.cy, u: view.user }, to };
+}
+function updateCam(dt) {
+  if (!cam) return;
+  cam.t = Math.min(cam.dur, cam.t + dt);
+  const k0 = cam.t / cam.dur;
+  const k = k0 * k0 * (3 - 2 * k0);
+  view.user = cam.from.u + (cam.to.u - cam.from.u) * k;
+  view.z = view.fitZ * view.user;
+  view.cx = cam.from.x + (cam.to.x - cam.from.x) * k;
+  view.cy = cam.from.y + (cam.to.y - cam.from.y) * k;
+  clampCam();
+  if (k0 >= 1) cam = null;
+}
+const nodeAt = (c, r) => W_.city.nodes.find((n) => n.c === c && n.r === r);
 
 /* la ville déjà dessinée, à la bonne finesse pour le zoom */
 function ensureStatic() {
@@ -231,6 +291,11 @@ function loadLevel(i) {
   flags = {}; pulses = {}; posePop = {}; jamSince = {};
   acc = 0; shake = 0; feteT = 0;
   view.user = 1;
+  stopTuto();
+  cam = null; camFocus = null;
+  clearTimeout(loupeBack);
+  document.body.classList.toggle('lecon', !!LV.lecon);
+  if (LV.lecon) $('goalPanel').classList.add('collapsed');
   buildToolBar();
   renderGoal();
   renderHud(true);
@@ -244,6 +309,13 @@ function startLevel(i) {
   setPaused(false);
   setFast(false);
   autoSteps = null;
+  /* la leçon de Zaza présente elle-même le quartier et les panneaux */
+  if (LV.lecon) {
+    save.seenQuartiers[LV.quartier.id] = true;
+    writeSave();
+    beginLevel();
+    return;
+  }
   const queue = [];
   const q = LV.quartier;
   if (!save.seenQuartiers[q.id]) queue.push((next) => quartierDialog(q, next));
@@ -263,8 +335,9 @@ function runQueue(queue, done) {
   next();
 }
 function beginLevel() {
-  showBanner();
   sfx.go();
+  if (LV.lecon) { startTuto(LV.lecon); return; }
+  showBanner();
   const first = levelIndex === 0 && !flags.premier && !Object.keys(save.best).length;
   if (first) { flags.premier = true; say(ZAZA.premier, 2, 7000); setTimeout(() => { if (mode === 'play') say(LV.intro, 2, 7000); }, 7200); }
   else say(LV.intro, 1, 6000);
@@ -324,6 +397,7 @@ function selectTool(id, silent = false) {
   tool = id;
   renderToolCounts();
   if (!silent) sfx.select();
+  if (tuto) { tutoCheck(); return; }
   if (id && id !== 'enlever' && !flags[`tool-${id}`]) {
     flags[`tool-${id}`] = true;
     say(id === 'stop' ? ZAZA.poseStop : ZAZA.poseCede, 1, 4200);
@@ -588,6 +662,7 @@ function render(now, dt) {
     const type = W_.signs[slot.key];
     if (type) drawRoadMarking(c, slot, type);
   }
+  drawTutoZones(c, t);
   /* le chemin de la voiture choisie */
   const shown = focusCar || hoverCar;
   if (shown && (shown.mode === 'voie' || shown.mode === 'carrefour' || shown.mode === 'attente')) drawRoute(c, shown, animT);
@@ -638,7 +713,8 @@ function render(now, dt) {
       c.save();
       c.translate(slot.x, slot.y - 4);
       c.scale(s, s);
-      if (sel) {
+      /* pendant la leçon, seuls les ronds montrés par Zaza s'allument */
+      if (tuto ? tutoRonds().includes(slot.key) : sel) {
         /* un rond jaune qui respire : « pose ton panneau ici » */
         const k = 1 + Math.sin(t * 5 + slot.x * 0.05) * 0.15;
         c.fillStyle = 'rgba(46,42,77,0.35)';
@@ -665,7 +741,7 @@ function render(now, dt) {
   /* les carrefours cachés (quand on tient un panneau) et les carrefours bloqués */
   for (const n of W_.city.nodes) {
     if (n.kind !== 'carrefour') continue;
-    if (sel && n.aveugle) drawBlindBadge(c, n.x, n.y, Math.min(1.6, Math.max(0.9, 1 / view.z)), t);
+    if ((sel || tutoShows(n)) && n.aveugle) drawBlindBadge(c, n.x, n.y, Math.min(1.6, Math.max(0.9, 1 / view.z)), t);
     const jam = jamSince[n.id] || 0;
     if (jam > 1.2 && mode === 'play') {
       const k = Math.min(1, (jam - 1.2) * 2);
@@ -707,6 +783,7 @@ function render(now, dt) {
     const hot = (focusCar || hoverCar) && (focusCar || hoverCar).vers === l.ch ? 0.35 + Math.sin(t * 6) * 0.2 : 0;
     drawLieuBadge(c, l, n, total, t, Math.max(pulses[l.ch] || 0, hot), view.z);
   }
+  drawTutoRings(c, t);
   drawParticles(c);
   drawCloudShadows(c, M, animT);
   drawFloaters(c);
@@ -792,7 +869,8 @@ let lastNow = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - (lastNow || now)) / 1000);
   lastNow = now;
-  if (W_ && (mode === 'play' || mode === 'fete') && !paused && !anyOverlay()) {
+  checkRotate();
+  if (W_ && (mode === 'play' || mode === 'fete') && !paused && !anyOverlay() && !tutoHolds()) {
     acc += dt * (fast ? FAST : 1);
     let n = 0;
     while (acc >= STEP_S && n < 12) {
@@ -809,8 +887,12 @@ function frame(now) {
   }
   shake = Math.max(0, shake - dt * 1.5);
   updateParticles(paused ? 0 : dt);
+  updateCam(dt);
   updateZaza(now);
+  updateTuto();
   render(now, dt);
+  placeHand();
+  $('zoomOutBtn').hidden = !(W_ && mode === 'play' && view.user > 1.05 && !anyOverlay());
   requestAnimationFrame(frame);
 }
 
@@ -835,10 +917,20 @@ function findCar(wx, wy) {
   }
   return best;
 }
-function tapAt(sx, sy) {
+/* Au doigt, quand la ville est vue de loin, les ronds d'un carrefour sont
+   trop serrés pour viser : le premier toucher zoome sur le carrefour (la loupe),
+   le suivant pose le panneau. */
+const LOUPE_GAP = 62;              // l'écart entre deux ronds d'un carrefour, dans le monde
+function tapAt(sx, sy, touch = false) {
   if (!W_ || (mode !== 'play')) return;
   const [wx, wy] = toWorld(sx, sy);
   const slot = findSlot(wx, wy);
+  if (slot && touch && tool && view.z * LOUPE_GAP < 46) {
+    const u = Math.max(view.user, 78 / LOUPE_GAP / view.fitZ);
+    camTo({ x: slot.node.x, y: slot.node.y }, u, false, true);
+    sfx.open();
+    return;
+  }
   if (slot) { tapSlot(slot); return; }
   const car = findCar(wx, wy);
   if (car) {
@@ -853,6 +945,8 @@ function tapAt(sx, sy) {
 }
 function tapSlot(slot) {
   const cur = W_.signs[slot.key];
+  /* pendant la leçon, seul le rond montré par Zaza répond */
+  if (tuto && !tutoAllows(slot)) { tutoNope(); return; }
   if (tool === 'enlever' || (cur && (!tool || tool === cur))) {
     if (cur && W_.remove(slot.key)) {
       sfx.enleve();
@@ -860,6 +954,7 @@ function tapSlot(slot) {
       renderToolCounts();
       pulseTool(cur);
       sayOnce('enleve', ZAZA.enleve, 0, 3000);
+      tutoCheck();
     }
     return;
   }
@@ -880,12 +975,19 @@ function tapSlot(slot) {
   if (!flags.pose1) { flags.pose1 = true; say(pick(ZAZA.pose), 1, 3500); }
   /* plus de panneau de ce type : on repose l'outil */
   if ((W_.stock[tool] || 0) === 0) selectTool(null, true);
+  /* sur téléphone, après un zoom « loupe », on revoit toute la ville */
+  if (camFocus && camFocus.loupe && !tuto) {
+    clearTimeout(loupeBack);
+    loupeBack = setTimeout(() => { if (camFocus && camFocus.loupe) camTo(null); }, 2200);
+  }
+  tutoCheck();
 }
 
 const pointers = new Map();
 let drag = null;
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
+  clearTimeout(loupeBack);
   pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   if (pointers.size === 1) drag = { x0: e.offsetX, y0: e.offsetY, cx: view.cx, cy: view.cy, moved: false };
   else if (pointers.size === 2) {
@@ -899,6 +1001,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag && drag.pinch && pointers.size >= 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
+    takeCamera();
     setZoom(drag.user * d / drag.pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
     return;
   }
@@ -906,6 +1009,7 @@ canvas.addEventListener('pointermove', (e) => {
     const dx = e.offsetX - drag.x0, dy = e.offsetY - drag.y0;
     if (Math.hypot(dx, dy) > 8) drag.moved = true;
     if (drag.moved && view.user > 1) {
+      if (cam || camFocus) { takeCamera(); drag.cx = view.cx + dx / view.z; drag.cy = view.cy + dy / view.z; }
       view.cx = drag.cx - dx / view.z;
       view.cy = drag.cy - dy / view.z;
       clampCam();
@@ -925,18 +1029,25 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   canvas.classList.remove('dragging');
   if (!had) return;
-  if (drag && !drag.moved && !drag.pinch && pointers.size === 0) tapAt(e.offsetX, e.offsetY);
+  if (drag && !drag.moved && !drag.pinch && pointers.size === 0) tapAt(e.offsetX, e.offsetY, e.pointerType !== 'mouse');
   if (pointers.size === 0) drag = null;
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); drag = null; canvas.classList.remove('dragging'); });
 canvas.addEventListener('pointerleave', () => { hoverSlot = null; hoverCar = null; });
+/* l'enfant reprend la caméra en main (glisser, pincer, molette) */
+function takeCamera() {
+  cam = null;
+  camFocus = null;
+  clearTimeout(loupeBack);
+}
 canvas.addEventListener('wheel', (e) => {
   if (!W_) return;
   e.preventDefault();
+  takeCamera();
   setZoom(view.user * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.offsetX, e.offsetY);
 }, { passive: false });
-canvas.addEventListener('dblclick', () => { if (W_) setZoom(1); });
+canvas.addEventListener('dblclick', () => { if (W_) { takeCamera(); setZoom(1); } });
 
 document.addEventListener('keydown', (e) => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
@@ -980,8 +1091,9 @@ function startLevelQuick(i) {
   setPaused(false);
   setFast(false);
   autoSteps = null;
-  showBanner();
   sfx.go();
+  if (LV.lecon) { startTuto(LV.lecon); return; }
+  showBanner();
   say(LV.intro, 1, 5000);
 }
 $('pauseBtn').addEventListener('click', (e) => { e.currentTarget.blur(); if (mode === 'play') setPaused(!paused); });
@@ -1004,7 +1116,7 @@ soundBtn.addEventListener('click', (e) => { e.currentTarget.blur(); toggleSound(
 
 /* ---------- Les fenêtres ---------- */
 const anyOverlay = () => !dialog.hidden || !levelsOverlay.hidden || !startOverlay.hidden || !introOverlay.hidden
-  || !quitOverlay.hidden || !$('guide').hidden;
+  || !quitOverlay.hidden || !$('guide').hidden || !rotateOverlay.hidden;
 function closeAll() {
   dialog.hidden = true;
   levelsOverlay.hidden = true;
@@ -1081,10 +1193,11 @@ function hintDialog() {
   openDialog((card) => {
     head(card, zazaFace(), 'Un conseil de Zaza', LV.nom);
     card.append(el('p', 'dlg-say', LV.astuce));
-    actions(card, [
-      ['Merci Zaza ! 🦓', 'primary', () => { dialog.hidden = true; }],
-      ['🔁 Recommencer', 'secondary', () => { dialog.hidden = true; restart(); }],
-    ]);
+    const list = [['Merci Zaza ! 🦓', 'primary', () => { dialog.hidden = true; }]];
+    /* Zaza montre un panneau de la solution, carrefour par carrefour */
+    if (mode === 'play' && (LV.solution || []).length) list.push(['👀 Montre-moi', 'secondary', () => { dialog.hidden = true; showMe(); }]);
+    list.push(['🔁 Recommencer', 'secondary', () => { dialog.hidden = true; restart(); }]);
+    actions(card, list);
   });
 }
 
@@ -1092,6 +1205,7 @@ function hintDialog() {
 function finishLevel() {
   if (mode !== 'play') return;
   const won = W_.arrived >= W_.total;
+  if (tuto) endTuto();
   selectTool(null, true);
   focusCar = null;
   if (won) {
@@ -1121,7 +1235,8 @@ function showResult(won) {
   openDialog((card) => {
     card.classList.add('result');
     const box = el('div', 'result');
-    box.append(el('p', `result-title${won ? '' : ' fail'}`, won ? `${STAR_TEXT[stars] || 'Gagné !'} 🎉` : 'Embouteillage !'));
+    const title = won ? (LV.lecon ? 'Leçon réussie ! 🎓' : `${STAR_TEXT[stars] || 'Gagné !'} 🎉`) : 'Embouteillage !';
+    box.append(el('p', `result-title${won ? '' : ' fail'}`, title));
     const st = el('div', 'result-stars');
     for (let k = 0; k < 3; k++) st.append(el('span', null, '⭐'));
     box.append(st);
@@ -1138,7 +1253,7 @@ function showResult(won) {
     }
     box.append(faces);
     box.append(el('p', 'result-calm', `😊 ${calm} conducteur${calm > 1 ? 's' : ''} calme${calm > 1 ? 's' : ''} sur ${W_.total}${W_.frayeurs ? ` · 😱 ${W_.frayeurs} frayeur${W_.frayeurs > 1 ? 's' : ''}` : ''}`));
-    let msg = won ? pick(ZAZA.win) : `${pick(ZAZA.fail)} Il faut que toutes les voitures arrivent.`;
+    let msg = won ? (LV.fin || pick(ZAZA.win)) : `${pick(ZAZA.fail)} Il faut que toutes les voitures arrivent.`;
     if (won && stars < 3) msg += W_.frayeurs ? ' Pour les trois étoiles : pas de frayeur ! Un STOP là où l’on ne voit rien.' : ' Pour les trois étoiles, pose tes panneaux plus vite (tu peux mettre sur pause ⏸ pour réfléchir).';
     box.append(el('p', 'dlg-say', msg));
     if (record && before) box.append(el('p', 'result-best', `Nouveau record ! (avant : ${'⭐'.repeat(before.stars)})`));
@@ -1150,7 +1265,7 @@ function showResult(won) {
     }
     card.append(box);
     const list = [];
-    if (won && next >= 0) list.push(['▶ Niveau suivant', 'primary', () => startLevel(next)]);
+    if (won && next >= 0) list.push([LV.lecon ? `▶ À toi : ${LEVELS[next].nom}` : '▶ Niveau suivant', 'primary', () => startLevel(next)]);
     if (!won) list.push(['💡 Conseil', 'secondary', () => hintDialog()]);
     list.push([won ? '🔁 Rejouer' : '🔁 Réessayer', won && next >= 0 ? 'secondary' : 'primary', () => startLevelQuick(levelIndex)]);
     list.push(['🗺️ Les quartiers', 'secondary', () => { dialog.hidden = true; openLevels(); }]);
@@ -1354,6 +1469,7 @@ function renderStartInfo() {
   else startBtn.textContent = `▶ Continuer : ${lv.qi + 1}-${lv.li + 1} ${lv.nom}`;
 }
 function launchLevel(i) {
+  phoneFullscreen();
   startOverlay.hidden = true;
   if (!save.seenIntro) playIntro(() => startLevel(i));
   else startLevel(i);
@@ -1411,15 +1527,56 @@ $('quitNo').addEventListener('click', () => { quitOverlay.hidden = true; });
 
 /* ---------- Mode téléphone et plein écran ---------- */
 const phoneMQ = window.matchMedia('(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 520px)');
+const landMQ = window.matchMedia('(orientation: landscape)');
 function applyPhoneMode() {
   document.body.classList.toggle('phone', phoneMQ.matches);
   document.body.classList.toggle('full', !phoneMQ.matches);
+  /* téléphone couché : la ville prend toute la hauteur, les panneaux passent à droite */
+  document.body.classList.toggle('side-bar', phoneMQ.matches && landMQ.matches);
   if (phoneMQ.matches) $('goalPanel').classList.add('collapsed');
   requestAnimationFrame(fit);
 }
 applyPhoneMode();
 phoneMQ.addEventListener('change', applyPhoneMode);
+landMQ.addEventListener('change', applyPhoneMode);
 window.addEventListener('resize', () => fit());
+
+/* Téléphone tenu debout pendant une partie : la ville est trop large, on
+   demande de le tourner (une tablette debout garde assez de place). */
+function checkRotate() {
+  const on = phoneMQ.matches && !landMQ.matches && window.innerWidth < 600 && mode !== 'menu'
+    && startOverlay.hidden && introOverlay.hidden && $('guide').hidden;
+  if (rotateOverlay.hidden === on) rotateOverlay.hidden = !on;
+}
+/* sur téléphone, le jeu passe en plein écran et se bloque en paysage
+   (Android ; sur iPhone, l'écran « Tourne ton téléphone » prend le relais) */
+function phoneFullscreen() {
+  if (!phoneMQ.matches) return;
+  const lock = () => {
+    try {
+      const p = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape');
+      if (p && p.catch) p.catch(() => {});
+    } catch (err) { /* pas possible ici */ }
+  };
+  if (isFullscreen()) { lock(); return; }
+  const root = document.documentElement;
+  const req = root.requestFullscreen || root.webkitRequestFullscreen;
+  if (!req) return;
+  try {
+    const p = req.call(root, { navigationUI: 'hide' });
+    if (p && p.then) p.then(lock, () => {});
+    else lock();
+  } catch (err) { /* refusé par le navigateur */ }
+}
+/* sorti du plein écran (geste retour…) : on y retourne au prochain toucher */
+document.addEventListener('pointerup', () => {
+  if (phoneMQ.matches && mode !== 'menu' && startOverlay.hidden && !isFullscreen()) phoneFullscreen();
+});
+$('zoomOutBtn').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  sfx.select();
+  camTo(null);
+});
 if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(stage);
 
 const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -1457,6 +1614,312 @@ document.addEventListener('visibilitychange', () => {
 });
 stage.addEventListener('contextmenu', (e) => e.preventDefault());
 
+/* ---------- La leçon de Zaza (et le « Montre-moi » du bouton 💡) ----------
+   Une leçon est une liste d'étapes (levels/centre.js, champ « lecon ») :
+   la ville roule jusqu'au moment voulu (quand), puis le temps s'arrête, la
+   caméra glisse jusqu'au carrefour, Zaza explique dans sa grande bulle et une
+   main montre quoi toucher. Seul le rond montré répond : impossible de se
+   tromper. Le temps reste arrêté tant que l'enfant n'a pas fait le geste. */
+const HAND = { haut: '👆', bas: '👇', droite: '👉' };
+let handEl = null;                 // le bouton que la main montre (il brille)
+
+function startTuto(steps, mini = false) {
+  stopTuto();
+  tuto = { steps, i: -1, mini, phase: 'run', t0: 0, nope: 0 };
+  document.body.classList.add('tuto-on');
+  bubble.classList.remove('show');
+  copilot.classList.remove('talking');
+  zaza = { until: 0, prio: 0 };
+  nextTutoStep();
+}
+/* on range la leçon sans toucher à la caméra (nouveau niveau) */
+function stopTuto() {
+  tuto = null;
+  tutoEl.hidden = true;
+  tutoHand.hidden = true;
+  setHandTarget(null);
+  document.body.classList.remove('tuto-on');
+}
+function endTuto() {
+  stopTuto();
+  camTo(null);
+}
+const tutoStep = () => (tuto ? tuto.steps[tuto.i] || null : null);
+const tutoAttend = () => { const st = tutoStep(); return (st && tuto.phase === 'run' && st.attend) || null; };
+/* pendant une explication ou un geste demandé, le temps est arrêté */
+function tutoHolds() {
+  if (!tuto || tuto.phase === 'quand') return false;
+  const st = tutoStep();
+  return !(st && st.attend && st.attend.duree && tuto.phase === 'run');
+}
+function nextTutoStep() {
+  if (!tuto) return;
+  tuto.i++;
+  const st = tutoStep();
+  if (!st) { endTuto(); return; }
+  if (st.quand) {
+    /* la ville roule : on la regarde de loin jusqu'au prochain embouteillage */
+    tuto.phase = 'quand';
+    tutoEl.hidden = true;
+    setHandTarget(null);
+    if (camFocus) camTo(null);
+    return;
+  }
+  showTutoStep(st);
+}
+function showTutoStep(st) {
+  tuto.phase = 'run';
+  tuto.t0 = W_.time;
+  if (st.fiche) {
+    tutoEl.hidden = true;
+    setHandTarget(null);
+    const p = PANNEAU_BY_ID[st.fiche];
+    const tk = tuto;
+    signDialog(p, () => { if (tuto === tk) nextTutoStep(); });
+    return;
+  }
+  $('tutoText').textContent = fr(st.dit || '');
+  const next = $('tutoNext');
+  next.hidden = st.attend !== 'suivant';
+  next.textContent = fr(st.bouton || 'Suivant ▶');
+  tutoEl.hidden = false;
+  tutoEl.classList.remove('show');
+  void tutoEl.offsetWidth;
+  tutoEl.classList.add('show');
+  sfx.zaza();
+  if (st.camera === 'tout') camTo(null);
+  else if (st.camera) { const n = nodeAt(st.camera[0], st.camera[1]); if (n) camTo({ x: n.x, y: n.y }); }
+  if (st.attend === 'suivant') setTimeout(() => { if (!next.hidden) next.focus({ preventScroll: true }); }, 60);
+  /* un geste déjà fait (le bon panneau est déjà choisi) : on passe */
+  tutoCheck();
+}
+function tutoAdvance(ms) {
+  const tk = tuto, i = tuto.i;
+  tuto.phase = 'fait';
+  setHandTarget(null);
+  tutoHand.hidden = true;
+  setTimeout(() => { if (tuto === tk && tuto.i === i) nextTutoStep(); }, ms);
+}
+/* l'enfant a-t-il fait ce que Zaza demande ? */
+function tutoCheck() {
+  const a = tutoAttend();
+  if (!a || a === 'suivant') return;
+  if (a.outil && tool === a.outil) tutoAdvance(350);
+  else if (a.pose && a.pose.every((k) => W_.signs[k] === a.panneau)) {
+    tutoAdvance(700);
+    selectTool(null, true);
+  } else if (a.enleve && !W_.signs[a.enleve]) tutoAdvance(500);
+}
+function tutoAllows(slot) {
+  const a = tutoAttend();
+  if (!a) return false;
+  if (a.pose) return a.pose.includes(slot.key) && W_.signs[slot.key] !== a.panneau && tool === a.panneau;
+  if (a.enleve) return a.enleve === slot.key && (!tool || tool === 'enlever');
+  return false;
+}
+/* pas là ! la bulle remue et la main se remet à montrer */
+function tutoNope() {
+  sfx.refus();
+  if (tutoEl.hidden) return;
+  tutoEl.classList.remove('nope');
+  void tutoEl.offsetWidth;
+  tutoEl.classList.add('nope');
+}
+function updateTuto() {
+  if (!tuto || !W_) return;
+  const st = tutoStep();
+  if (!st) return;
+  if (tuto.phase === 'quand') {
+    const q = st.quand;
+    let go = false;
+    if (q.dispute) { const n = nodeAt(q.dispute[0], q.dispute[1]); go = !!n && (jamSince[n.id] || 0) >= 1.0; }
+    if (q.temps != null) go = go || W_.time >= q.temps;
+    if (go) showTutoStep(st);
+    return;
+  }
+  const a = tutoAttend();
+  if (a && a.duree && W_.time - tuto.t0 >= a.duree) tutoAdvance(0);
+}
+/* les ronds que Zaza montre (ils restent allumés même sans panneau choisi) */
+function tutoRonds() {
+  const st = tutoStep();
+  if (!st || tuto.phase === 'quand' || !st.montre) return [];
+  return st.montre.filter((m) => m.rond).map((m) => m.rond);
+}
+function tutoShows(n) {
+  const st = tutoStep();
+  return !!(st && tuto.phase !== 'quand' && st.montre && st.montre.some((m) => m.noeud && m.noeud[0] === n.c && m.noeud[1] === n.r));
+}
+/* les routes colorées : « grande route », « petite route » */
+function drawTutoZones(c, t) {
+  const st = tutoStep();
+  if (!st || tuto.phase === 'quand' || !st.montre) return;
+  /* l'étiquette garde la même taille à l'écran, quel que soit le zoom */
+  const s = Math.min(2.4, Math.max(0.5, 1.25 / view.z));
+  for (const m of st.montre) {
+    if (!m.zone) continue;
+    const [c0, r0, c1, r1] = m.zone;
+    const x = c0 * TILE + 3, y = r0 * TILE + 3, w = (c1 - c0 + 1) * TILE - 6, h = (r1 - r0 + 1) * TILE - 6;
+    c.save();
+    c.globalAlpha = 0.3 + Math.sin(t * 4) * 0.08;
+    c.fillStyle = m.couleur || '#FFE14D';
+    c.beginPath(); c.roundRect(x, y, w, h, 14); c.fill();
+    c.globalAlpha = 0.95;
+    c.strokeStyle = m.couleur || '#FFE14D';
+    c.lineWidth = 4;
+    c.setLineDash([10, 7]);
+    c.lineDashOffset = -t * 20;
+    c.stroke();
+    c.restore();
+    if (m.texte) {
+      /* l'étiquette se pose sur le carreau « etiquette » (loin du carrefour), sinon au milieu */
+      const [lx, ly] = m.etiquette ? [m.etiquette[0] * TILE + TILE / 2, m.etiquette[1] * TILE + TILE / 2] : [x + w / 2, y + h / 2];
+      c.save();
+      c.translate(lx, ly);
+      c.scale(s, s);
+      c.font = '800 15px "Baloo 2", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      const tw = c.measureText(m.texte).width;
+      c.fillStyle = m.couleur || '#FFE14D';
+      c.strokeStyle = INK;
+      c.lineWidth = 2;
+      c.beginPath(); c.roundRect(-tw / 2 - 9, -12, tw + 18, 24, 12); c.fill(); c.stroke();
+      c.fillStyle = INK;
+      c.fillText(m.texte, 0, 1);
+      c.restore();
+    }
+  }
+}
+/* les cercles qui clignotent autour du carrefour et du rond à toucher */
+function drawTutoRings(c, t) {
+  const st = tutoStep();
+  if (!st || tuto.phase === 'quand' || !st.montre) return;
+  for (const m of st.montre) {
+    if (m.noeud) {
+      const n = nodeAt(m.noeud[0], m.noeud[1]);
+      if (!n) continue;
+      c.save();
+      c.strokeStyle = '#FFE14D';
+      c.lineWidth = 4;
+      c.setLineDash([9, 6]);
+      c.lineDashOffset = -t * 24;
+      c.beginPath(); c.arc(n.x, n.y, 50 + Math.sin(t * 5) * 3, 0, TAU); c.stroke();
+      c.restore();
+    }
+    if (m.rond && tuto.phase === 'run') {
+      const slot = W_.slots.find((x) => x.key === m.rond);
+      const a = tutoAttend();
+      if (!slot || (a && a.pose && W_.signs[slot.key] === a.panneau)) continue;
+      const k = (t * 1.6) % 1;
+      c.save();
+      c.strokeStyle = '#FFFFFF';
+      c.globalAlpha = 1 - k;
+      c.lineWidth = 3;
+      c.beginPath(); c.arc(slot.x, slot.y - 4, 12 + k * 22, 0, TAU); c.stroke();
+      c.restore();
+    }
+  }
+}
+/* la main : elle montre le bouton à toucher, ou le rond de la ville */
+function setHandTarget(el) {
+  if (handEl === el) return;
+  if (handEl) handEl.classList.remove('tuto-glow');
+  handEl = el;
+  if (el) el.classList.add('tuto-glow');
+}
+function handTarget() {
+  const st = tutoStep();
+  if (!st || tuto.phase !== 'run' || !st.montre || anyOverlay()) return null;
+  const a = tutoAttend();
+  const want = a && (a.outil || a.panneau || (a.enleve && 'enlever'));
+  /* d'abord le bon panneau, en bas… */
+  const outil = st.montre.find((m) => m.outil);
+  if (outil && tool !== (want || outil.outil)) return { el: toolsEl.querySelector(`[data-tool="${want || outil.outil}"]`) };
+  /* … puis le rond où le poser */
+  for (const m of st.montre) {
+    if (!m.rond) continue;
+    if (a && a.pose && W_.signs[m.rond] === a.panneau) continue;
+    if (a && a.enleve && !W_.signs[m.rond]) continue;
+    const slot = W_.slots.find((x) => x.key === m.rond);
+    if (slot) return { world: [slot.x, slot.y - 4] };
+  }
+  const b = st.montre.find((m) => m.bouton);
+  if (b) return { el: $(b.bouton) };
+  return null;
+}
+function placeHand() {
+  const tg = tuto ? handTarget() : null;
+  setHandTarget(tg && tg.el ? tg.el : null);
+  if (!tg) { tutoHand.hidden = true; return; }
+  let x, y, dir;
+  if (tg.el) {
+    const r = tg.el.getBoundingClientRect();
+    if (!r.width) { tutoHand.hidden = true; return; }
+    if (r.left > window.innerWidth * 0.8 && r.top > 60) { dir = 'droite'; x = r.left - 4; y = r.top + r.height / 2; }
+    else if (r.top > window.innerHeight * 0.55) { dir = 'bas'; x = r.left + r.width / 2; y = r.top - 2; }
+    else { dir = 'haut'; x = r.left + r.width / 2; y = r.bottom + 2; }
+  } else {
+    const sr = stage.getBoundingClientRect();
+    const [sx, sy] = toScreen(tg.world[0], tg.world[1]);
+    x = sr.left + sx;
+    y = sr.top + sy;
+    if (sy > (view.H - view.bottom) * 0.72) { dir = 'bas'; y -= 12; } else { dir = 'haut'; y += 12; }
+  }
+  tutoHand.hidden = false;
+  tutoHand.dataset.dir = dir;
+  tutoHand.firstElementChild.textContent = HAND[dir];
+  tutoHand.style.left = `${Math.round(x)}px`;
+  tutoHand.style.top = `${Math.round(y)}px`;
+}
+$('tutoNext').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  if (tutoAttend() === 'suivant') { sfx.select(); tutoAdvance(0); }
+});
+
+/* « Montre-moi » : Zaza montre un panneau de la solution qui manque encore
+   (de préférence dans un carrefour bloqué), ou un panneau à enlever. */
+const signName = (type) => (type === 'stop' ? 'un STOP' : 'un Cédez-le-passage');
+function showMe() {
+  const keyOf = (s) => `${s.noeud[0]},${s.noeud[1]},${s.cote}`;
+  const sol = LV.solution || [];
+  const want = new Map(sol.map((s) => [keyOf(s), s.panneau]));
+  const missing = sol.filter((s) => W_.signs[keyOf(s)] !== s.panneau);
+  missing.sort((p, q) => {
+    const jp = jamSince[nodeAt(p.noeud[0], p.noeud[1]).id] || 0, jq = jamSince[nodeAt(q.noeud[0], q.noeud[1]).id] || 0;
+    return jq - jp;
+  });
+  const wrong = Object.keys(W_.signs).filter((k) => want.get(k) !== W_.signs[k] && !missing.some((s) => keyOf(s) === k));
+  const slotOf = (k) => W_.slots.find((s) => s.key === k);
+  let step = null;
+  const m = missing[0];
+  if (m) {
+    const k = keyOf(m);
+    const n = nodeAt(m.noeud[0], m.noeud[1]);
+    const freeStock = (W_.stock[m.panneau] || 0) > 0;
+    if (freeStock) {
+      step = {
+        camera: m.noeud,
+        dit: `Essaie ${signName(m.panneau)} ici${n.aveugle && m.panneau === 'stop' ? ' : les haies cachent la vue !' : ' !'}`,
+        montre: [{ outil: m.panneau }, { rond: k }],
+        attend: { pose: [k], panneau: m.panneau },
+      };
+    } else {
+      /* plus de ce panneau en stock : il y en a un de trop ailleurs */
+      const extra = Object.keys(W_.signs).find((x) => W_.signs[x] === m.panneau && want.get(x) !== m.panneau);
+      if (extra) {
+        const sl = slotOf(extra);
+        step = { camera: [sl.node.c, sl.node.r], dit: 'Ce panneau-là n’est pas au bon endroit : enlève-le, tu pourras le poser ailleurs !', montre: [{ outil: 'enlever' }, { rond: extra }], attend: { enleve: extra } };
+      }
+    }
+  } else if (wrong.length) {
+    const sl = slotOf(wrong[0]);
+    step = { camera: [sl.node.c, sl.node.r], dit: 'Ce panneau-là ne sert à rien : enlève-le !', montre: [{ outil: 'enlever' }, { rond: wrong[0] }], attend: { enleve: wrong[0] } };
+  }
+  if (!step) { say('Tous tes panneaux sont bien placés : laisse rouler les voitures !', 2, 4500); return; }
+  startTuto([step], true);
+}
+
 /* ---------- Le pilote automatique (?debug) ---------- */
 function applyAuto() {
   for (const s of autoSteps) {
@@ -1470,6 +1933,20 @@ if (DEBUG) {
   window.__emb = {
     get world() { return W_; },
     get view() { return view; },
+    get tuto() { return tuto && { i: tuto.i, phase: tuto.phase, n: tuto.steps.length, t: W_.time }; },
+    montre: () => showMe(),
+    /* où toucher maintenant (pour les tests) : le bouton de la fenêtre, de la bulle, ou ce que montre la main */
+    cible: () => {
+      const mid = (r) => [r.x + r.width / 2, r.y + r.height / 2];
+      if (!dialog.hidden) return mid(dialogCard.querySelector('button').getBoundingClientRect());
+      if (!$('tutoNext').hidden && !tutoEl.hidden) return mid($('tutoNext').getBoundingClientRect());
+      const tg = tuto && handTarget();
+      if (!tg) return [-5, -5];
+      if (tg.el) return mid(tg.el.getBoundingClientRect());
+      const sr = stage.getBoundingClientRect();
+      const p = toScreen(tg.world[0], tg.world[1]);
+      return [sr.left + p[0], sr.top + p[1]];
+    },
     niveau: (i) => startLevel(i),
     auto: () => { autoSteps = (LV.solution || []).map((s) => ({ ...s })); },
     verifie: () => LEVELS.map((lv) => {
